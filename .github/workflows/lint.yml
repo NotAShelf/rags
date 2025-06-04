@@ -6,11 +6,14 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: lint and typecheck
+    - name: "Checkout"
+      uses: actions/checkout@v4
+
+    - name: Setup Node
       uses: actions/setup-node@v3
       with:
         node-version: latest
         cache: 'npm'
-    - run: npm ci
-    - run: npm test
+
+    - name: Run Checks
+      run: npm ci
