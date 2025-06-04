@@ -2,7 +2,7 @@
   description = "A customizable and extensible shell";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
 
     # «https://github.com/nix-systems/nix-systems»
     systems.url = "github:nix-systems/default-linux";
@@ -20,18 +20,19 @@
     packages = genSystems (system: let
       inherit (pkgs.${system}) callPackage;
     in {
-      default = callPackage ./nix {inherit version;};
-      ags = self.packages.${system}.default;
-      agsWithTypes = self.packages.${system}.default; # for backwards compatibility
+      ags = callPackage ./nix/package.nix {inherit version;};
       agsNoTypes = callPackage ./nix {
         inherit version;
         buildTypes = false;
       };
+
+      default = self.packages.${system}.ags;
     });
 
-    homeManagerModules = {
-      default = self.homeManagerModules.ags;
-      ags = import ./nix/hm-module.nix self;
-    };
+    devShells = genSystems (system: let
+      inherit (pkgs.${system}) callPackage;
+    in {
+      default = callPackage ./nix/shell.nix {};
+    });
   };
 }

@@ -103,12 +103,12 @@ in
     outputs = ["out" "lib"];
 
     meta = {
-      description = "A customizable and extensible shell";
-      homepage = "https://github.com/Aylur/ags";
-      changelog = "https://github.com/Aylur/ags/blob/${version}/CHANGELOG.md";
+      description = "Customizable and extensible shell";
+      homepage = "https://github.com/NotAShelf/ags";
+      changelog = "https://github.com/NotAShelf/ags/blob/${version}/CHANGELOG.md";
       platforms = ["x86_64-linux" "aarch64-linux"];
       license = lib.licenses.gpl3;
       mainProgram = "ags";
-      maintainers = [lib.maintainers.Aylur];
+      maintainers = [lib.maintainers.NotAShelf];
     };
   }
