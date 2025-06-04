@@ -20,7 +20,7 @@ jobs:
             cd ..
             tar -czf "ags-${{ github.ref_name }}.tar.gz" "ags"
       - name: setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: latest
       - name: npm install
