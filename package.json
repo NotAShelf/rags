@@ -5,10 +5,9 @@
   "author": "NotAShelf",
   "license": "GPL",
   "dependencies": {
-    "typescript": "^5.8.3"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.28.0",
+    "@girs/gdk-3.0": "3.24.50-4.0.0-beta.23",
+    "@girs/gio-2.0": "2.84.0-4.0.0-beta.23",
+    "@girs/glib-2.0": "2.84.0-4.0.0-beta.23",
     "@girs/cairo-1.0": "1.0.0-4.0.0-beta.23",
     "@girs/dbusmenugtk3-0.4": "0.4.0-4.0.0-beta.23",
     "@girs/gjs": "4.0.0-beta.23",
@@ -17,6 +16,10 @@
     "@girs/nm-1.0": "1.49.4-4.0.0-beta.23",
     "@girs/notify-0.7": "0.8.4-4.0.0-beta.23",
     "@girs/soup-3.0": "3.6.4-4.0.0-beta.23",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
     "@typescript-eslint/eslint-plugin": "^8.33.1",
     "@typescript-eslint/parser": "^8.33.1",
     "eslint": "^9.28.0",
