@@ -1,9 +1,11 @@
 {
   lib,
   stdenv,
-  buildNpmPackage,
   fetchFromGitLab,
-  nodePackages,
+  # Build Deps
+  pnpm,
+  nodejs,
+  typescript,
   meson,
   pkg-config,
   ninja,
@@ -36,36 +38,46 @@
     sha256 = "sha256-FosJwgTCp6/EI6WVbJhPisokRBA6oT0eo7d+Ya7fFX8=";
   };
 in
-  stdenv.mkDerivation {
+  stdenv.mkDerivation (finalAttrs: {
     inherit pname version;
 
-    src = buildNpmPackage {
-      name = pname;
+    src = let
+      fs = lib.fileset;
+      sp = ../.;
+    in
+      fs.toSource {
+        root = sp;
 
-      src = builtins.path {
-        name = "ags-${version}";
-        path = lib.cleanSource ../.;
+        fileset = fs.intersection (fs.fromSource (lib.sources.cleanSource sp)) (
+          fs.unions [
+            ../src
+            ../subprojects
+            ../types
+            ../package.json
+            ../pnpm-lock.yaml
+            ../post_install.sh
+            ../meson_options.txt
+            ../meson.build
+            ../tsconfig.json
+          ]
+        );
       };
 
-      dontBuild = true;
-
-      npmDepsHash = "sha256-ucWdADdMqAdLXQYKGOXHNRNM9bhjKX4vkMcQ8q/GZ20=";
-
-      installPhase = ''
-        runHook preInstall
-        mkdir $out
-        cp -r * $out
-        runHook postInstall
-      '';
+    pnpmDeps = pnpm.fetchDeps {
+      inherit (finalAttrs) pname src;
+      hash = "sha256-3aERy7lT7Hv8DhvwiNSujagVV19eUxEmbbOjzlQe/zo=";
     };
 
     nativeBuildInputs = [
       pkg-config
       meson
       ninja
-      nodePackages.typescript
+      typescript
       wrapGAppsHook
       gobject-introspection
+
+      nodejs
+      pnpm.configHook
     ];
 
     buildInputs =
@@ -96,19 +108,26 @@ in
     '';
 
     postPatch = ''
-      chmod +x post_install.sh
-      patchShebangs post_install.sh
+      chmod u+x ./post_install.sh && patchShebangs ./post_install.sh
+    '';
+
+    preBuild = ''
+      export NODE_PATH="$PWD/node_modules:$NODE_PATH"
+    '';
+
+    postInstall = (lib.optionalString buildTypes) ''
+      cp -rvf ./types $lib
     '';
 
     outputs = ["out" "lib"];
 
     meta = {
       description = "Customizable and extensible shell";
-      homepage = "https://github.com/NotAShelf/ags";
-      changelog = "https://github.com/NotAShelf/ags/blob/${version}/CHANGELOG.md";
+      homepage = "https://github.com/NotAShelf/rags";
+      changelog = "https://github.com/NotAShelf/rags/blob/${version}/CHANGELOG.md";
       platforms = ["x86_64-linux" "aarch64-linux"];
       license = lib.licenses.gpl3;
       mainProgram = "ags";
       maintainers = [lib.maintainers.NotAShelf];
     };
-  }
+  })
