@@ -1,15 +1,57 @@
-# Aylur's Gtk Shell
+# RAGS (raf's AGS)
 
-> [!IMPORTANT]
-> A major update is currently in progress. Before opening a new issue or submitting a pull request, checkout [#504](https://github.com/Aylur/ags/pull/504).
+## Synopsis
 
-This is a library built for [GJS](https://gitlab.gnome.org/GNOME/gjs) to allow defining GTK widgets in a declarative way. It also provides services and other utilities to interact with the system so that these widgets can have functionality.
-GJS is a JavaScript runtime built on Firefox's SpiderMonkey JavaScript engine and the GNOME platform libraries, the same runtime [GNOME Shell](https://gitlab.gnome.org/GNOME/gnome-shell) runs on. 
+[Aylur's GTK Shell]: https://github.com/aylur/ags
 
-It was heavily inspired by [EWW](https://github.com/elkowar/eww).
+RAGS is a fork of [Aylur's GTK Shell] (AGS), based on the last available v1 tag.
+This project exists primarily due to the fact that I _simply do not care about
+the new features_, and remain inconvenienced by the prospect of migrating to v2.
+I also find the new syntax wildly unintuitive, so migration is simply non-ideal.
 
-Currently, only Wayland is supported, but it also works on X11, [see #19](https://github.com/Aylur/ags/issues/19).
+The purpose of this fork is to keep AGS v1 usable. I will focus primarily on
+performance and security, as well as packaging. The goal is to avoid bitrot with
+as few feature additions as possible. That said, I _am_ open to feature requests
+or even pull requests if you wish to stick to v1, but have certain (minor)
+gripes that are annoying you.
 
-## Get started
+### What is AGS?
 
-To get started read the [wiki](https://aylur.github.io/ags-docs).
+[GJS]: https://gitlab.gnome.org/GNOME/gjs
+[GNOME Shell]: https://gitlab.gnome.org/GNOME/gnome-shell
+
+(R)AGS is a library built for [GJS] to allow defining GTK widgets in a
+declarative way. It also provides services and other utilities to interact with
+the system so that these widgets can have functionality. GJS is a JavaScript
+runtime built on Firefox's SpiderMonkey JavaScript engine and the GNOME platform
+libraries, the same runtime [GNOME Shell] runs on.
+
+### Why Fork?
+
+I simply do not wish to switch to AGS v2. The documentation is still subpar, and
+the now scattered documentation for AGS and Astal started getting on my nerves
+while trying to migrate. As such I want to continue using v1, but also ensure
+that it remains usable for the duration I continue using it. Maybe you are in a
+similar position, and could benefit from a public fork.
+
+## Future Plans
+
+My main plans for RAGS is to focus solely on performance and security. I will
+add no new widgets, as I have no need for them. What I really want to do is to
+make sure that the codebase ages well, and maybe even add a dash of Rust (likely
+via WASM) wherever it may provide performance or maintainability benefits.
+
+## Attributions
+
+[Aylur]: https://github.com/aylur
+[EWW]: https://github.com/elkowar/eww
+
+First and foremost, I thank [Aylur] for creating such an extensive framework. It
+has been serving me well for over a year, and it will continue to do so for the
+foreseeable future. The original AGS was heavily inspired by [EWW], and as such
+I extend my thanks to EWW as well.
+
+## License
+
+RAGS is released under [GPL v3](./LICENSE) following upstream license. Please
+respect the original author if forking this repository.
