@@ -1,8 +1,8 @@
 {
-  description = "A customizable and extensible shell";
+  description = "RAGS - raf's (fork of) AGS ";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
 
     # «https://github.com/nix-systems/nix-systems»
     systems.url = "github:nix-systems/default-linux";
@@ -10,8 +10,8 @@
 
   outputs = {
     nixpkgs,
-    self,
     systems,
+    self,
   }: let
     version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./version);
     genSystems = nixpkgs.lib.genAttrs (import systems);
@@ -20,18 +20,32 @@
     packages = genSystems (system: let
       inherit (pkgs.${system}) callPackage;
     in {
-      default = callPackage ./nix {inherit version;};
-      ags = self.packages.${system}.default;
-      agsWithTypes = self.packages.${system}.default; # for backwards compatibility
-      agsNoTypes = callPackage ./nix {
-        inherit version;
-        buildTypes = false;
-      };
+      ags = callPackage ./nix/package.nix {inherit version;};
+      default = self.packages.${system}.ags;
+      agsNoTypes = self.packages.${system}.ags.override {buildTypes = false;};
     });
 
     homeManagerModules = {
-      default = self.homeManagerModules.ags;
       ags = import ./nix/hm-module.nix self;
+      default = self.homeManagerModules.ags;
     };
+
+    formatter = genSystems (
+      system: let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+        pkgs.writeShellApplication {
+          name = "nix3-fmt-wrapper";
+
+          runtimeInputs = [
+            pkgs.alejandra
+            pkgs.fd
+          ];
+
+          text = ''
+            fd "$@" -t f -e nix -x alejandra -q '{}'
+          '';
+        }
+    );
   };
 }

@@ -33,7 +33,7 @@
     owner = "GNOME";
     repo = "libgnome-volume-control";
     rev = "8e7a5a4c3e51007ce6579292642517e3d3eb9c50";
-    sha256 = "sha256-FosJwgTCp6/EI6WVbJhPisokRBA6oT0eo7d+Ya7fFX8=";
+    hash = "sha256-FosJwgTCp6/EI6WVbJhPisokRBA6oT0eo7d+Ya7fFX8=";
   };
 in
   stdenv.mkDerivation {
@@ -42,9 +42,21 @@ in
     src = buildNpmPackage {
       name = pname;
 
-      src = builtins.path {
-        name = "ags-${version}";
-        path = lib.cleanSource ../.;
+      src = lib.fileset.toSource {
+        root = ../.;
+        fileset = lib.fileset.unions [
+          ../src
+          ../subprojects
+          ../types
+
+          ../meson.build
+          ../meson_options.txt
+          ../package-lock.json
+          ../package.json
+          ../post_install.sh
+          ../.gitmodules
+          ../tsconfig.json
+        ];
       };
 
       dontBuild = true;
@@ -103,12 +115,12 @@ in
     outputs = ["out" "lib"];
 
     meta = {
-      description = "A customizable and extensible shell";
-      homepage = "https://github.com/Aylur/ags";
-      changelog = "https://github.com/Aylur/ags/blob/${version}/CHANGELOG.md";
+      description = "Customizable and extensible shell";
+      homepage = "https://github.com/notashelf/rags";
+      changelog = "https://github.com/notashelf/rags/blob/${version}/CHANGELOG.md";
       platforms = ["x86_64-linux" "aarch64-linux"];
       license = lib.licenses.gpl3;
       mainProgram = "ags";
-      maintainers = [lib.maintainers.Aylur];
+      maintainers = [lib.maintainers.NotAShelf];
     };
   }
