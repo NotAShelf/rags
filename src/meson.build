@@ -6,7 +6,7 @@ typescript = custom_target(
   input: files( 'main.ts' ),
   build_by_default: true,
   build_always_stale: true,
-  command: [ tsc, '--outDir', tsc_out ],
+  command: [ 'sh', '-c', 'cd @0@ && @1@ --outDir @2@'.format(meson.project_source_root(), tsc.full_path(), tsc_out) ],
   output: ['tsc-output'],
 )
 

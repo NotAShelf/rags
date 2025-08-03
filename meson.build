@@ -1,8 +1,8 @@
 project('ags', 'c',
-          version: run_command('cat', join_paths(meson.project_source_root(), 'version')).stdout().strip(),
-    meson_version: '>= 0.62.0',
-    	  license: ['GPL-3.0-or-later'],
-  default_options: [ 'warning_level=2', 'werror=false', ],
+  version: run_command('cat', join_paths(meson.project_source_root(), 'version')).stdout().strip(),
+  meson_version: '>= 0.62.0',
+  license: ['GPL-3.0-or-later'],
+  default_options: [ 'warning_level=2', 'werror=false', 'c_args=-Wno-unused-parameter -Wno-sign-compare' ],
 )
 
 app_id = 'com.github.Aylur.ags'
