@@ -15,20 +15,34 @@
   }: let
     version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./version);
     genSystems = nixpkgs.lib.genAttrs (import systems);
-    pkgs = genSystems (system: import nixpkgs {inherit system;});
+    pkgsForEach = nixpkgs.legacyPackages;
   in {
+    homeManagerModules = {
+      ags = import ./nix/hm-module.nix self;
+      default = self.homeManagerModules.ags;
+    };
+
     packages = genSystems (system: let
-      inherit (pkgs.${system}) callPackage;
+      inherit (pkgsForEach.${system}) callPackage;
     in {
       ags = callPackage ./nix/package.nix {inherit version;};
       default = self.packages.${system}.ags;
       agsNoTypes = self.packages.${system}.ags.override {buildTypes = false;};
     });
 
-    homeManagerModules = {
-      ags = import ./nix/hm-module.nix self;
-      default = self.homeManagerModules.ags;
-    };
+    devShells = genSystems (system: let
+      pkgs = pkgsForEach.${system};
+    in {
+      default = pkgs.mkShellNoCC {
+        name = "ags";
+        packages = with pkgs; [
+          nodejs-slim
+          pnpm
+          typescript
+          nodePackages.ts-node
+        ];
+      };
+    });
 
     formatter = genSystems (
       system: let
