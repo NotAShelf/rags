@@ -1,0 +1,36 @@
+---
+title: Aylur's GTK Shell
+description: The best way to make beautiful and functional widgets on wayland
+template: splash
+hero:
+  tagline: The best way to make <i>beautiful</i> <b>and</b> <i>functional</i> wayland widgets (and more)!
+  actions:
+    - text: Get Started
+      link: /ags-docs/config/installation/
+      icon: right-arrow
+      variant: primary
+    - text: GitHub
+      link: https://github.com/Aylur/ags
+      icon: github
+banner:
+  content: You are looking at the legacy documentation of AGS v1. Go to <a href="https://aylur.github.io/ags/">aylur.github.io/ags</a> for AGS v2.
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Documentation
+
+<CardGrid>
+	<Card title="Widgets" icon="open-book">
+        List of Builtin [Widgets](./config/widgets)
+	</Card>
+	<Card title="Services" icon="open-book">
+        List of Builtin [Services](./config/services#list-of-builtin-services)
+	</Card>
+	<Card title="Utilities" icon="open-book">
+		[Utility functions](./config/utils)
+	</Card>
+	<Card title="Examples" icon="open-book">
+		Have a look at some simple and not simple [examples](./config/examples)
+	</Card>
+</CardGrid>

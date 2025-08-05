@@ -1,6 +1,27 @@
+# Build Outputs
+**/dist/
+**/_build/
+**/build/
+
+# Generated types
+.astro/
+
+# Dependencies
 node_modules
-_build
-build
-run.sh
-tmp
-result
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.production
+
+# macOS-specific files
+.DS_Store
+
+# Nix
+result*
+/.direnv/
