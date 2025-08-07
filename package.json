@@ -1,15 +1,13 @@
 {
-  "name": "rags-monorepo",
+  "name": "rags",
   "private": true,
   "workspaces": [
     "ags",
     "ags-docs"
   ],
   "scripts": {
-    "build": "npm run build -w ags && npm run build -w ags-docs",
-    "lint": "npm run lint -w ags",
-    "test": "npm run test -w ags",
-    "docs:dev": "npm run dev -w ags-docs",
-    "docs:build": "npm run build -w ags-docs"
+    "lint:ags": "npm run lint -w ags",
+    "test:ags": "npm run test -w ags",
+    "build:docs": "npm run build -w ags-docs"
   }
 }
