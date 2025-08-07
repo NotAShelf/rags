@@ -1,6 +1,7 @@
 {
   lib,
   stdenv,
+  importNpmLock,
   buildNpmPackage,
   fetchFromGitLab,
   nodePackages,
@@ -40,7 +41,8 @@ in
     inherit pname version;
 
     src = buildNpmPackage {
-      name = pname;
+      pname = "ags-deps";
+      version = "#";
 
       src = lib.fileset.toSource {
         root = ../.;
@@ -49,24 +51,31 @@ in
           ../subprojects
           ../types
 
-          ../meson.build
-          ../meson_options.txt
           ../package-lock.json
           ../package.json
+
+          ../meson.build
+          ../meson_options.txt
           ../post_install.sh
-          ../.gitmodules
           ../tsconfig.json
+          ../version
         ];
       };
 
-      dontBuild = true;
+      dontNpmBuild = true;
+      dontNpmPrune = true;
 
-      npmDepsHash = "sha256-ucWdADdMqAdLXQYKGOXHNRNM9bhjKX4vkMcQ8q/GZ20=";
+      npmWorkspace = "ags";
+      npmPackFlags = ["--ignore-scripts"];
+      npmDeps = importNpmLock {npmRoot = ../.;};
+      npmConfigHook = importNpmLock.npmConfigHook;
 
       installPhase = ''
         runHook preInstall
-        mkdir $out
-        cp -r * $out
+
+        mkdir -p $out
+        cp -rv * $out
+
         runHook postInstall
       '';
     };
