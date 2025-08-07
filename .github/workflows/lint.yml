@@ -6,11 +6,14 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: lint and typecheck
-      uses: actions/setup-node@v3
-      with:
-        node-version: latest
-        cache: 'npm'
-    - run: npm ci
-    - run: npm test
+      - uses: actions/checkout@v4
+      - name: lint and typecheck
+        uses: actions/setup-node@v3
+        with:
+          node-version: latest
+          cache: "npm"
+          cache-dependency-path: ags/package-lock.json
+      - run: npm ci
+        working-directory: ags
+      - run: npm test
+        working-directory: ags
