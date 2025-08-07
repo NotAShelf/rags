@@ -7,7 +7,9 @@
         "start": "astro dev",
         "build": "astro check && astro build",
         "preview": "astro preview",
-        "astro": "astro"
+        "astro": "astro",
+        "lint": "echo \"No linting for docs\"",
+        "test": "npm run build"
     },
     "dependencies": {
         "@astrojs/check": "^0.3.4",
