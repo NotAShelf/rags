@@ -43,19 +43,19 @@ in
       name = pname;
 
       src = lib.fileset.toSource {
-        root = ../.;
+        root = ../ags;
         fileset = lib.fileset.unions [
-          ../src
-          ../subprojects
-          ../types
+          ../ags/src
+          ../ags/subprojects
+          ../ags/types
 
-          ../meson.build
-          ../meson_options.txt
-          ../package-lock.json
-          ../package.json
-          ../post_install.sh
-          ../.gitmodules
-          ../tsconfig.json
+          ../ags/meson.build
+          ../ags/meson_options.txt
+          ../ags/package-lock.json
+          ../ags/package.json
+          ../ags/post_install.sh
+          ../ags/tsconfig.json
+          ../ags/version
         ];
       };
 
