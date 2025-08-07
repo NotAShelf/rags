@@ -34,12 +34,22 @@ while trying to migrate. As such I want to continue using v1, but also ensure
 that it remains usable for the duration I continue using it. Maybe you are in a
 similar position, and could benefit from a public fork.
 
+### Documentation
+
+The documentation for RAGS now lives in the repository, which has been upgraded
+to a monorepo for organization and ease of development.
+
 ## Future Plans
 
 My main plans for RAGS is to focus solely on performance and security. I will
 add no new widgets, as I have no need for them. What I really want to do is to
 make sure that the codebase ages well, and maybe even add a dash of Rust (likely
 via WASM) wherever it may provide performance or maintainability benefits.
+
+Please see my [TODO file](./TODO) more more details on what is to come. If you
+have any other requests, create an issue. I would like to work on any and all
+changes that provide a tangible benefit to those planning to stay on AGS v1 for
+the foreseeable future.
 
 ## Attributions
 

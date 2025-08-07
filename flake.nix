@@ -13,7 +13,7 @@
     systems,
     self,
   }: let
-    version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./version);
+    version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./ags/version);
     genSystems = nixpkgs.lib.genAttrs (import systems);
     pkgsForEach = nixpkgs.legacyPackages;
   in {
