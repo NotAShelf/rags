@@ -33,13 +33,14 @@
     devShells = genSystems (system: let
       pkgs = pkgsForEach.${system};
     in {
-      default = pkgs.mkShellNoCC {
+      default = pkgs.mkShell {
         name = "ags";
         packages = with pkgs; [
           nodejs-slim
           pnpm
           typescript
           nodePackages.ts-node
+          meson
         ];
       };
     });
