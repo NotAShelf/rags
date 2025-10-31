@@ -12,7 +12,7 @@
   gtk3,
   libpulseaudio,
   gjs,
-  wrapGAppsHook,
+  wrapGAppsHook3,
   upower,
   gnome-bluetooth,
   gtk-layer-shell,
@@ -85,7 +85,7 @@ in
       meson
       ninja
       nodePackages.typescript
-      wrapGAppsHook
+      wrapGAppsHook3
       gobject-introspection
     ];
 
