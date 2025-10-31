@@ -11,7 +11,7 @@ type Ico = string | GdkPixbuf.Pixbuf
 export type IconProps<
     Attr = unknown,
     Self = Icon<Attr>,
-> = BaseProps<Self, Gtk.Image.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Image.ConstructorProps & {
     size?: number
     icon?: Ico;
 }, Attr>
@@ -33,11 +33,11 @@ export class Icon<Attr> extends Gtk.Image {
         });
     }
 
-    constructor(props: IconProps<Attr> | Ico = {}) {
+    constructor(props: IconProps<Attr> | Ico = {} as IconProps<Attr>) {
         const { icon = '', ...rest } = props as IconProps<Attr>;
         super(typeof props === 'string' || props instanceof GdkPixbuf.Pixbuf
             ? {}
-            : rest as Gtk.Image.ConstructorProperties);
+            : rest as Gtk.Image.ConstructorProps);
 
         // jsobject pspec can't take a string, so we have to set it after the constructor
         this._handleParamProp('icon',
@@ -122,7 +122,7 @@ export class Icon<Attr> extends Gtk.Image {
         if (this._previousSize !== this.size)
             this._size();
 
-        return super.vfunc_draw(cr);
+        return super.vfunc_draw(cr as any);
     }
 }
 

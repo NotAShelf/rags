@@ -4,7 +4,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 export type SeparatorProps<
     Attr = unknown,
     Self = Separator<Attr>,
-> = BaseProps<Self, Gtk.Separator.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Separator.ConstructorProps & {
     vertical?: boolean
 }, Attr>;
 
@@ -14,7 +14,6 @@ export function newSeparator<
     return new Separator(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Separator<Attr> extends Widget<Attr> { }
 export class Separator<Attr> extends Gtk.Separator {
     static {
@@ -25,8 +24,8 @@ export class Separator<Attr> extends Gtk.Separator {
         });
     }
 
-    constructor(props: SeparatorProps<Attr> = {}) {
-        super(props as Gtk.Separator.ConstructorProperties);
+    constructor(props: SeparatorProps<Attr> = {} as SeparatorProps<Attr>) {
+        super(props as Gtk.Separator.ConstructorProps);
         this.connect('notify::orientation', () => this.notify('vertical'));
     }
 

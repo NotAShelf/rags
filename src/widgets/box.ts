@@ -5,7 +5,7 @@ export type BoxProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = Box<Child, Attr>
-> = BaseProps<Self, Gtk.Box.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Box.ConstructorProps & {
     child?: Child
     children?: Child[]
     vertical?: boolean
@@ -18,7 +18,6 @@ export function newBox<
     return new Box(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Box<Child, Attr> extends Widget<Attr> { }
 export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
     static {
@@ -30,8 +29,11 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
         });
     }
 
-    constructor(propsOrChildren: BoxProps<Child, Attr> | Child[] = {}, ...children: Gtk.Widget[]) {
-        const props = Array.isArray(propsOrChildren) ? {} : propsOrChildren;
+    constructor(
+        propsOrChildren: BoxProps<Child, Attr> | Child[] = {} as BoxProps<Child, Attr>,
+        ...children: Gtk.Widget[]
+    ) {
+        const props: any = Array.isArray(propsOrChildren) ? {} : propsOrChildren;
 
         if (Array.isArray(propsOrChildren))
             props.children = propsOrChildren;
@@ -39,7 +41,7 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
         else if (children.length > 0)
             props.children = children as Child[];
 
-        super(props as Gtk.Box.ConstructorProperties);
+        super(props as Gtk.Box.ConstructorProps);
         this.connect('notify::orientation', () => this.notify('vertical'));
     }
 

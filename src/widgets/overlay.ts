@@ -6,7 +6,7 @@ export type OverlayProps<
     OverlayChild extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = Overlay<Child, OverlayChild, Attr>,
-> = BaseProps<Self, Gtk.Overlay.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Overlay.ConstructorProps & {
     pass_through?: boolean
     overlays?: OverlayChild[]
     overlay?: OverlayChild
@@ -21,7 +21,6 @@ export function newOverlay<
     return new Overlay(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Overlay<Child, OverlayChild, Attr> extends Widget<Attr> { }
 export class Overlay<
     Child extends Gtk.Widget,
@@ -39,7 +38,8 @@ export class Overlay<
     }
 
     constructor(
-        props: OverlayProps<Child, OverlayChild, Attr> = {},
+        props: OverlayProps<Child, OverlayChild, Attr> = {} as
+            OverlayProps<Child, OverlayChild, Attr>,
         child?: Child,
         ...overlays: Gtk.Widget[]
     ) {
@@ -49,7 +49,7 @@ export class Overlay<
         if (overlays.length > 0)
             props.overlays = overlays as OverlayChild[];
 
-        super(props as Gtk.Overlay.ConstructorProperties);
+        super(props as Gtk.Overlay.ConstructorProps);
     }
 
     private _updatePassThrough() {

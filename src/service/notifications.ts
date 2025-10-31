@@ -172,21 +172,21 @@ export class Notification extends Service {
         this._time = GLib.DateTime.new_now_local().to_unix();
         this._image = this._appIconImage() ||
             this._parseImageData(hints['image-data']) ||
-            hints['image-path']?.unpack();
+            (hints['image-path']?.unpack() as string | undefined);
 
         this._popup = popup;
-        this._urgency = _URGENCY(hints['urgency']?.unpack());
+        this._urgency = _URGENCY(hints['urgency']?.unpack() as number | undefined);
 
-        this._appEntry = hints['desktop-entry']?.unpack();
-        this._actionIcons = hints['action-icons']?.unpack();
-        this._category = hints['category']?.unpack();
-        this._resident = hints['resident']?.unpack();
-        this._soundFile = hints['sound-file']?.unpack();
-        this._soundName = hints['sound-name']?.unpack();
-        this._suppressSound = hints['suppress-sound']?.unpack();
-        this._transient = hints['transient']?.unpack();
-        this._x = hints['x']?.unpack();
-        this._y = hints['y']?.unpack();
+        this._appEntry = hints['desktop-entry']?.unpack() as string | undefined;
+        this._actionIcons = hints['action-icons']?.unpack() as boolean | undefined;
+        this._category = hints['category']?.unpack() as string | undefined;
+        this._resident = hints['resident']?.unpack() as boolean | undefined;
+        this._soundFile = hints['sound-file']?.unpack() as string | undefined;
+        this._soundName = hints['sound-name']?.unpack() as string | undefined;
+        this._suppressSound = hints['suppress-sound']?.unpack() as boolean | undefined;
+        this._transient = hints['transient']?.unpack() as boolean | undefined;
+        this._x = hints['x']?.unpack() as number | undefined;
+        this._y = hints['y']?.unpack() as number | undefined;
         this._hints = hints;
     }
 

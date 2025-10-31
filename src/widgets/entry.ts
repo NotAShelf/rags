@@ -6,7 +6,7 @@ type EventHandler<Self> = (self: Self) => void | unknown;
 export type EntryProps<
     Attr = unknown,
     Self = Entry<Attr>,
-> = BaseProps<Self, Gtk.Entry.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Entry.ConstructorProps & {
     on_accept?: EventHandler<Self>
     on_change?: EventHandler<Self>
 }, Attr>
@@ -28,8 +28,8 @@ export class Entry<Attr> extends Gtk.Entry {
         });
     }
 
-    constructor(props: EntryProps<Attr> = {}) {
-        super(props as Gtk.Entry.ConstructorProperties);
+    constructor(props: EntryProps<Attr> = {} as EntryProps<Attr>) {
+        super(props as Gtk.Entry.ConstructorProps);
 
         this.connect('activate', () => this.on_accept?.(this));
         this.connect('notify::text', () => this.on_change?.(this));

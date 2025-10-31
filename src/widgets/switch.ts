@@ -6,7 +6,7 @@ type Event<Self> = (self: Self) => void | boolean
 export type SwitchProps<
     Attr = unknown,
     Self = Switch<Attr>,
-> = BaseProps<Self, Gtk.Switch.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Switch.ConstructorProps & {
     on_activate?: Event<Self>
 }, Attr>;
 
@@ -26,8 +26,8 @@ export class Switch<Attr> extends Gtk.Switch {
         });
     }
 
-    constructor(props: SwitchProps<Attr> = {}) {
-        super(props as Gtk.Switch.ConstructorProperties);
+    constructor(props: SwitchProps<Attr> = {} as SwitchProps<Attr>) {
+        super(props as Gtk.Switch.ConstructorProps);
         this.connect('notify::active', this.on_activate.bind(this));
     }
 

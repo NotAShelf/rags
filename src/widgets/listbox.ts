@@ -6,7 +6,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 export type ListBoxProps<
     Attr = unknown,
     Self = ListBox<Attr>,
-> = BaseProps<Self, Gtk.ListBox.ConstructorProperties, Attr>
+> = BaseProps<Self, Gtk.ListBox.ConstructorProps, Attr>
 
 export function newListBox<
     Attr = unknown
@@ -18,8 +18,8 @@ export interface ListBox<Attr> extends Widget<Attr> { }
 export class ListBox<Attr> extends Gtk.ListBox {
     static { register(this); }
 
-    constructor(props: ListBoxProps<Attr> = {}) {
-        super(props as Gtk.ListBox.ConstructorProperties);
+    constructor(props: ListBoxProps<Attr> = {} as ListBoxProps<Attr>) {
+        super(props as Gtk.ListBox.ConstructorProps);
     }
 }
 

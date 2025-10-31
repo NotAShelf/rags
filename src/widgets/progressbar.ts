@@ -4,7 +4,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 export type ProgressBarProps<
     Attr = unknown,
     Self = ProgressBar<Attr>,
-> = BaseProps<Self, Gtk.ProgressBar.ConstructorProperties & {
+> = BaseProps<Self, Gtk.ProgressBar.ConstructorProps & {
     vertical?: boolean
     value?: number
 }, Attr>
@@ -26,8 +26,8 @@ export class ProgressBar<Attr> extends Gtk.ProgressBar {
         });
     }
 
-    constructor(props: ProgressBarProps<Attr> = {}) {
-        super(props as Gtk.ProgressBar.ConstructorProperties);
+    constructor(props: ProgressBarProps<Attr> = {} as ProgressBarProps<Attr>) {
+        super(props as Gtk.ProgressBar.ConstructorProps);
         this.connect('notify::fraction', () => this.notify('value'));
         this.connect('notify::orientation', () => this.notify('vertical'));
     }

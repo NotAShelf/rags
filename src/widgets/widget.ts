@@ -258,11 +258,11 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
 
     _init(
         config: BaseProps<this,
-            Gtk.Widget.ConstructorProperties & { child?: Gtk.Widget },
-            Attr> = {},
+            Gtk.Widget.ConstructorProps & { child?: Gtk.Widget },
+            Attr> = {} as any,
         child?: Gtk.Widget,
     ) {
-        const { setup, attribute, ...props } = config;
+        const { setup, attribute, ...props } = config || {};
 
         const binds = (Object.keys(props) as Array<keyof typeof props>)
             .map(prop => {
@@ -277,7 +277,7 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         if (child)
             props.child = child;
 
-        super._init(props as Gtk.Widget.ConstructorProperties);
+        super._init(props as Gtk.Widget.ConstructorProps);
 
         if (attribute !== undefined)
             this._set('attribute', attribute);

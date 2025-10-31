@@ -170,7 +170,7 @@ export class Hyprland extends Service {
                 return console.error('Error reading Hyprland socket');
 
             const [line] = stream.read_line_finish(result);
-            this._onEvent(this._decoder.decode(line));
+            this._onEvent(this._decoder.decode(line || new Uint8Array()));
             this._watchSocket(stream);
         });
     }

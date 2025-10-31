@@ -7,8 +7,8 @@ export type ToggleButtonProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = ToggleButton<Child, Attr>,
-> = BaseProps<Self, Gtk.ToggleButton.ConstructorProperties & {
-    child?: Child
+> = BaseProps<Self, Gtk.ToggleButton.ConstructorProps & {
+    child?: Child,
     on_toggled?: Event<Self>
 }, Attr>;
 
@@ -19,7 +19,6 @@ export function newToggleButton<
     return new ToggleButton(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface ToggleButton<Child, Attr> extends Widget<Attr> { }
 export class ToggleButton<Child extends Gtk.Widget, Attr> extends Gtk.ToggleButton {
     static {
@@ -30,11 +29,14 @@ export class ToggleButton<Child extends Gtk.Widget, Attr> extends Gtk.ToggleButt
         });
     }
 
-    constructor(props: ToggleButtonProps<Child, Attr> = {}, child?: Child) {
+    constructor(
+        props: ToggleButtonProps<Child, Attr> = {} as ToggleButtonProps<Child, Attr>,
+        child?: Child,
+    ) {
         if (child)
             props.child = child;
 
-        super(props as Gtk.ToggleButton.ConstructorProperties);
+        super(props as Gtk.ToggleButton.ConstructorProps);
         this.connect('toggled', this.on_toggled.bind(this));
     }
 

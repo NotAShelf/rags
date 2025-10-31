@@ -8,8 +8,8 @@ export type EventBoxProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = EventBox<Child, Attr>,
-> = BaseProps<Self, Gtk.EventBox.ConstructorProperties & {
-    child?: Child
+> = BaseProps<Self, Gtk.EventBox.ConstructorProps & {
+    child?: Child,
     on_hover?: EventHandler<Self>
     on_hover_lost?: EventHandler<Self>
 
@@ -32,7 +32,6 @@ export function newEventBox<
     return new EventBox(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface EventBox<Child, Attr> extends Widget<Attr> { }
 export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
     static {
@@ -57,11 +56,14 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
         });
     }
 
-    constructor(props: EventBoxProps<Child, Attr> = {}, child?: Child) {
+    constructor(
+        props: EventBoxProps<Child, Attr> = {} as EventBoxProps<Child, Attr>,
+        child?: Child,
+    ) {
         if (child)
             props.child = child;
 
-        super(props as Gtk.EventBox.ConstructorProperties);
+        super(props as Gtk.EventBox.ConstructorProps);
         this.add_events(Gdk.EventMask.SCROLL_MASK);
         this.add_events(Gdk.EventMask.SMOOTH_SCROLL_MASK);
 

@@ -3,7 +3,8 @@
         "target": "ES2022",
         "module": "ES2022",
         "lib": [
-            "ES2022"
+            "ES2022",
+            "DOM"
         ],
         "allowJs": true,
         "checkJs": false,
@@ -18,7 +19,7 @@
         "forceConsistentCasingInFileNames": true
     },
     "include": [
-        "@girs",
+        "node_modules/@girs/**/*-ambient.d.ts",
         "types/*",
         "src"
     ]

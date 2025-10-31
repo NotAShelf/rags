@@ -7,8 +7,8 @@ export type FontButtonProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = FontButton<Child, Attr>,
-> = BaseProps<Self, Gtk.FontButton.ConstructorProperties & {
-    child?: Child
+> = BaseProps<Self, Gtk.FontButton.ConstructorProps & {
+    child?: Child,
     on_font_set?: Event<Self>
 }, Attr>;
 
@@ -19,7 +19,6 @@ export function newFontButton<
     return new FontButton(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface FontButton<Child, Attr> extends Widget<Attr> { }
 export class FontButton<Child extends Gtk.Widget, Attr> extends Gtk.FontButton {
     static {
@@ -30,11 +29,14 @@ export class FontButton<Child extends Gtk.Widget, Attr> extends Gtk.FontButton {
         });
     }
 
-    constructor(props: FontButtonProps<Child, Attr> = {}, child?: Child) {
+    constructor(
+        props: FontButtonProps<Child, Attr> = {} as FontButtonProps<Child, Attr>,
+        child?: Child,
+    ) {
         if (child)
             props.child = child;
 
-        super(props as Gtk.FontButton.ConstructorProperties);
+        super(props as Gtk.FontButton.ConstructorProps);
         this.connect('font-set', this.on_font_set.bind(this));
     }
 

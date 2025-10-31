@@ -2,7 +2,7 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import Service from '../service.js';
 import { loadInterfaceXML } from '../utils.js';
-import { PowerProfilesProxy } from '../dbus/types.js';
+import { PowerProfilesProxy, connectSignal } from '../dbus/types.js';
 import { kebabify } from '../utils/gobject.js';
 import { isRunning } from '../utils/init.js';
 
@@ -41,7 +41,7 @@ class PowerProfiles extends Service {
     private _unpackDict(dict: { [prop: string]: GLib.Variant }) {
         const data: { [key: string]: string } = {};
         for (const [key, variant] of Object.entries(dict))
-            data[key] = variant.unpack();
+            data[key] = variant.unpack() as string;
 
         return data;
     }
@@ -56,7 +56,7 @@ class PowerProfiles extends Service {
                 '/net/hadess/PowerProfiles');
 
             this._proxy.connect('g-properties-changed', (_, changed) => {
-                for (const prop of Object.keys(changed.deepUnpack())) {
+                for (const prop of Object.keys(changed.deepUnpack() as {})) {
                     this.notify(kebabify(prop));
                     if (prop === 'ActiveProfile')
                         this.notify('icon-name');
@@ -65,9 +65,10 @@ class PowerProfiles extends Service {
                 this.emit('changed');
             });
 
-            this._proxy.connectSignal('ProfileReleased', (_p, _n, [cookie]) => {
-                this.emit('profile-released', cookie);
-            });
+            connectSignal(this._proxy, 'ProfileReleased',
+                (_p: any, _n: any, [cookie]: any) => {
+                    this.emit('profile-released', cookie);
+                });
         } else {
             console.error(`${BUSNAME} is not available`);
         }

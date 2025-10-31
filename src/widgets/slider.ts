@@ -18,7 +18,7 @@ type Mark = [number, string?, Position?] | number;
 export type SliderProps<
     Attr = unknown,
     Self = Slider<Attr>,
-> = BaseProps<Slider<Attr>, Gtk.Scale.ConstructorProperties & {
+> = BaseProps<Slider<Attr>, Gtk.Scale.ConstructorProps & {
     on_change?: EventHandler<Self>,
     value?: number
     slider?: boolean
@@ -57,10 +57,10 @@ export class Slider<Attr> extends Gtk.Scale {
         step = 0.01,
         marks = [],
         ...rest
-    }: SliderProps<Attr> = {}) {
+    }: SliderProps<Attr> = {} as SliderProps<Attr>) {
         super({
+            ...rest as Gtk.Scale.ConstructorProps,
             adjustment: new Gtk.Adjustment,
-            ...rest as Gtk.Scale.ConstructorProperties,
         });
 
         this._handleParamProp('value', value);

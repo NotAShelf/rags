@@ -7,6 +7,14 @@ export interface DBusProxy extends Gio.DBusProxy {
     ListNamesAsync: () => Promise<string[][]>
 }
 
+export function connectSignal<T extends Gio.DBusProxy>(
+    proxy: T,
+    signalName: string,
+    callback: (...args: any[]) => void,
+): any {
+    return (proxy as any).connectSignal(signalName, callback);
+}
+
 export interface PlayerProxy extends Gio.DBusProxy {
     new(...args: unknown[]): PlayerProxy;
     CanControl: boolean;

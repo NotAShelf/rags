@@ -5,7 +5,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import DbusmenuGtk3 from 'gi://DbusmenuGtk3';
 import Service from '../service.js';
-import { StatusNotifierItemProxy } from '../dbus/types.js';
+import { StatusNotifierItemProxy, connectSignal } from '../dbus/types.js';
 import { bulkConnect, loadInterfaceXML } from '../utils.js';
 import Widget from '../widget.js';
 
@@ -16,7 +16,7 @@ const StatusNotifierItemProxy =
 
 const DbusmenuGtk3Menu = Widget<
     typeof DbusmenuGtk3.Menu,
-    DbusmenuGtk3.Menu.ConstructorProperties
+    DbusmenuGtk3.Menu.ConstructorProps
 >(DbusmenuGtk3.Menu);
 
 export class TrayItem extends Service {
@@ -121,11 +121,11 @@ export class TrayItem extends Service {
 
     private _itemProxyAcquired(proxy: StatusNotifierItemProxy) {
         if (proxy.Menu) {
-            const menu = DbusmenuGtk3Menu({
+            const menu = new DbusmenuGtk3.Menu({
                 dbus_name: proxy.g_name_owner!,
                 dbus_object: proxy.Menu,
             });
-            this.menu = (menu as unknown) as DbusmenuGtk3.Menu;
+            this.menu = menu;
         }
 
         if (this._proxy.IconThemePath) {
@@ -143,7 +143,7 @@ export class TrayItem extends Service {
         ]);
 
         ['Title', 'Icon', 'AttentionIcon', 'OverlayIcon', 'ToolTip', 'Status']
-            .forEach(prop => proxy.connectSignal(`New${prop}`, () => {
+            .forEach(prop => connectSignal(proxy, `New${prop}`, () => {
                 this._notify();
             }));
 

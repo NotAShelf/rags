@@ -7,8 +7,8 @@ export type MenuItemProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = MenuItem<Child, Attr>,
-> = BaseProps<Self, Gtk.MenuItem.ConstructorProperties & {
-    child?: Child
+> = BaseProps<Self, Gtk.MenuItem.ConstructorProps & {
+    child?: Child,
     on_activate?: Event<Self>
     on_select?: Event<Self>
     on_deselect?: Event<Self>
@@ -21,7 +21,6 @@ export function newMenuItem<
     return new MenuItem(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface MenuItem<Child, Attr> extends Widget<Attr> { }
 export class MenuItem<Child extends Gtk.Widget, Attr> extends Gtk.MenuItem {
     static {
@@ -34,11 +33,14 @@ export class MenuItem<Child extends Gtk.Widget, Attr> extends Gtk.MenuItem {
         });
     }
 
-    constructor(props: MenuItemProps<Child, Attr> = {}, child?: Child) {
+    constructor(
+        props: MenuItemProps<Child, Attr> = {} as MenuItemProps<Child, Attr>,
+        child?: Child,
+    ) {
         if (child)
             props.child = child;
 
-        super(props as Gtk.MenuItem.ConstructorProperties);
+        super(props as Gtk.MenuItem.ConstructorProps);
 
         this.connect('activate', () => this.on_activate?.(this));
         this.connect('select', () => this.on_select?.(this));

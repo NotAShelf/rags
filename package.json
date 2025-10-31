@@ -3,7 +3,10 @@
     "version": "1.10.0",
     "type": "module",
     "repository": "https://github.com/NotAShelf/rags",
-    "author": "Aylur",
+    "authors": [
+        "Aylur",
+        "NotAShelf <raf@notashelf.dev>"
+    ],
     "license": "GPL",
     "dependencies": {
         "typescript": "^5.9.3"

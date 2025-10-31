@@ -6,7 +6,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 export type FixedProps<
     Attr = unknown,
     Self = Fixed<Attr>,
-> = BaseProps<Self, Gtk.Fixed.ConstructorProperties, Attr>
+> = BaseProps<Self, Gtk.Fixed.ConstructorProps, Attr>
 
 export function newFixed<
     Attr = unknown
@@ -18,8 +18,8 @@ export interface Fixed<Attr> extends Widget<Attr> { }
 export class Fixed<Attr> extends Gtk.Fixed {
     static { register(this); }
 
-    constructor(props: FixedProps<Attr> = {}) {
-        super(props as Gtk.Fixed.ConstructorProperties);
+    constructor(props: FixedProps<Attr> = {} as FixedProps<Attr>) {
+        super(props as Gtk.Fixed.ConstructorProps);
     }
 }
 

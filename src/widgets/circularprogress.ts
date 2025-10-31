@@ -1,7 +1,9 @@
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
+import Cairo from 'gi://cairo?version=1.0';
+import { default as GjsCairo } from '@girs/gjs/cairo';
 
-interface Context {
+interface CairoContext {
     setSourceRGBA: (r: number, g: number, b: number, a: number) => void
     arc: (x: number, y: number, r: number, a1: number, a2: number) => void
     setLineWidth: (w: number) => void
@@ -15,7 +17,7 @@ export type CircularProgressProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = CircularProgress<Child, Attr>
-> = BaseProps<Self, Gtk.Bin.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Bin.ConstructorProps & {
     child?: Child
     rounded?: boolean
     value?: number
@@ -31,7 +33,6 @@ export function newCircularProgress<
     return new CircularProgress(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface CircularProgress<Child, Attr> extends Widget<Attr> { }
 export class CircularProgress<
     Child extends Gtk.Widget,
@@ -50,11 +51,14 @@ export class CircularProgress<
         });
     }
 
-    constructor(props: CircularProgressProps<Child, Attr> = {}, child?: Child) {
+    constructor(
+        props: CircularProgressProps<Child, Attr> = {} as CircularProgressProps<Child, Attr>,
+        child?: Child,
+    ) {
         if (child)
             props.child = child;
 
-        super(props as Gtk.Bin.ConstructorProperties);
+        super(props as Gtk.Bin.ConstructorProps);
     }
 
     get child() { return super.child as Child; }
@@ -176,7 +180,7 @@ export class CircularProgress<
         return scaled;
     }
 
-    vfunc_draw(cr: Context): boolean {
+    vfunc_draw(cr: CairoContext): boolean {
         const allocation = this.get_allocation();
         const styles = this.get_style_context();
         const width = allocation.width;
@@ -269,7 +273,7 @@ export class CircularProgress<
 
         if (this.child) {
             this.child.size_allocate(allocation);
-            this.propagate_draw(this.child, cr);
+            this.propagate_draw(this.child, cr as unknown as GjsCairo.Context);
         }
 
         cr.$dispose();

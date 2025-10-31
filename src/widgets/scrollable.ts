@@ -14,8 +14,8 @@ export type ScrollableProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = Scrollable<Child, Attr>,
-> = BaseProps<Self, Gtk.ScrolledWindow.ConstructorProperties & {
-    child?: Child
+> = BaseProps<Self, Gtk.ScrolledWindow.ConstructorProps & {
+    child?: Child,
     hscroll?: Policy,
     vscroll?: Policy,
 }, Attr>
@@ -27,7 +27,6 @@ export function newScrollable<
     return new Scrollable(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Scrollable<Child, Attr> extends Widget<Attr> { }
 export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWindow {
     static {
@@ -39,12 +38,15 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
         });
     }
 
-    constructor(props: ScrollableProps<Child, Attr> = {}, child?: Child) {
+    constructor(
+        props: ScrollableProps<Child, Attr> = {} as ScrollableProps<Child, Attr>,
+        child?: Child,
+    ) {
         if (child)
             props.child = child;
 
         super({
-            ...props as Gtk.ScrolledWindow.ConstructorProperties,
+            ...props as Gtk.ScrolledWindow.ConstructorProps,
             hadjustment: new Gtk.Adjustment(),
             vadjustment: new Gtk.Adjustment(),
         });

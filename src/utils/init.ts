@@ -11,7 +11,7 @@ export function isRunning(dbusName: string, bus: 'session' | 'system') {
         '/org/freedesktop/DBus',
         'org.freedesktop.DBus',
         'NameHasOwner',
-        GLib.Variant.new_tuple([new GLib.Variant('s', dbusName)]),
+        new GLib.Variant('(s)', [dbusName]),
         new GLib.VariantType('(b)'),
         Gio.DBusCallFlags.NONE,
         -1,

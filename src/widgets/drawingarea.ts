@@ -7,7 +7,7 @@ type DrawFn<Self> = (self: Self, cr: Cairo.Context, width: number, height: numbe
 export type DrawingAreaProps<
     Attr = unknown,
     Self = DrawingArea<Attr>,
-> = BaseProps<Self, Gtk.DrawingArea.ConstructorProperties & {
+> = BaseProps<Self, Gtk.DrawingArea.ConstructorProps & {
     draw_fn?: DrawFn<Self>
 }, Attr>;
 
@@ -27,9 +27,9 @@ export class DrawingArea<Attr> extends Gtk.DrawingArea {
         });
     }
 
-    constructor(props: DrawingAreaProps<Attr> = {}) {
-        super(props as Gtk.DrawingArea.ConstructorProperties);
-        this.connect('draw', (self, cr: Cairo.Content) => {
+    constructor(props: DrawingAreaProps<Attr> = {} as DrawingAreaProps<Attr>) {
+        super(props as Gtk.DrawingArea.ConstructorProps);
+        this.connect('draw', (self, cr: any) => {
             const w = this.get_allocated_width();
             const h = this.get_allocated_height();
             this.draw_fn(self, cr, w, h);

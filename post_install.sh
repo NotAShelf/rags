@@ -29,7 +29,7 @@ function fixPaths {
 
 export -f fixPaths
 find $TYPES -type f | xargs -I % bash -c "fixPaths %"
-cp -r "$SRC/node_modules/@girs" "$TYPES/@girs"
+cp -rL "$SRC/node_modules/@girs" "$TYPES/@girs"
 
 # gen ags.d.ts
 function mod {

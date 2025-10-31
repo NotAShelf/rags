@@ -23,7 +23,7 @@ type Truncate = keyof typeof TRUNCATE;
 export type LabelProps<
     Attr = unknown,
     Self = Label<Attr>,
-> = BaseProps<Self, Gtk.Label.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Label.ConstructorProps & {
     justification?: Justification
     truncate?: Truncate
 }, Attr>
@@ -45,8 +45,8 @@ export class Label<Attr> extends Gtk.Label {
         });
     }
 
-    constructor(props: LabelProps<Attr> | string = {}) {
-        const { label, ...config } = props as Gtk.Label.ConstructorProperties;
+    constructor(props: LabelProps<Attr> | string = {} as LabelProps<Attr>) {
+        const { label, ...config } = props as Gtk.Label.ConstructorProps;
         const text = typeof props === 'string' ? props : label;
         super(typeof props === 'string' ? {} : config);
         this._handleParamProp('label', text || '');
@@ -60,7 +60,6 @@ export class Label<Attr> extends Gtk.Label {
             try {
                 Pango.parse_markup(label, -1, '0');
             } catch (e) {
-                // @ts-expect-error
                 if (e instanceof GLib.MarkupError)
                     label = GLib.markup_escape_text(label, -1) || '';
                 else

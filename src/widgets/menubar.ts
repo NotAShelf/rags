@@ -6,7 +6,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 export type MenuBarProps<
     Attr = unknown,
     Self = MenuBar<Attr>,
-> = BaseProps<Self, Gtk.MenuBar.ConstructorProperties, Attr>
+> = BaseProps<Self, Gtk.MenuBar.ConstructorProps, Attr>
 
 export function newMenuBar<
     Attr = unknown
@@ -18,8 +18,8 @@ export interface MenuBar<Attr> extends Widget<Attr> { }
 export class MenuBar<Attr> extends Gtk.MenuBar {
     static { register(this); }
 
-    constructor(props: MenuBarProps<Attr> = {}) {
-        super(props as Gtk.MenuBar.ConstructorProperties);
+    constructor(props: MenuBarProps<Attr> = {} as MenuBarProps<Attr>) {
+        super(props as Gtk.MenuBar.ConstructorProps);
     }
 }
 

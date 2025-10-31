@@ -6,7 +6,7 @@ type BarMode = 'continuous' | 'discrete'
 export type LevelBarProps<
     Attr = unknown,
     Self = LevelBar<Attr>,
-> = BaseProps<Self, Gtk.LevelBar.ConstructorProperties & {
+> = BaseProps<Self, Gtk.LevelBar.ConstructorProps & {
     bar_mode?: BarMode
     vertical?: boolean
 }, Attr>;
@@ -17,7 +17,6 @@ export function newLevelBar<
     return new LevelBar(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface LevelBar<Attr> extends Widget<Attr> { }
 export class LevelBar<Attr> extends Gtk.LevelBar {
     static {
@@ -29,8 +28,8 @@ export class LevelBar<Attr> extends Gtk.LevelBar {
         });
     }
 
-    constructor(props: LevelBarProps<Attr> = {}) {
-        super(props as Gtk.LevelBar.ConstructorProperties);
+    constructor(props: LevelBarProps<Attr> = {} as LevelBarProps<Attr>) {
+        super(props as Gtk.LevelBar.ConstructorProps);
         this.connect('notify::mode', () => this.notify('bar-mode'));
         this.connect('notify::orientation', () => this.notify('vertical'));
     }

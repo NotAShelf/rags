@@ -16,7 +16,7 @@ export type MenuProps<
     MenuItem extends Gtk.MenuItem = Gtk.MenuItem,
     Attr = unknown,
     Self = Menu<MenuItem, Attr>,
-> = BaseProps<Self, Gtk.Menu.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Menu.ConstructorProps & {
     children?: MenuItem[]
 } & MenuEventHandler<Self>, Attr>
 
@@ -27,7 +27,6 @@ export function newMenu<
     return new Menu(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Menu<MenuItem, Attr> extends Widget<Attr> { }
 export class Menu<MenuItem extends Gtk.MenuItem, Attr> extends Gtk.Menu {
     static {
@@ -40,11 +39,14 @@ export class Menu<MenuItem extends Gtk.MenuItem, Attr> extends Gtk.Menu {
         });
     }
 
-    constructor(props: MenuProps<MenuItem, Attr> = {}, ...children: Gtk.MenuItem[]) {
+    constructor(
+        props: MenuProps<MenuItem, Attr> = {} as MenuProps<MenuItem, Attr>,
+        ...children: Gtk.MenuItem[]
+    ) {
         if (children.length > 0)
             props.children = children as MenuItem[];
 
-        super(props as Gtk.Menu.ConstructorProperties);
+        super(props as Gtk.Menu.ConstructorProps);
 
         this.connect('popped-up', (_, ...args) => this.on_popup?.(this, ...args));
         this.connect('move-scroll', (_, ...args) => this.on_move_scroll?.(this, ...args));

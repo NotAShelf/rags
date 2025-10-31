@@ -117,8 +117,8 @@ export class Wifi extends Service {
     }
 
     readonly scan = () => {
-        this._device.request_scan_async(null, (device, res) => {
-            device.request_scan_finish(res);
+        this._device?.request_scan_async(null, (device, res) => {
+            device?.request_scan_finish(res);
             this.emit('changed');
         });
     };
@@ -285,6 +285,7 @@ export class VpnConnection extends Service {
             case 'disconnected': return 'network-vpn-disabled-symbolic';
             case 'connecting':
             case 'disconnecting': return 'network-vpn-acquiring-symbolic';
+            default: return '';
         }
     }
 

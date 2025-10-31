@@ -7,7 +7,7 @@ export type CenterBoxProps<
     EndWidget extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = CenterBox<StartWidget, CenterWidget, EndWidget, Attr>,
-> = BaseProps<Self, Gtk.Box.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Box.ConstructorProps & {
     vertical?: boolean
     children?: [StartWidget?, CenterWidget?, EndWidget?],
     start_widget?: StartWidget
@@ -24,7 +24,6 @@ export function newCenterBox<
     return new CenterBox(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface CenterBox<StartWidget, CenterWidget, EndWidget, Attr> extends Widget<Attr> { }
 export class CenterBox<
     StartWidget extends Gtk.Widget,
@@ -45,7 +44,8 @@ export class CenterBox<
     }
 
     constructor(
-        props: CenterBoxProps<StartWidget, CenterWidget, EndWidget, Attr> = {},
+        props: CenterBoxProps<StartWidget, CenterWidget, EndWidget, Attr> = {} as
+            CenterBoxProps<StartWidget, CenterWidget, EndWidget, Attr>,
         startWidget?: StartWidget,
         centerWidget?: CenterWidget,
         endWidget?: EndWidget,
@@ -59,7 +59,7 @@ export class CenterBox<
         if (endWidget)
             props.end_widget = endWidget;
 
-        super(props as Gtk.Widget.ConstructorProperties);
+        super(props as Gtk.Widget.ConstructorProps);
     }
 
     get children() { return [this.start_widget, this.center_widget, this.end_widget]; }

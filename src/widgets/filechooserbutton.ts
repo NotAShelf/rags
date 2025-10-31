@@ -7,8 +7,8 @@ export type FileChooserButtonProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = FileChooserButton<Child, Attr>,
-> = BaseProps<Self, Gtk.FileChooserButton.ConstructorProperties & {
-    child?: Child
+> = BaseProps<Self, Gtk.FileChooserButton.ConstructorProps & {
+    child?: Child,
     on_file_set?: Event<Self>
 }, Attr>;
 
@@ -19,7 +19,6 @@ export function newFileChooserButton<
     return new FileChooserButton(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface FileChooserButton<Child, Attr> extends Widget<Attr> { }
 export class FileChooserButton<Child extends Gtk.Widget, Attr> extends Gtk.FileChooserButton {
     static {
@@ -30,11 +29,14 @@ export class FileChooserButton<Child extends Gtk.Widget, Attr> extends Gtk.FileC
         });
     }
 
-    constructor(props: FileChooserButtonProps<Child, Attr> = {}, child?: Child) {
+    constructor(
+        props: FileChooserButtonProps<Child, Attr> = {} as FileChooserButtonProps<Child, Attr>,
+        child?: Child,
+    ) {
         if (child)
             props.child = child;
 
-        super(props as Gtk.FileChooserButton.ConstructorProperties);
+        super(props as Gtk.FileChooserButton.ConstructorProps);
         this.connect('file-set', this.on_file_set.bind(this));
     }
 

@@ -15,11 +15,11 @@ function proc(arg: Args | string | string[]) {
 
     if (typeof cmd === 'string') {
         const [, argv] = GLib.shell_parse_argv(cmd);
-        cmd = argv;
+        cmd = argv || [];
     }
 
     return Gio.Subprocess.new(
-        cmd,
+        cmd as string[],
         Gio.SubprocessFlags.STDIN_PIPE  |
         Gio.SubprocessFlags.STDOUT_PIPE |
         Gio.SubprocessFlags.STDERR_PIPE,
@@ -56,17 +56,17 @@ export function subprocess(
     const p = proc(argsOrCmd);
 
     const stdin = new Gio.DataOutputStream({
-        base_stream: p.get_stdin_pipe(),
+        base_stream: p.get_stdin_pipe() || undefined,
         close_base_stream: true,
     });
 
     const stdout = new Gio.DataInputStream({
-        base_stream: p.get_stdout_pipe(),
+        base_stream: p.get_stdout_pipe() || undefined,
         close_base_stream: true,
     });
 
     const stderr = new Gio.DataInputStream({
-        base_stream: p.get_stderr_pipe(),
+        base_stream: p.get_stderr_pipe() || undefined,
         close_base_stream: true,
     });
 
@@ -95,7 +95,7 @@ export function subprocess(
                     GLib.PRIORITY_DEFAULT,
                     null,
                     (stdin, res) => {
-                        stdin.write_all_finish(res)[0]
+                        stdin?.write_all_finish(res)?.[0]
                             ? resolve()
                             : reject();
                     },

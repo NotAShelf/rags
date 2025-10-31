@@ -4,7 +4,7 @@ import Service from '../service.js';
 import { ensureDirectory, idle } from '../utils.js';
 import { CACHE_DIR } from '../utils.js';
 import { loadInterfaceXML } from '../utils.js';
-import { DBusProxy, PlayerProxy, MprisProxy } from '../dbus/types.js';
+import { DBusProxy, PlayerProxy, MprisProxy, connectSignal } from '../dbus/types.js';
 
 const DBusIFace = loadInterfaceXML('org.freedesktop.DBus')!;
 const PlayerIFace = loadInterfaceXML('org.mpris.MediaPlayer2.Player')!;
@@ -359,7 +359,7 @@ export class Mpris extends Service {
                 this._addPlayer(name);
         }
 
-        this._proxy.connectSignal('NameOwnerChanged',
+        connectSignal(this._proxy, 'NameOwnerChanged',
             this._onNameOwnerChanged.bind(this));
     }
 

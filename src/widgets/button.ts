@@ -8,7 +8,7 @@ export type ButtonProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = Button<Child, Attr>,
-> = BaseProps<Self, Gtk.Button.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Button.ConstructorProps & {
     child?: Child
     on_clicked?: (self: Self) => void
 
@@ -34,7 +34,6 @@ export function newButton<
     return new Button(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Button<Child, Attr> extends Widget<Attr> { }
 export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     static {
@@ -59,11 +58,12 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
         });
     }
 
-    constructor(props: ButtonProps<Child, Attr> = {}, child?: Child) {
+    constructor(props: ButtonProps<Child, Attr> = {} as ButtonProps<Child, Attr>, child?: Child,
+    ) {
         if (child)
             props.child = child;
 
-        super(props as Gtk.Button.ConstructorProperties);
+        super(props as Gtk.Button.ConstructorProps);
         this.add_events(Gdk.EventMask.SCROLL_MASK);
         this.add_events(Gdk.EventMask.SMOOTH_SCROLL_MASK);
 

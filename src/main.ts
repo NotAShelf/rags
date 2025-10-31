@@ -117,7 +117,12 @@ export async function main(args: string[]) {
                 break;
 
             default:
-                console.error(`unknown option: ${args[i]}`);
+                // Treat unknown arguments as config file paths
+                if (!args[i].startsWith('-')) {
+                    flags.config = parsePath(args[i]);
+                } else {
+                    console.error(`unknown option: ${args[i]}`);
+                }
                 break;
         }
     }

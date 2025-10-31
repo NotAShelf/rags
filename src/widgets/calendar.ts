@@ -8,7 +8,7 @@ type Detail<Self> = (self: Self, year: number, month: number, day: number) => st
 export type CalendarProps<
     Attr = unknown,
     Self = Calendar<Attr>,
-> = BaseProps<Self, Gtk.Calendar.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Calendar.ConstructorProps & {
     on_day_selected?: Event<Self>
     detail?: Detail<Self>,
 }, Attr>;
@@ -19,7 +19,6 @@ export function newCalendar<
     return new Calendar(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Calendar<Attr> extends Widget<Attr> { }
 export class Calendar<Attr> extends Gtk.Calendar {
     static {
@@ -32,8 +31,8 @@ export class Calendar<Attr> extends Gtk.Calendar {
         });
     }
 
-    constructor(props: CalendarProps<Attr> = {}) {
-        super(props as Gtk.Calendar.ConstructorProperties);
+    constructor(props: CalendarProps<Attr> = {} as CalendarProps<Attr>) {
+        super(props as Gtk.Calendar.ConstructorProps);
         this.connect('notify::day', () => this.notify('date'));
         this.connect('notify::month', () => this.notify('date'));
         this.connect('notify::year', () => this.notify('date'));

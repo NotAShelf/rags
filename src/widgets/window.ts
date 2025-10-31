@@ -35,7 +35,7 @@ export type WindowProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = Window<Child, Attr>,
-> = BaseProps<Self, Gtk.Window.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Window.ConstructorProps & {
     child?: Child
     anchor?: Anchor[]
     exclusivity?: Exclusivity
@@ -59,7 +59,6 @@ export function newWindow<
     return new Window(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Window<Child, Attr> extends Widget<Attr> { }
 export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
     static {
@@ -94,11 +93,12 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
         popup = false,
         visible = true,
         ...params
-    }: WindowProps<Child, Attr> = {}, child?: Child) {
+    }: WindowProps<Child, Attr> = {} as WindowProps<Child, Attr>, child?: Child,
+    ) {
         if (child)
             params.child = child;
 
-        super(params as Gtk.Window.ConstructorProperties);
+        super(params as unknown as Gtk.Window.ConstructorProps);
         LayerShell.init_for_window(this);
         LayerShell.set_namespace(this, this.name);
 

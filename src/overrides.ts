@@ -7,7 +7,6 @@ const PROP_FILTER = ['parent', 'window', 'font-options', 'pixels'];
 GObject.Object.prototype.toJSON = function() {
     const result = {};
     const props = (this.constructor as unknown as GObject.ObjectClass)
-        //@ts-expect-error
         .list_properties()
         .filter(p => !PROP_FILTER.includes(p.name || ''));
 

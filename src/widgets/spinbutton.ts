@@ -6,7 +6,7 @@ type Event<Self> = (self: Self) => void | boolean
 export type SpinButtonProps<
     Attr = unknown,
     Self = SpinButton<Attr>,
-> = BaseProps<Self, Gtk.SpinButton.ConstructorProperties & {
+> = BaseProps<Self, Gtk.SpinButton.ConstructorProps & {
     on_value_changed?: Event<Self>
     range?: [min: number, max: number],
     increments?: [step: number, page: number],
@@ -18,7 +18,6 @@ export function newSpinButton<
     return new SpinButton(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface SpinButton<Attr> extends Widget<Attr> { }
 export class SpinButton<Attr> extends Gtk.SpinButton {
     static {
@@ -31,8 +30,8 @@ export class SpinButton<Attr> extends Gtk.SpinButton {
         });
     }
 
-    constructor(props: SpinButtonProps<Attr> = {}) {
-        super(props as Gtk.SpinButton.ConstructorProperties);
+    constructor(props: SpinButtonProps<Attr> = {} as SpinButtonProps<Attr>) {
+        super(props as Gtk.SpinButton.ConstructorProps);
         this.connect('value-changed', this.on_value_changed.bind(this));
     }
 

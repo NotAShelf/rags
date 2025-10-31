@@ -60,7 +60,7 @@ export class Response {
 
     async text() {
         const gBytes = await this.gBytes();
-        return new TextDecoder().decode(gBytes ? gBytes.toArray() : []);
+        return new TextDecoder().decode(gBytes ? gBytes.toArray() : new Uint8Array());
     }
 
     async arrayBuffer() {
@@ -131,9 +131,10 @@ export async function fetch(url: string, options: FetchOptions = {}) {
             new GLib.Bytes((new TextEncoder).encode(options.body)));
     }
 
-    const inputStream = await session.send_async(message, 0, null);
+    const inputStream = await session.send_and_read_async(message, 0, null);
     const { status_code, reason_phrase } = message;
     const ok = status_code >= 200 && status_code < 300;
 
-    return new Response(status_code, reason_phrase, ok, inputStream);
+    return new Response(status_code, reason_phrase, ok,
+        inputStream as unknown as Gio.InputStream || null);
 }

@@ -30,7 +30,7 @@ export type StackProps<
     Children extends { [name: string]: Gtk.Widget } = { [name: string]: Gtk.Widget },
     Attr = unknown,
     Self = Stack<Children, Attr>,
-> = BaseProps<Self, Gtk.Stack.ConstructorProperties & {
+> = BaseProps<Self, Gtk.Stack.ConstructorProps & {
     shown?: keyof Children,
     transition?: Transition
     children?: Children,
@@ -45,7 +45,6 @@ export function newStack<
     return new Stack(...props);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export interface Stack<Children, Attr> extends Widget<Attr> { }
 export class Stack<Children extends { [name: string]: Gtk.Widget }, Attr> extends Gtk.Stack {
     static {
@@ -60,11 +59,14 @@ export class Stack<Children extends { [name: string]: Gtk.Widget }, Attr> extend
         });
     }
 
-    constructor(props: StackProps<Children, Attr> = {}, children?: Children) {
+    constructor(
+        props: StackProps<Children, Attr> = {} as StackProps<Children, Attr>,
+        children?: Children,
+    ) {
         if (children)
             props.children = children;
 
-        super(props as Gtk.Stack.ConstructorProperties);
+        super(props as Gtk.Stack.ConstructorProps);
         this.connect('notify::visible-child-name', () => this.notify('shown'));
     }
 

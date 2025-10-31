@@ -111,7 +111,7 @@ export async function notify(
             'sound-name': new GLib.Variant('s', args.soundName ?? ''),
             'suppress-sound': new GLib.Variant('b', args.suppressSound ?? false),
             'transient': new GLib.Variant('b', args.transient ?? false),
-            'urgency': new GLib.Variant('i', args.urgency ?? 1),
+            'urgency': new GLib.Variant('y', Number(args.urgency ?? 1)),
         };
 
         if (args.x !== undefined)
@@ -158,8 +158,10 @@ export async function notify(
     n.set_timeout(args.timeout ?? 0);
 
     const hint = (key: string, type: 'b' | 's' | 'i', value?: boolean | string | number) => {
-        if (value)
-            n.set_hint(key, new GLib.Variant(type, value));
+        if (value) {
+            const variant = new GLib.Variant(type, value);
+            (n as any).set_hint(key, variant);
+        }
     };
 
     hint('action-icons', 'b', args.actionIcons);
