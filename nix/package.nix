@@ -1,11 +1,12 @@
 {
   lib,
   stdenv,
-  importNpmLock,
-  buildNpmPackage,
+  stdenvNoCC,
   fetchFromGitLab,
-  nodePackages,
+  # Build dependencies
   meson,
+  typescript,
+  pnpm,
   pkg-config,
   ninja,
   gobject-introspection,
@@ -23,6 +24,7 @@
   libsoup_3,
   libnotify,
   pam,
+  # Extra Options
   extraPackages ? [],
   version ? "git",
   buildTypes ? true,
@@ -37,56 +39,46 @@
     hash = "sha256-FosJwgTCp6/EI6WVbJhPisokRBA6oT0eo7d+Ya7fFX8=";
   };
 in
-  stdenv.mkDerivation {
+  stdenv.mkDerivation (finalAttrs: {
     inherit pname version;
 
-    src = buildNpmPackage {
-      pname = "ags-deps";
-      version = "#";
+    src = lib.fileset.toSource {
+      root = ../.;
+      fileset = lib.fileset.unions [
+        ../src
+        ../subprojects
+        ../types
 
-      src = lib.fileset.toSource {
-        root = ../.;
-        fileset = lib.fileset.unions [
-          ../src
-          ../subprojects
-          ../types
+        ../package-lock.json
+        ../package.json
+        ../pnpm-lock.yaml
 
-          ../package-lock.json
-          ../package.json
+        ../meson.build
+        ../meson_options.txt
+        ../post_install.sh
+        ../tsconfig.json
+        ../version
+      ];
+    };
 
-          ../meson.build
-          ../meson_options.txt
-          ../post_install.sh
-          ../tsconfig.json
-          ../version
-        ];
-      };
-
-      dontNpmBuild = true;
-      dontNpmPrune = true;
-
-      npmWorkspace = "ags";
-      npmPackFlags = ["--ignore-scripts"];
-      npmDeps = importNpmLock {npmRoot = ../.;};
-      npmConfigHook = importNpmLock.npmConfigHook;
-
-      installPhase = ''
-        runHook preInstall
-
-        mkdir -p $out
-        cp -rv * $out
-
-        runHook postInstall
-      '';
+    # XXX: The amount of dependencies required to build this project are a little absurd.
+    # If we could build just one workspace, we could also just specify a workspace here
+    # to fetch deps for and build. Alas, NodeJS.
+    pnpmDeps = pnpm.fetchDeps {
+      inherit (finalAttrs) pname src;
+      hash = "sha256-g+eX/nZ3Ika4IDaGeClnHGK+HBd+hOEObjkFHjFgJ58=";
+      fetcherVersion = 2; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
     nativeBuildInputs = [
       pkg-config
       meson
       ninja
-      nodePackages.typescript
+      typescript
       wrapGAppsHook3
       gobject-introspection
+
+      pnpm.configHook # dependency resolution
     ];
 
     buildInputs =
@@ -117,8 +109,7 @@ in
     '';
 
     postPatch = ''
-      chmod +x post_install.sh
-      patchShebangs post_install.sh
+      chmod u+x ./post_install.sh && patchShebangs ./post_install.sh
     '';
 
     outputs = ["out" "lib"];
@@ -132,4 +123,4 @@ in
       mainProgram = "ags";
       maintainers = [lib.maintainers.NotAShelf];
     };
-  }
+  })
