@@ -35,13 +35,7 @@
     in {
       default = pkgs.mkShell {
         name = "ags";
-        packages = with pkgs; [
-          nodejs-slim
-          pnpm
-          typescript
-          nodePackages.ts-node
-          meson
-        ];
+        inputsFrom = [self.packages.${system}.agsNoTypes];
       };
     });
 
