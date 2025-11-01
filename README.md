@@ -41,6 +41,47 @@ add no new widgets, as I have no need for them. What I really want to do is to
 make sure that the codebase ages well, and maybe even add a dash of Rust (likely
 via WASM) wherever it may provide performance or maintainability benefits.
 
+## Building
+
+You'll probably want to package RAGS for your distribution if you're looking to
+use it yourself. I only support Nix, but you may PR package manifests
+(PKGBUILDs, RPMs, etc.) if you're interested in using RAGS. I will not reject
+such PRs, and might make an effort to support legacy FHS distributions in the
+future.
+
+For now, here's a general guide you'll want to follow:
+
+```bash
+meson setup builddir
+meson compile -C builddir
+```
+
+The main binary will be available at `builddir/src/com.github.Aylur.ags`. You
+can rename it to whatever you want the binary to be called.
+
+To install it system-wide:
+
+```bash
+meson install -C builddir
+```
+
+### Dependencies
+
+Building RAGS requires the following dependencies to be available in your
+system:
+
+- meson, ninja
+- typescript
+- pkg-config
+- gobject-introspection
+- gjs
+- gtk3
+- libpulseaudio
+- And various other GNOME libraries (see `nix/package.nix` for complete list)
+
+If you're using Nix, the default dev shell can be used to build RAGS with Meson
+without invoking `nix build`.
+
 ## Attributions
 
 [Aylur]: https://github.com/aylur
