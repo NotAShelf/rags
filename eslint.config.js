@@ -3,6 +3,20 @@ import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
 
 export default [
+    {
+        ignores: [
+            'example/**',
+            'types/**',
+            'gi-types/**',
+            '_build/**',
+            'build/**',
+            'result/**',
+            'node_modules/**',
+            'pnpm-lock.yaml',
+            'package-lock.json',
+            'eslint.config.js',
+        ],
+    },
     js.configs.recommended,
     {
         files: ['**/*.{ts,js}'],
@@ -83,17 +97,5 @@ export default [
             'key-spacing': 'error',
             'object-curly-spacing': ['error', 'always'],
         },
-        ignores: [
-            'example/**',
-            'types/**',
-            'gi-types/**',
-            '_build/**',
-            'build/**',
-            'result/**',
-            'node_modules/**',
-            'pnpm-lock.yaml',
-            'package-lock.json',
-            'eslint.config.js',
-        ],
     },
 ];
