@@ -1,7 +1,6 @@
 {
   lib,
   stdenv,
-  stdenvNoCC,
   fetchFromGitLab,
   # Build dependencies
   meson,
