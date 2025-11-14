@@ -2,6 +2,7 @@
   lib,
   stdenv,
   fetchFromGitLab,
+  symlinkJoin,
   # Build dependencies
   meson,
   typescript,
@@ -12,6 +13,7 @@
   gtk3,
   libpulseaudio,
   gjs,
+  glib,
   wrapGAppsHook3,
   upower,
   gnome-bluetooth,
@@ -60,28 +62,27 @@ in
       ];
     };
 
-    # XXX: The amount of dependencies required to build this project are a little absurd.
-    # If we could build just one workspace, we could also just specify a workspace here
-    # to fetch deps for and build. Alas, NodeJS.
+    pnpmInstallFlags = ["--dev"]; # don't install TSC
     pnpmDeps = pnpm.fetchDeps {
       inherit (finalAttrs) pname src;
-      hash = "sha256-g+eX/nZ3Ika4IDaGeClnHGK+HBd+hOEObjkFHjFgJ58=";
+      hash = "sha256-T3GyHkGqwNjLC8EYdnABrjn0Wh+4xSW6dPNN97VlUjo=";
       fetcherVersion = 2; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
     nativeBuildInputs = [
+      pnpm.configHook # dependency resolution
+
       pkg-config
       meson
       ninja
       typescript
       wrapGAppsHook3
       gobject-introspection
-
-      pnpm.configHook # dependency resolution
     ];
 
     buildInputs =
-      [
+      extraPackages
+      ++ [
         gjs
         gtk3
         libpulseaudio
@@ -95,8 +96,9 @@ in
         libsoup_3
         libnotify
         pam
-      ]
-      ++ extraPackages;
+        glib
+        gobject-introspection
+      ];
 
     mesonFlags = [
       (lib.mesonBool "build_types" buildTypes)
