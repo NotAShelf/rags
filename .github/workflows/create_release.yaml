@@ -32,7 +32,7 @@ jobs:
       - name: create node tar file
         run: tar -czf "node_modules-${{ github.ref_name }}.tar.gz" "node_modules"
       - name: Upload assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ../ags-${{ github.ref_name }}.tar.gz
