@@ -1,24 +1,29 @@
-name: Binary Cache
+name: Build and Cache with Nix
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths: [ 'src/**.rs', 'build.rs',  'Cargo.toml', 'Cargo.lock', 'nix/package.nix', 'flake.nix', 'flake.lock' ]
+
+permissions:
+  contents: read
+
 jobs:
-  nix:
-    name: "Build"
+  populate-cache:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - name: "Checkout"
+        uses: actions/checkout@v5
 
-      - uses: cachix/install-nix-action@v25
-      - uses: DeterminateSystems/magic-nix-cache-action@main
-      - uses: cachix/cachix-action@v12
+      - uses: cachix/install-nix-action@v31
         with:
-          name: ags
-          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          nix_path: nixpkgs=channel:nixos-unstable
 
-      - name: Build ags
-        run: |
-          nix build --print-build-logs
-          nix build --print-build-logs .#agsWithTypes
+      - uses: cachix/cachix-action@v16
+        with:
+          name: nyx
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: "Build with Nix"
+        run: nix build .# -Lv -Lv
