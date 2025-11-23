@@ -37,7 +37,7 @@
         "eslint": "^9.39.1"
     },
     "scripts": {
-        "test": "eslint .",
+        "lint": "eslint .",
         "build": "tsc --skipLibCheck",
         "dev": "tsc --watch --skipLibCheck"
     }
