@@ -50,7 +50,6 @@ in
         ../subprojects
         ../types
 
-        ../package-lock.json
         ../package.json
         ../pnpm-lock.yaml
 
