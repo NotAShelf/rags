@@ -36,6 +36,14 @@
       default = pkgs.mkShell {
         name = "ags";
         inputsFrom = [self.packages.${system}.agsNoTypes];
+
+        # For unit/integration tests. Most of the build tooling is inherited from the
+        # built package anyway, but we don't have those in the inputs. Let's add those
+        # so we can run the test script(s).
+        nativeBuildInputs = [
+          pkgs.nodejs-slim
+          pkgs.xvfb-run
+        ];
       };
     });
 
