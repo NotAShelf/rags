@@ -116,14 +116,11 @@ export async function fetch(url: string, options: FetchOptions = {}) {
             .join('&');
     }
 
-    const message = new Soup.Message({
-        method: options.method || 'GET',
-        uri: GLib.Uri.parse(url, GLib.UriFlags.NONE),
-    });
+    const message = Soup.Message.new(options.method || 'GET', url);
 
     if (options.headers) {
         for (const key of Object.keys(options.headers))
-            message.get_request_headers().append(key, options.headers[key]);
+            message.request_headers.append(key, options.headers[key]);
     }
 
     if (typeof options.body === 'string') {
