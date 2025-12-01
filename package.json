@@ -32,13 +32,14 @@
         "@girs/pango-1.0": "1.57.0-4.0.0-beta.38",
         "@girs/soup-3.0": "3.6.5-4.0.0-beta.38",
         "@girs/xlib-2.0": "2.0.0-4.0.0-beta.38",
-        "@typescript-eslint/eslint-plugin": "^8.46.4",
-        "@typescript-eslint/parser": "^8.46.4",
+        "@typescript-eslint/eslint-plugin": "^8.48.0",
+        "@typescript-eslint/parser": "^8.48.0",
         "eslint": "^9.39.1"
     },
     "scripts": {
         "lint": "eslint .",
         "build": "tsc --skipLibCheck",
-        "dev": "tsc --watch --skipLibCheck"
+        "dev": "tsc --watch --skipLibCheck",
+        "test": "xvfb-run -a gjs test/integration.js"
     }
 }
