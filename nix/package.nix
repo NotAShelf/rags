@@ -2,7 +2,6 @@
   lib,
   stdenv,
   fetchFromGitLab,
-  symlinkJoin,
   # Build dependencies
   meson,
   typescript,
@@ -64,7 +63,7 @@ in
     pnpmInstallFlags = ["--dev"]; # don't install TSC
     pnpmDeps = pnpm.fetchDeps {
       inherit (finalAttrs) pname src;
-      hash = "sha256-T3GyHkGqwNjLC8EYdnABrjn0Wh+4xSW6dPNN97VlUjo=";
+      hash = "sha256-TH/CB/GbgoQKDkIwKiYiF6PzfWYivV4lI1aFZzoZoIQ=";
       fetcherVersion = 2; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
