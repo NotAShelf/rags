@@ -3,15 +3,13 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 type Args<Out = void, Err = void> = {
-    cmd: string | string[],
-    out?: (stdout: string) => Out,
-    err?: (stderr: string) => Err,
-}
+    cmd: string | string[];
+    out?: (stdout: string) => Out;
+    err?: (stderr: string) => Err;
+};
 
 function proc(arg: Args | string | string[]) {
-    let cmd = Array.isArray(arg) || typeof arg === 'string'
-        ? arg
-        : arg.cmd;
+    let cmd = Array.isArray(arg) || typeof arg === 'string' ? arg : arg.cmd;
 
     if (typeof cmd === 'string') {
         const [, argv] = GLib.shell_parse_argv(cmd);
@@ -20,9 +18,9 @@ function proc(arg: Args | string | string[]) {
 
     return Gio.Subprocess.new(
         cmd as string[],
-        Gio.SubprocessFlags.STDIN_PIPE  |
-        Gio.SubprocessFlags.STDOUT_PIPE |
-        Gio.SubprocessFlags.STDERR_PIPE,
+        Gio.SubprocessFlags.STDIN_PIPE |
+            Gio.SubprocessFlags.STDOUT_PIPE |
+            Gio.SubprocessFlags.STDERR_PIPE,
     );
 }
 
@@ -36,19 +34,21 @@ function readStream(stream: Gio.DataInputStream, callback: (out: string) => void
     });
 }
 
-export function subprocess(args: Args & {
-    bind?: Gtk.Widget,
-}): Gio.Subprocess
+export function subprocess(
+    args: Args & {
+        bind?: Gtk.Widget;
+    },
+): Gio.Subprocess;
 
 export function subprocess(
     cmd: string | string[],
     out?: (stdout: string) => void,
     err?: (stderr: string) => void,
     bind?: Gtk.Widget,
-): Gio.Subprocess
+): Gio.Subprocess;
 
 export function subprocess(
-    argsOrCmd: Args & { bind?: Gtk.Widget } | string | string[],
+    argsOrCmd: (Args & { bind?: Gtk.Widget }) | string | string[],
     out: (stdout: string) => void = print,
     err: (stderr: string) => void = err => console.error(Error(err)),
     bind?: Gtk.Widget,
@@ -70,16 +70,11 @@ export function subprocess(
         close_base_stream: true,
     });
 
-    if (bind)
-        bind.connect('destroy', () => p.force_exit());
+    if (bind) bind.connect('destroy', () => p.force_exit());
 
-    const onErr = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string'
-        ? err
-        : argsOrCmd.err;
+    const onErr = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string' ? err : argsOrCmd.err;
 
-    const onOut = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string'
-        ? out
-        : argsOrCmd.out;
+    const onOut = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string' ? out : argsOrCmd.out;
 
     readStream(stdout, onOut ?? out);
     readStream(stderr, onErr ?? err);
@@ -95,9 +90,7 @@ export function subprocess(
                     GLib.PRIORITY_DEFAULT,
                     null,
                     (stdin, res) => {
-                        stdin?.write_all_finish(res)?.[0]
-                            ? resolve()
-                            : reject();
+                        stdin?.write_all_finish(res)?.[0] ? resolve() : reject();
                     },
                 );
             });
@@ -105,12 +98,12 @@ export function subprocess(
     });
 }
 
-export function exec<Out = string, Err = string>(args: Args<Out, Err>): Out | Err
+export function exec<Out = string, Err = string>(args: Args<Out, Err>): Out | Err;
 export function exec<Out = string, Err = string>(
     cmd: string | string[],
     out?: (stdout: string) => Out,
     err?: (stderr: string) => Err,
-): Out | Err
+): Out | Err;
 
 export function exec<Out = string, Err = string>(
     argsOrCmd: Args<Out, Err> | string | string[],
@@ -119,19 +112,13 @@ export function exec<Out = string, Err = string>(
 ): Out | Err {
     const p = proc(argsOrCmd);
 
-    const onErr = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string'
-        ? err
-        : argsOrCmd.err;
+    const onErr = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string' ? err : argsOrCmd.err;
 
-    const onOut = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string'
-        ? out
-        : argsOrCmd.out;
+    const onOut = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string' ? out : argsOrCmd.out;
 
     const [, stdout, stderr] = p.communicate_utf8(null, null);
 
-    return p.get_successful()
-        ? (onOut ?? out)(stdout!.trim())
-        : (onErr ?? err)(stderr!.trim());
+    return p.get_successful() ? (onOut ?? out)(stdout!.trim()) : (onErr ?? err)(stderr!.trim());
 }
 
 export function execAsync(cmd: string | string[]): Promise<string> {
@@ -140,9 +127,7 @@ export function execAsync(cmd: string | string[]): Promise<string> {
     return new Promise((resolve, reject) => {
         p.communicate_utf8_async(null, null, (_, res) => {
             const [, stdout, stderr] = p.communicate_utf8_finish(res);
-            p.get_successful()
-                ? resolve(stdout!.trim())
-                : reject(stderr!.trim());
+            p.get_successful() ? resolve(stdout!.trim()) : reject(stderr!.trim());
         });
     });
 }

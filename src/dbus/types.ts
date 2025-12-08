@@ -3,8 +3,8 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
 export interface DBusProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): DBusProxy
-    ListNamesAsync: () => Promise<string[][]>
+    new (...args: unknown[]): DBusProxy;
+    ListNamesAsync: () => Promise<string[][]>;
 }
 
 export function connectSignal<T extends Gio.DBusProxy>(
@@ -16,7 +16,7 @@ export function connectSignal<T extends Gio.DBusProxy>(
 }
 
 export interface PlayerProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): PlayerProxy;
+    new (...args: unknown[]): PlayerProxy;
     CanControl: boolean;
     CanGoNext: boolean;
     CanGoPrevious: boolean;
@@ -37,7 +37,7 @@ export interface PlayerProxy extends Gio.DBusProxy {
 }
 
 export interface MprisProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): MprisProxy;
+    new (...args: unknown[]): MprisProxy;
     Raise: () => void;
     Quit: () => void;
     CanQuit: boolean;
@@ -47,7 +47,7 @@ export interface MprisProxy extends Gio.DBusProxy {
 }
 
 export interface BatteryProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): BatteryProxy;
+    new (...args: unknown[]): BatteryProxy;
     State: number;
     Percentage: number;
     IsPresent: boolean;
@@ -59,7 +59,7 @@ export interface BatteryProxy extends Gio.DBusProxy {
 }
 
 export interface StatusNotifierItemProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): StatusNotifierItemProxy;
+    new (...args: unknown[]): StatusNotifierItemProxy;
     Category: string;
     Id: string;
     Title: string;
@@ -80,31 +80,19 @@ export interface StatusNotifierItemProxy extends Gio.DBusProxy {
 }
 
 export interface AgsProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): AgsProxy;
+    new (...args: unknown[]): AgsProxy;
     InspectorRemote: () => void;
     QuitRemote: () => void;
     ToggleWindowSync: (name: string) => boolean;
-    RunFileRemote: (
-        js: string,
-        busName?: string,
-        objPath?: string,
-    ) => void;
-    RunJsRemote: (
-        js: string,
-        busName?: string,
-        objPath?: string,
-    ) => void;
+    RunFileRemote: (js: string, busName?: string, objPath?: string) => void;
+    RunJsRemote: (js: string, busName?: string, objPath?: string) => void;
 
     // FIXME: deprecated
-    RunPromiseRemote: (
-        js: string,
-        busName?: string,
-        objPath?: string,
-    ) => void;
+    RunPromiseRemote: (js: string, busName?: string, objPath?: string) => void;
 }
 
 export interface StatusNotifierItemProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): StatusNotifierItemProxy;
+    new (...args: unknown[]): StatusNotifierItemProxy;
     Category: string;
     Id: string;
     Title: string;
@@ -125,7 +113,7 @@ export interface StatusNotifierItemProxy extends Gio.DBusProxy {
 }
 
 export interface PowerProfilesProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): PowerProfilesProxy;
+    new (...args: unknown[]): PowerProfilesProxy;
     ActiveProfile: string;
     PerformanceInhibited: string;
     PerformanceDegraded: string;

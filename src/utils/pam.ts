@@ -7,8 +7,7 @@ export function authenticate(password: string) {
         GUtils.authenticate(password, 0, null, (_: unknown, res: Gio.AsyncResult) => {
             try {
                 resolve(GUtils.authenticate_finish(res));
-            }
-            catch (e) {
+            } catch (e) {
                 reject(e);
             }
         });
@@ -18,13 +17,17 @@ export function authenticate(password: string) {
 export function authenticateUser(username: string, password: string) {
     return new Promise((resolve, reject) => {
         GUtils.authenticate_user(
-            username, password, 0, null, (_: unknown, res: Gio.AsyncResult) => {
+            username,
+            password,
+            0,
+            null,
+            (_: unknown, res: Gio.AsyncResult) => {
                 try {
                     resolve(GUtils.authenticate_finish(res));
-                }
-                catch (e) {
+                } catch (e) {
                     reject(e);
                 }
-            });
+            },
+        );
     });
 }

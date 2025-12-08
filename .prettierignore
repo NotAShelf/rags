@@ -1,0 +1,16 @@
+# Ignore build outputs
+_build/
+build/
+builddir/
+result/
+node_modules/
+
+# Lockfiles
+pnpm-lock.yaml
+flake.lock
+
+# Markdown uses deno fmt
+*.md
+
+# Ignore subprojects
+subprojects/

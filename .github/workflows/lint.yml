@@ -1,23 +1,23 @@
-name: "Lint Codebase"
+name: 'Lint Codebase'
 on: [push, pull_request]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v5
+    lint:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: latest
+            - name: Install pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: latest
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: latest
-        cache: 'pnpm'
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: latest
+                  cache: 'pnpm'
 
-    # Install dependencies, and lint
-    - run: pnpm install --frozen-lockfile
-    - run: pnpm run lint
+            # Install dependencies, and lint
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm run lint

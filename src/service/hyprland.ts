@@ -10,35 +10,53 @@ const XDG_RUNTIME_DIR = GLib.getenv('XDG_RUNTIME_DIR') || '/';
 
 export class ActiveClient extends Service {
     static {
-        Service.register(this, {}, {
-            'address': ['string'],
-            'title': ['string'],
-            'class': ['string'],
-        });
+        Service.register(
+            this,
+            {},
+            {
+                address: ['string'],
+                title: ['string'],
+                class: ['string'],
+            },
+        );
     }
 
     private _address = '';
     private _title = '';
     private _class = '';
 
-    get address() { return this._address; }
-    get title() { return this._title; }
-    get class() { return this._class; }
+    get address() {
+        return this._address;
+    }
+    get title() {
+        return this._title;
+    }
+    get class() {
+        return this._class;
+    }
 }
 
 export class ActiveID extends Service {
     static {
-        Service.register(this, {}, {
-            'id': ['int'],
-            'name': ['string'],
-        });
+        Service.register(
+            this,
+            {},
+            {
+                id: ['int'],
+                name: ['string'],
+            },
+        );
     }
 
     private _id = 1;
     private _name = '';
 
-    get id() { return this._id; }
-    get name() { return this._name; }
+    get id() {
+        return this._id;
+    }
+    get name() {
+        return this._name;
+    }
 
     update(id: number, name: string) {
         super.updateProperty('id', id);
@@ -48,16 +66,20 @@ export class ActiveID extends Service {
 
 export class Actives extends Service {
     static {
-        Service.register(this, {}, {
-            'client': ['jsobject'],
-            'monitor': ['jsobject'],
-            'workspace': ['jsobject'],
-        });
+        Service.register(
+            this,
+            {},
+            {
+                client: ['jsobject'],
+                monitor: ['jsobject'],
+                workspace: ['jsobject'],
+            },
+        );
     }
 
-    private _client = new ActiveClient;
-    private _monitor = new ActiveID;
-    private _workspace = new ActiveID;
+    private _client = new ActiveClient();
+    private _monitor = new ActiveID();
+    private _workspace = new ActiveID();
 
     constructor() {
         super();
@@ -70,31 +92,41 @@ export class Actives extends Service {
         });
     }
 
-    get client() { return this._client; }
-    get monitor() { return this._monitor; }
-    get workspace() { return this._workspace; }
+    get client() {
+        return this._client;
+    }
+    get monitor() {
+        return this._monitor;
+    }
+    get workspace() {
+        return this._workspace;
+    }
 }
 
 export class Hyprland extends Service {
     static {
-        Service.register(this, {
-            'event': ['string', 'string'],
-            'urgent-window': ['string'],
-            'submap': ['string'],
-            'keyboard-layout': ['string', 'string'],
-            'monitor-added': ['string'],
-            'monitor-removed': ['string'],
-            'workspace-added': ['string'],
-            'workspace-removed': ['string'],
-            'client-added': ['string'],
-            'client-removed': ['string'],
-            'fullscreen': ['boolean'],
-        }, {
-            'active': ['jsobject'],
-            'monitors': ['jsobject'],
-            'workspaces': ['jsobject'],
-            'clients': ['jsobject'],
-        });
+        Service.register(
+            this,
+            {
+                event: ['string', 'string'],
+                'urgent-window': ['string'],
+                submap: ['string'],
+                'keyboard-layout': ['string', 'string'],
+                'monitor-added': ['string'],
+                'monitor-removed': ['string'],
+                'workspace-added': ['string'],
+                'workspace-removed': ['string'],
+                'client-added': ['string'],
+                'client-removed': ['string'],
+                fullscreen: ['boolean'],
+            },
+            {
+                active: ['jsobject'],
+                monitors: ['jsobject'],
+                workspaces: ['jsobject'],
+                clients: ['jsobject'],
+            },
+        );
     }
 
     private _active: Actives = new Actives();
@@ -104,10 +136,18 @@ export class Hyprland extends Service {
     private _decoder = new TextDecoder();
     private _encoder = new TextEncoder();
 
-    get active() { return this._active; }
-    get monitors() { return Array.from(this._monitors.values()); }
-    get workspaces() { return Array.from(this._workspaces.values()); }
-    get clients() { return Array.from(this._clients.values()); }
+    get active() {
+        return this._active;
+    }
+    get monitors() {
+        return Array.from(this._monitors.values());
+    }
+    get workspaces() {
+        return Array.from(this._workspaces.values());
+    }
+    get clients() {
+        return Array.from(this._clients.values());
+    }
 
     readonly getMonitor = (id: number) => this._monitors.get(id);
     readonly getWorkspace = (id: number) => this._workspaces.get(id);
@@ -115,15 +155,13 @@ export class Hyprland extends Service {
 
     readonly getGdkMonitor = (id: number) => {
         const monitor = this._monitors.get(id);
-        if (!monitor)
-            return null;
+        if (!monitor) return null;
 
         return Gdk.Display.get_default()?.get_monitor_at_point(monitor.x, monitor.y) || null;
     };
 
     constructor() {
-        if (!HIS)
-            console.error('Hyprland is not running');
+        if (!HIS) console.error('Hyprland is not running');
 
         super();
 
@@ -144,11 +182,12 @@ export class Hyprland extends Service {
         for (const c of JSON.parse(this.message('j/clients')) as Client[])
             this._clients.set(c.address, c);
 
-        this._watchSocket(new Gio.DataInputStream({
-            close_base_stream: true,
-            base_stream: this._connection('socket2')
-                .get_input_stream(),
-        }));
+        this._watchSocket(
+            new Gio.DataInputStream({
+                close_base_stream: true,
+                base_stream: this._connection('socket2').get_input_stream(),
+            }),
+        );
 
         this._active.connect('changed', () => this.changed('active'));
     }
@@ -160,14 +199,12 @@ export class Hyprland extends Service {
             ? sock(XDG_RUNTIME_DIR)
             : sock('/tmp');
 
-        return new Gio.SocketClient()
-            .connect(new Gio.UnixSocketAddress({ path }), null);
+        return new Gio.SocketClient().connect(new Gio.UnixSocketAddress({ path }), null);
     }
 
     private _watchSocket(stream: Gio.DataInputStream) {
         stream.read_line_async(0, null, (stream, result) => {
-            if (!stream)
-                return console.error('Error reading Hyprland socket');
+            if (!stream) return console.error('Error reading Hyprland socket');
 
             const [line] = stream.read_line_finish(result);
             this._onEvent(this._decoder.decode(line || new Uint8Array()));
@@ -177,17 +214,17 @@ export class Hyprland extends Service {
 
     // FIXME: deprecated
     readonly sendMessage = (cmd: string) => {
-        console.warn('hyprland.sendMessage is DEPRECATED, '
-            + ' use hyprland.message or hyprland.messageAsync');
+        console.warn(
+            'hyprland.sendMessage is DEPRECATED, ' +
+                ' use hyprland.message or hyprland.messageAsync',
+        );
         return this.messageAsync(cmd);
     };
 
     private _socketStream(cmd: string) {
         const connection = this._connection('socket');
 
-        connection
-            .get_output_stream()
-            .write(this._encoder.encode(cmd), null);
+        connection.get_output_stream().write(this._encoder.encode(cmd), null);
 
         const stream = new Gio.DataInputStream({
             close_base_stream: true,
@@ -237,8 +274,7 @@ export class Hyprland extends Service {
                     this._active.workspace.emit('changed');
                 }
             }
-            if (notify)
-                this.notify('monitors');
+            if (notify) this.notify('monitors');
         } catch (error) {
             logError(error);
         }
@@ -248,11 +284,9 @@ export class Hyprland extends Service {
         try {
             const msg = await this.messageAsync('j/workspaces');
             this._workspaces.clear();
-            for (const ws of JSON.parse(msg) as Array<Workspace>)
-                this._workspaces.set(ws.id, ws);
+            for (const ws of JSON.parse(msg) as Array<Workspace>) this._workspaces.set(ws.id, ws);
 
-            if (notify)
-                this.notify('workspaces');
+            if (notify) this.notify('workspaces');
         } catch (error) {
             logError(error);
         }
@@ -262,19 +296,16 @@ export class Hyprland extends Service {
         try {
             const msg = await this.messageAsync('j/clients');
             this._clients.clear();
-            for (const c of JSON.parse(msg) as Array<Client>)
-                this._clients.set(c.address, c);
+            for (const c of JSON.parse(msg) as Array<Client>) this._clients.set(c.address, c);
 
-            if (notify)
-                this.notify('clients');
+            if (notify) this.notify('clients');
         } catch (error) {
             logError(error);
         }
     }
 
     private async _onEvent(event: string) {
-        if (!event)
-            return;
+        if (!event) return;
 
         const [e, params] = event.split('>>');
         const argv = params.split(',');
@@ -378,8 +409,7 @@ export class Hyprland extends Service {
                     break;
             }
         } catch (error) {
-            if (error instanceof Error)
-                console.error(error.message);
+            if (error instanceof Error) console.error(error.message);
         }
 
         this.emit('event', e, params);
@@ -388,76 +418,71 @@ export class Hyprland extends Service {
 }
 
 export interface Monitor {
-    id: number,
-    name: string,
-    description: string,
-    make: string,
-    model: string,
-    serial: string,
-    width: number,
-    height: number,
-    refreshRate: number
-    x: number
-    y: number
+    id: number;
+    name: string;
+    description: string;
+    make: string;
+    model: string;
+    serial: string;
+    width: number;
+    height: number;
+    refreshRate: number;
+    x: number;
+    y: number;
     activeWorkspace: {
-        id: number
-        name: string
-    }
+        id: number;
+        name: string;
+    };
     specialWorkspace: {
-        id: number
-        name: string
-    },
-    reserved: [
-        number,
-        number,
-        number,
-        number,
-    ]
-    scale: number
-    transform: number
-    focused: boolean
-    dpmsStatus: boolean
-    vrr: boolean
-    activelyTearing: boolean
+        id: number;
+        name: string;
+    };
+    reserved: [number, number, number, number];
+    scale: number;
+    transform: number;
+    focused: boolean;
+    dpmsStatus: boolean;
+    vrr: boolean;
+    activelyTearing: boolean;
 }
 
 export interface Workspace {
-    id: number
-    name: string
-    monitor: string
-    monitorID: number
-    windows: number
-    hasfullscreen: boolean
-    lastwindow: string
-    lastwindowtitle: string
+    id: number;
+    name: string;
+    monitor: string;
+    monitorID: number;
+    windows: number;
+    hasfullscreen: boolean;
+    lastwindow: string;
+    lastwindowtitle: string;
 }
 
 export interface Client {
-    address: string
-    mapped: boolean
-    hidden: boolean
-    at: [number, number]
-    size: [number, number]
+    address: string;
+    mapped: boolean;
+    hidden: boolean;
+    at: [number, number];
+    size: [number, number];
     workspace: {
-        id: number
-        name: string
-    }
-    floating: boolean
-    monitor: number
-    class: string
-    title: string
-    initialClass: string
-    initialTitle: string
-    pid: number
-    xwayland: boolean
-    pinned: boolean
-    fullscreen: boolean
-    fullscreenMode: number
-    fakeFullscreen: boolean
-    grouped: [string],
-    swallowing: string
-    focusHistoryID: number
+        id: number;
+        name: string;
+    };
+    floating: boolean;
+    monitor: number;
+    class: string;
+    title: string;
+    initialClass: string;
+    initialTitle: string;
+    pid: number;
+    xwayland: boolean;
+    pinned: boolean;
+    fullscreen: boolean;
+    fullscreenMode: number;
+    fakeFullscreen: boolean;
+    grouped: [string];
+    swallowing: string;
+    focusHistoryID: number;
 }
 
-export const hyprland = new Hyprland;
+export const hyprland = new Hyprland();
 export default hyprland;

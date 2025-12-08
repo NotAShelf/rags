@@ -8,31 +8,34 @@ type MenuEventHandler<Self> = {
         final_rect: any | null,
         flipped_x: boolean,
         flipped_y: boolean,
-    ) => void | unknown
-    on_move_scroll?: (self: Self, scroll_type: Gtk.ScrollType) => void | unknown
-}
+    ) => void | unknown;
+    on_move_scroll?: (self: Self, scroll_type: Gtk.ScrollType) => void | unknown;
+};
 
 export type MenuProps<
     MenuItem extends Gtk.MenuItem = Gtk.MenuItem,
     Attr = unknown,
     Self = Menu<MenuItem, Attr>,
-> = BaseProps<Self, Gtk.Menu.ConstructorProps & {
-    children?: MenuItem[]
-} & MenuEventHandler<Self>, Attr>
+> = BaseProps<
+    Self,
+    Gtk.Menu.ConstructorProps & {
+        children?: MenuItem[];
+    } & MenuEventHandler<Self>,
+    Attr
+>;
 
-export function newMenu<
-    MenuItem extends Gtk.MenuItem = Gtk.MenuItem,
-    Attr = unknown,
->(...props: ConstructorParameters<typeof Menu<MenuItem, Attr>>) {
+export function newMenu<MenuItem extends Gtk.MenuItem = Gtk.MenuItem, Attr = unknown>(
+    ...props: ConstructorParameters<typeof Menu<MenuItem, Attr>>
+) {
     return new Menu(...props);
 }
 
-export interface Menu<MenuItem, Attr> extends Widget<Attr> { }
+export interface Menu<MenuItem, Attr> extends Widget<Attr> {}
 export class Menu<MenuItem extends Gtk.MenuItem, Attr> extends Gtk.Menu {
     static {
         register(this, {
             properties: {
-                'children': ['jsobject', 'rw'],
+                children: ['jsobject', 'rw'],
                 'on-popup': ['jsobject', 'rw'],
                 'on-move-scroll': ['jsobject', 'rw'],
             },
@@ -43,8 +46,7 @@ export class Menu<MenuItem extends Gtk.MenuItem, Attr> extends Gtk.Menu {
         props: MenuProps<MenuItem, Attr> = {} as MenuProps<MenuItem, Attr>,
         ...children: Gtk.MenuItem[]
     ) {
-        if (children.length > 0)
-            props.children = children as MenuItem[];
+        if (children.length > 0) props.children = children as MenuItem[];
 
         super(props as Gtk.Menu.ConstructorProps);
 
@@ -52,22 +54,27 @@ export class Menu<MenuItem extends Gtk.MenuItem, Attr> extends Gtk.Menu {
         this.connect('move-scroll', (_, ...args) => this.on_move_scroll?.(this, ...args));
     }
 
-    get on_popup() { return this._get('on-popup'); }
+    get on_popup() {
+        return this._get('on-popup');
+    }
     set on_popup(callback: MenuEventHandler<this>['on_popup']) {
         this._set('on-popup', callback);
     }
 
-    get on_move_scroll() { return this._get('on-move-scroll'); }
+    get on_move_scroll() {
+        return this._get('on-move-scroll');
+    }
     set on_move_scroll(callback: MenuEventHandler<this>['on_move_scroll']) {
         this._set('on-move-scroll', callback);
     }
 
-    get children() { return this.get_children() as MenuItem[]; }
+    get children() {
+        return this.get_children() as MenuItem[];
+    }
     set children(children: MenuItem[]) {
         this.get_children().forEach(ch => ch.destroy());
 
-        if (!children)
-            return;
+        if (!children) return;
 
         children.forEach(w => w && this.add(w));
 

@@ -13,19 +13,23 @@ const DeviceState = {
 
 export class Battery extends Service {
     static {
-        Service.register(this, {
-            'closed': [],
-        }, {
-            'available': ['boolean'],
-            'percent': ['int'],
-            'charging': ['boolean'],
-            'charged': ['boolean'],
-            'icon-name': ['string'],
-            'time-remaining': ['float'],
-            'energy': ['float'],
-            'energy-full': ['float'],
-            'energy-rate': ['float'],
-        });
+        Service.register(
+            this,
+            {
+                closed: [],
+            },
+            {
+                available: ['boolean'],
+                percent: ['int'],
+                charging: ['boolean'],
+                charged: ['boolean'],
+                'icon-name': ['string'],
+                'time-remaining': ['float'],
+                energy: ['float'],
+                'energy-full': ['float'],
+                'energy-rate': ['float'],
+            },
+        );
     }
 
     private _proxy: BatteryProxy;
@@ -40,15 +44,33 @@ export class Battery extends Service {
     private _energyFull = 0.0;
     private _energyRate = 0.0;
 
-    get available() { return this._available; }
-    get percent() { return this._percent; }
-    get charging() { return this._charging; }
-    get charged() { return this._charged; }
-    get icon_name() { return this._iconName; }
-    get time_remaining() { return this._timeRemaining; }
-    get energy() { return this._energy; }
-    get energy_full() { return this._energyFull; }
-    get energy_rate() { return this._energyRate; }
+    get available() {
+        return this._available;
+    }
+    get percent() {
+        return this._percent;
+    }
+    get charging() {
+        return this._charging;
+    }
+    get charged() {
+        return this._charged;
+    }
+    get icon_name() {
+        return this._iconName;
+    }
+    get time_remaining() {
+        return this._timeRemaining;
+    }
+    get energy() {
+        return this._energy;
+    }
+    get energy_full() {
+        return this._energyFull;
+    }
+    get energy_rate() {
+        return this._energyRate;
+    }
 
     constructor() {
         super();
@@ -56,15 +78,15 @@ export class Battery extends Service {
         this._proxy = new PowerManagerProxy(
             Gio.DBus.system,
             'org.freedesktop.UPower',
-            '/org/freedesktop/UPower/devices/DisplayDevice');
+            '/org/freedesktop/UPower/devices/DisplayDevice',
+        );
 
         this._proxy.connect('g-properties-changed', () => this._sync());
         idle(this._sync.bind(this));
     }
 
     private _sync() {
-        if (!this._proxy.IsPresent)
-            return this.updateProperty('available', false);
+        if (!this._proxy.IsPresent) return this.updateProperty('available', false);
 
         const charging = this._proxy.State === DeviceState.CHARGING;
         const percent = this._proxy.Percentage;
@@ -73,8 +95,7 @@ export class Battery extends Service {
             (this._proxy.State === DeviceState.CHARGING && percent === 100);
 
         const level = Math.floor(percent / 10) * 10;
-        const state = this._proxy.State ===
-            DeviceState.CHARGING ? '-charging' : '';
+        const state = this._proxy.State === DeviceState.CHARGING ? '-charging' : '';
 
         const iconName = charged
             ? 'battery-level-100-charged-symbolic'
@@ -101,5 +122,5 @@ export class Battery extends Service {
     }
 }
 
-export const battery = new Battery;
+export const battery = new Battery();
 export default battery;

@@ -4,49 +4,49 @@ import Cairo from 'gi://cairo?version=1.0';
 import { default as GjsCairo } from '@girs/gjs/cairo';
 
 interface CairoContext {
-    setSourceRGBA: (r: number, g: number, b: number, a: number) => void
-    arc: (x: number, y: number, r: number, a1: number, a2: number) => void
-    setLineWidth: (w: number) => void
-    lineTo: (x: number, y: number) => void
-    stroke: () => void
-    fill: () => void
-    $dispose: () => void
+    setSourceRGBA: (r: number, g: number, b: number, a: number) => void;
+    arc: (x: number, y: number, r: number, a1: number, a2: number) => void;
+    setLineWidth: (w: number) => void;
+    lineTo: (x: number, y: number) => void;
+    stroke: () => void;
+    fill: () => void;
+    $dispose: () => void;
 }
 
 export type CircularProgressProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
-    Self = CircularProgress<Child, Attr>
-> = BaseProps<Self, Gtk.Bin.ConstructorProps & {
-    child?: Child
-    rounded?: boolean
-    value?: number
-    inverted?: boolean
-    start_at?: number
-    end_at?: number
-}, Attr>
+    Self = CircularProgress<Child, Attr>,
+> = BaseProps<
+    Self,
+    Gtk.Bin.ConstructorProps & {
+        child?: Child;
+        rounded?: boolean;
+        value?: number;
+        inverted?: boolean;
+        start_at?: number;
+        end_at?: number;
+    },
+    Attr
+>;
 
-export function newCircularProgress<
-    Child extends Gtk.Widget = Gtk.Widget,
-    Attr = unknown,
->(...props: ConstructorParameters<typeof CircularProgress<Child, Attr>>) {
+export function newCircularProgress<Child extends Gtk.Widget = Gtk.Widget, Attr = unknown>(
+    ...props: ConstructorParameters<typeof CircularProgress<Child, Attr>>
+) {
     return new CircularProgress(...props);
 }
 
-export interface CircularProgress<Child, Attr> extends Widget<Attr> { }
-export class CircularProgress<
-    Child extends Gtk.Widget,
-    Attr = unknown,
-> extends Gtk.Bin {
+export interface CircularProgress<Child, Attr> extends Widget<Attr> {}
+export class CircularProgress<Child extends Gtk.Widget, Attr = unknown> extends Gtk.Bin {
     static {
         register(this, {
             cssName: 'circular-progress',
             properties: {
                 'start-at': ['float', 'rw'],
                 'end-at': ['float', 'rw'],
-                'value': ['float', 'rw'],
-                'inverted': ['boolean', 'rw'],
-                'rounded': ['boolean', 'rw'],
+                value: ['float', 'rw'],
+                inverted: ['boolean', 'rw'],
+                rounded: ['boolean', 'rw'],
             },
         });
     }
@@ -55,93 +55,96 @@ export class CircularProgress<
         props: CircularProgressProps<Child, Attr> = {} as CircularProgressProps<Child, Attr>,
         child?: Child,
     ) {
-        if (child)
-            props.child = child;
+        if (child) props.child = child;
 
         super(props as Gtk.Bin.ConstructorProps);
     }
 
-    get child() { return super.child as Child; }
-    set child(child: Child) { super.child = child; }
+    get child() {
+        return super.child as Child;
+    }
+    set child(child: Child) {
+        super.child = child;
+    }
 
-    get rounded() { return this._get('rounded') || false; }
+    get rounded() {
+        return this._get('rounded') || false;
+    }
     set rounded(r: boolean) {
-        if (this.rounded === r)
-            return;
+        if (this.rounded === r) return;
 
         this._set('rounded', r);
         this.queue_draw();
     }
 
-    get inverted() { return this._get('inverted') || false; }
+    get inverted() {
+        return this._get('inverted') || false;
+    }
     set inverted(inverted: boolean) {
-        if (this.inverted === inverted)
-            return;
+        if (this.inverted === inverted) return;
 
         this._set('inverted', inverted);
         this.queue_draw();
     }
 
-    get start_at() { return this._get('start-at') || 0; }
+    get start_at() {
+        return this._get('start-at') || 0;
+    }
     set start_at(value: number) {
-        if (this.start_at === value)
-            return;
+        if (this.start_at === value) return;
 
-        if (value > 1)
-            value = 1;
+        if (value > 1) value = 1;
 
-        if (value < 0)
-            value = 0;
+        if (value < 0) value = 0;
 
         this._set('start-at', value);
         this.queue_draw();
     }
 
-    get end_at() { return this._get('end-at') || this.start_at; }
+    get end_at() {
+        return this._get('end-at') || this.start_at;
+    }
     set end_at(value: number) {
-        if (this.end_at === value)
-            return;
+        if (this.end_at === value) return;
 
-        if (value > 1)
-            value = 1;
+        if (value > 1) value = 1;
 
-        if (value < 0)
-            value = 0;
+        if (value < 0) value = 0;
 
         this._set('end-at', value);
         this.queue_draw();
     }
 
-    get value() { return this._get('value') || 0; }
+    get value() {
+        return this._get('value') || 0;
+    }
     set value(value: number) {
-        if (this.value === value)
-            return;
+        if (this.value === value) return;
 
-        if (value > 1)
-            value = 1;
+        if (value > 1) value = 1;
 
-        if (value < 0)
-            value = 0;
-
+        if (value < 0) value = 0;
 
         this._set('value', value);
         this.queue_draw();
     }
 
     vfunc_get_preferred_height(): [number, number] {
-        let minHeight = this.get_style_context()
-            .get_property('min-height', Gtk.StateFlags.NORMAL) as number;
-        if (minHeight <= 0)
-            minHeight = 40;
+        let minHeight = this.get_style_context().get_property(
+            'min-height',
+            Gtk.StateFlags.NORMAL,
+        ) as number;
+        if (minHeight <= 0) minHeight = 40;
 
         return [minHeight, minHeight];
     }
 
     vfunc_get_preferred_width(): [number, number] {
-        let minWidth = this.get_style_context()
-            .get_property('min-width', Gtk.StateFlags.NORMAL) as number;
-        if (minWidth <= 0)
-            minWidth = 40;
+        let minWidth = this.get_style_context().get_property(
+            'min-width',
+            Gtk.StateFlags.NORMAL,
+        ) as number;
+        if (minWidth <= 0) minWidth = 40;
 
         return [minWidth, minWidth];
     }
@@ -151,11 +154,10 @@ export class CircularProgress<
         return (percentage / 100) * (2 * Math.PI);
     }
 
-
     private _isFullCircle(start: number, end: number, epsilon = 1e-10): boolean {
         // Ensure that start and end are between 0 and 1
-        start = (start % 1 + 1) % 1;
-        end = (end % 1 + 1) % 1;
+        start = ((start % 1) + 1) % 1;
+        end = ((end % 1) + 1) % 1;
 
         // Check if the difference between start and end is close to 1
         return Math.abs(start - end) <= epsilon;
@@ -163,19 +165,18 @@ export class CircularProgress<
 
     private _scaleArcValue(start: number, end: number, value: number): number {
         // Ensure that start and end are between 0 and 1
-        start = (start % 1 + 1) % 1;
-        end = (end % 1 + 1) % 1;
+        start = ((start % 1) + 1) % 1;
+        end = ((end % 1) + 1) % 1;
 
         // Calculate the length of the arc
         let arcLength = end - start;
-        if (arcLength < 0)
-            arcLength += 1; // Adjust for circular representation
+        if (arcLength < 0) arcLength += 1; // Adjust for circular representation
 
         // Calculate the scaled value on the arc based on the arcLength
         let scaled = arcLength * value;
 
         // Ensure the scaled value is between 0 and 1
-        scaled = (scaled % 1 + 1) % 1;
+        scaled = ((scaled % 1) + 1) % 1;
 
         return scaled;
     }
@@ -207,11 +208,7 @@ export class CircularProgress<
         } else {
             // Scale the value for the arc shape
             rangedValue = this._toRadian(
-                this._scaleArcValue(
-                    this.start_at,
-                    this.end_at,
-                    this.value,
-                ),
+                this._scaleArcValue(this.start_at, this.end_at, this.value),
             );
         }
 

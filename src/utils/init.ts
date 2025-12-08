@@ -6,23 +6,26 @@ import { exec } from './exec.js';
 import { HOME } from '../utils.js';
 
 export function isRunning(dbusName: string, bus: 'session' | 'system') {
-    return Gio.DBus[bus].call_sync(
-        'org.freedesktop.DBus',
-        '/org/freedesktop/DBus',
-        'org.freedesktop.DBus',
-        'NameHasOwner',
-        new GLib.Variant('(s)', [dbusName]),
-        new GLib.VariantType('(b)'),
-        Gio.DBusCallFlags.NONE,
-        -1,
-        null,
-    ).deepUnpack()?.toString() === 'true' || false;
+    return (
+        Gio.DBus[bus]
+            .call_sync(
+                'org.freedesktop.DBus',
+                '/org/freedesktop/DBus',
+                'org.freedesktop.DBus',
+                'NameHasOwner',
+                new GLib.Variant('(s)', [dbusName]),
+                new GLib.VariantType('(b)'),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+            )
+            .deepUnpack()
+            ?.toString() === 'true' || false
+    );
 }
 
 export function parsePath(path: string) {
-    return path.startsWith('.')
-        ? `${GLib.getenv('PWD')}${path.slice(1)}`
-        : path;
+    return path.startsWith('.') ? `${GLib.getenv('PWD')}${path.slice(1)}` : path;
 }
 
 const defaultConfig = `
@@ -106,9 +109,7 @@ export async function init(configDir: string, entry: string) {
     ensureDirectory(configDir);
     const tsconfig = configDir + '/' + 'tsconfig.json';
 
-    if (!GLib.file_test(entry, GLib.FileTest.EXISTS))
-        await writeFile(defaultConfig.trim(), entry);
-
+    if (!GLib.file_test(entry, GLib.FileTest.EXISTS)) await writeFile(defaultConfig.trim(), entry);
 
     if (!GLib.file_test(tsconfig, GLib.FileTest.EXISTS)) {
         await writeFile(JSON.stringify(defaultTsConfig, null, 2), tsconfig);
@@ -116,8 +117,7 @@ export async function init(configDir: string, entry: string) {
         try {
             const conf = JSON.parse(readFile(tsconfig));
             const list = conf.compilerOptions.typeRoots;
-            if (!list.includes('./types'))
-                conf.compilerOptions.typeRoots = [...list, './types'];
+            if (!list.includes('./types')) conf.compilerOptions.typeRoots = [...list, './types'];
 
             await writeFile(JSON.stringify(conf, null, 2), tsconfig);
         } catch (err) {
@@ -127,15 +127,15 @@ export async function init(configDir: string, entry: string) {
     }
 
     const linkStore = GLib.getenv('AGS_LINK_NIX_STORE');
-    const nixPath = linkStore ? '' : nixPaths.find(path => {
-        if (GLib.file_test(path, GLib.FileTest.EXISTS))
-            return true;
-    });
+    const nixPath = linkStore
+        ? ''
+        : nixPaths.find(path => {
+              if (GLib.file_test(path, GLib.FileTest.EXISTS)) return true;
+          });
 
     const types = nixPath || `${pkg.pkgdatadir}/types`;
 
-    if (exec('which nix'))
-        console.warn(nixWarning);
+    if (exec('which nix')) console.warn(nixWarning);
 
     exec(`ln -s -f ${types} ${configDir}/types`);
     await writeFile(readMe(types), `${configDir}/README.md`);

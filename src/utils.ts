@@ -13,53 +13,22 @@ export const USER = GLib.get_user_name();
 export const HOME = GLib.get_home_dir();
 export const CACHE_DIR = `${GLib.get_user_cache_dir()}/${pkg.name.split('.').pop()}`;
 
-export const {
-    exec,
-    execAsync,
-    subprocess,
-} = Exec;
+export const { exec, execAsync, subprocess } = Exec;
 
-export const {
-    readFile,
-    readFileAsync,
-    writeFile,
-    writeFileSync,
-    monitorFile,
-} = File;
+export const { readFile, readFileAsync, writeFile, writeFileSync, monitorFile } = File;
 
-export const {
-    timeout,
-    interval,
-    idle,
-} = Timeout;
+export const { timeout, interval, idle } = Timeout;
 
-export const {
-    loadInterfaceXML,
-    bulkConnect,
-    bulkDisconnect,
-    ensureDirectory,
-    lookUpIcon,
-} = Etc;
+export const { loadInterfaceXML, bulkConnect, bulkDisconnect, ensureDirectory, lookUpIcon } = Etc;
 
-export const {
-    authenticate,
-    authenticateUser,
-} = Pam;
+export const { authenticate, authenticateUser } = Pam;
 
 export const { fetch } = Fetch;
 export const { notify } = Notify;
 
-export const {
-    kebabify,
-    pspec,
-    registerGObject,
-} = Gobject;
+export const { kebabify, pspec, registerGObject } = Gobject;
 
-export const {
-    merge,
-    derive,
-    watch,
-} = Binding;
+export const { merge, derive, watch } = Binding;
 
 export default {
     USER,

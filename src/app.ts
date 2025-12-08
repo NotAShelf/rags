@@ -10,11 +10,13 @@ import { timeout, readFileAsync } from './utils.js';
 import { loadInterfaceXML } from './utils.js';
 
 function deprecated(config: Config) {
-    console.warn('passing the config object with default export is DEPRECATED. '
-        + 'use App.config() instead');
+    console.warn(
+        'passing the config object with default export is DEPRECATED. ' +
+            'use App.config() instead',
+    );
 
-    const warning = (from: string, to: string) => console.warn(
-        `${from} config option has been removed: use ${to} instead`);
+    const warning = (from: string, to: string) =>
+        console.warn(`${from} config option has been removed: use ${to} instead`);
 
     if (config.notificationPopupTimeout !== undefined)
         warning('notificationPopupTimeout', 'Notifications.popupTimeout');
@@ -25,34 +27,31 @@ function deprecated(config: Config) {
     if (config.cacheNotificationActions !== undefined)
         warning('cacheNotificationActions', 'Notifications.cacheActions');
 
-    if (config.cacheCoverArt !== undefined)
-        warning('cacheCoverArt', 'Mpris.cacheCoverArt');
+    if (config.cacheCoverArt !== undefined) warning('cacheCoverArt', 'Mpris.cacheCoverArt');
 
-    if (config.maxStreamVolume !== undefined)
-        warning('cacheCoverArt', 'Audio.maxStreamVolume');
+    if (config.maxStreamVolume !== undefined) warning('cacheCoverArt', 'Audio.maxStreamVolume');
 }
 
-const AgsIFace = (bus: string) =>
-    loadInterfaceXML('com.github.Aylur.ags')?.replace('@BUS@', bus);
+const AgsIFace = (bus: string) => loadInterfaceXML('com.github.Aylur.ags')?.replace('@BUS@', bus);
 
 export interface Config {
-    windows?: Gtk.Window[] | (() => Gtk.Window[])
-    style?: string
-    icons?: string
-    gtkTheme?: string
-    iconTheme?: string
-    cursorTheme?: string
-    closeWindowDelay?: { [key: string]: number }
+    windows?: Gtk.Window[] | (() => Gtk.Window[]);
+    style?: string;
+    icons?: string;
+    gtkTheme?: string;
+    iconTheme?: string;
+    cursorTheme?: string;
+    closeWindowDelay?: { [key: string]: number };
 
-    onWindowToggled?: (windowName: string, visible: boolean) => void
-    onConfigParsed?: (app: App) => void
+    onWindowToggled?: (windowName: string, visible: boolean) => void;
+    onConfigParsed?: (app: App) => void;
 
     // FIXME: deprecated
-    notificationPopupTimeout?: number
-    notificationForceTimeout?: boolean
-    cacheNotificationActions?: boolean
-    cacheCoverArt?: boolean
-    maxStreamVolume?: number
+    notificationPopupTimeout?: number;
+    notificationForceTimeout?: boolean;
+    cacheNotificationActions?: boolean;
+    cacheCoverArt?: boolean;
+    maxStreamVolume?: number;
 }
 
 export class App extends Gtk.Application {
@@ -71,21 +70,43 @@ export class App extends Gtk.Application {
     private _configDir!: string;
 
     private _closeWindowDelay: Config['closeWindowDelay'] = {};
-    get closeWindowDelay() { return this._closeWindowDelay!; }
-    set closeWindowDelay(v) { this._closeWindowDelay = v; }
+    get closeWindowDelay() {
+        return this._closeWindowDelay!;
+    }
+    set closeWindowDelay(v) {
+        this._closeWindowDelay = v;
+    }
 
-    get windows() { return [...this._windows.values()]; }
-    get configPath() { return this._configPath; }
-    get configDir() { return this._configDir; }
+    get windows() {
+        return [...this._windows.values()];
+    }
+    get configPath() {
+        return this._configPath;
+    }
+    get configDir() {
+        return this._configDir;
+    }
 
-    set iconTheme(name: string) { Gtk.Settings.get_default()!.gtk_icon_theme_name = name; }
-    get iconTheme() { return Gtk.Settings.get_default()!.gtk_icon_theme_name || ''; }
+    set iconTheme(name: string) {
+        Gtk.Settings.get_default()!.gtk_icon_theme_name = name;
+    }
+    get iconTheme() {
+        return Gtk.Settings.get_default()!.gtk_icon_theme_name || '';
+    }
 
-    set cursorTheme(name: string) { Gtk.Settings.get_default()!.gtk_cursor_theme_name = name; }
-    get cursorTheme() { return Gtk.Settings.get_default()!.gtk_cursor_theme_name || ''; }
+    set cursorTheme(name: string) {
+        Gtk.Settings.get_default()!.gtk_cursor_theme_name = name;
+    }
+    get cursorTheme() {
+        return Gtk.Settings.get_default()!.gtk_cursor_theme_name || '';
+    }
 
-    set gtkTheme(name: string) { Gtk.Settings.get_default()!.gtk_theme_name = name; }
-    get gtkTheme() { return Gtk.Settings.get_default()!.gtk_theme_name || ''; }
+    set gtkTheme(name: string) {
+        Gtk.Settings.get_default()!.gtk_theme_name = name;
+    }
+    get gtkTheme() {
+        return Gtk.Settings.get_default()!.gtk_theme_name || '';
+    }
 
     readonly resetCss = () => {
         const screen = Gdk.Screen.get_default();
@@ -108,8 +129,7 @@ export class App extends Gtk.Application {
             return;
         }
 
-        if (reset)
-            this.resetCss();
+        if (reset) this.resetCss();
 
         const cssProvider = new Gtk.CssProvider();
         cssProvider.connect('parsing-error', (_, section, err) => {
@@ -121,8 +141,7 @@ export class App extends Gtk.Application {
         try {
             if (GLib.file_test(pathOrStyle, GLib.FileTest.EXISTS))
                 cssProvider.load_from_path(pathOrStyle);
-            else
-                cssProvider.load_from_data(new TextEncoder().encode(pathOrStyle));
+            else cssProvider.load_from_data(new TextEncoder().encode(pathOrStyle));
         } finally {
             // log on parsing-error
         }
@@ -170,10 +189,8 @@ export class App extends Gtk.Application {
 
     readonly toggleWindow = (name: string) => {
         const w = this.getWindow(name);
-        if (w)
-            w.visible ? this.closeWindow(name) : this.openWindow(name);
-        else
-            return 'There is no window named ' + name;
+        if (w) w.visible ? this.closeWindow(name) : this.openWindow(name);
+        else return 'There is no window named ' + name;
     };
 
     readonly openWindow = (name: string) => {
@@ -182,23 +199,20 @@ export class App extends Gtk.Application {
 
     readonly closeWindow = (name: string) => {
         const w = this.getWindow(name);
-        if (!w || !w.visible)
-            return;
+        if (!w || !w.visible) return;
 
         const delay = this.closeWindowDelay[name];
         if (delay && w.visible) {
             timeout(delay, () => w.hide());
             this.emit('window-toggled', name, false);
-        }
-        else {
+        } else {
             w.hide();
         }
     };
 
     readonly getWindow = (name: string) => {
         const w = this._windows.get(name);
-        if (!w)
-            console.error(Error(`There is no window named ${name}`));
+        if (!w) console.error(Error(`There is no window named ${name}`));
 
         return w;
     };
@@ -218,15 +232,14 @@ export class App extends Gtk.Application {
 
     readonly addWindow = (w: Gtk.Window) => {
         if (!(w instanceof Gtk.Window)) {
-            return console.error(Error(`${w} is not an instanceof Gtk.Window, ` +
-                ` but it is of type ${typeof w}`));
+            return console.error(
+                Error(`${w} is not an instanceof Gtk.Window, ` + ` but it is of type ${typeof w}`),
+            );
         }
 
-        if (!w.name)
-            return console.error(Error(`${w} has no name`));
+        if (!w.name) return console.error(Error(`${w} has no name`));
 
-        w.connect('notify::visible',
-            () => this.emit('window-toggled', w.name, w.visible));
+        w.connect('notify::visible', () => this.emit('window-toggled', w.name, w.visible));
 
         if (this._windows.has(w.name)) {
             console.error(Error('There is already a window named' + w.name));
@@ -252,49 +265,37 @@ export class App extends Gtk.Application {
             onWindowToggled,
         } = config;
 
-        if (closeWindowDelay)
-            this.closeWindowDelay = closeWindowDelay;
+        if (closeWindowDelay) this.closeWindowDelay = closeWindowDelay;
 
-        if (gtkTheme)
-            this.gtkTheme = gtkTheme;
+        if (gtkTheme) this.gtkTheme = gtkTheme;
 
-        if (iconTheme)
-            this.iconTheme = iconTheme;
+        if (iconTheme) this.iconTheme = iconTheme;
 
-        if (cursorTheme)
-            this.cursorTheme = cursorTheme;
+        if (cursorTheme) this.cursorTheme = cursorTheme;
 
         if (style) {
-            this.applyCss(style.startsWith('.')
-                ? `${this.configDir}${style.slice(1)}`
-                : style);
+            this.applyCss(style.startsWith('.') ? `${this.configDir}${style.slice(1)}` : style);
         }
 
         if (icons) {
-            this.addIcons(icons.startsWith('.')
-                ? `${this.configDir}${icons.slice(1)}`
-                : icons);
+            this.addIcons(icons.startsWith('.') ? `${this.configDir}${icons.slice(1)}` : icons);
         }
 
         if (typeof onWindowToggled === 'function')
             this.connect('window-toggled', (_, n, v) => onWindowToggled!(n, v));
 
-        if (typeof onConfigParsed === 'function')
-            this.connect('config-parsed', onConfigParsed);
+        if (typeof onConfigParsed === 'function') this.connect('config-parsed', onConfigParsed);
 
-        if (typeof windows === 'function')
-            windows().forEach(this.addWindow);
+        if (typeof windows === 'function') windows().forEach(this.addWindow);
 
-        if (Array.isArray(windows))
-            windows.forEach(this.addWindow);
+        if (Array.isArray(windows)) windows.forEach(this.addWindow);
     };
 
     private async _load() {
         try {
             const entry = await import(`file://${this.configPath}`);
             const config = entry.default as Config;
-            if (!config)
-                return this.emit('config-parsed');
+            if (!config) return this.emit('config-parsed');
             else
                 // FIXME:
                 deprecated(config);
@@ -302,7 +303,7 @@ export class App extends Gtk.Application {
             this.config(config);
             this.emit('config-parsed');
         } catch (err) {
-            const error = err as { name?: string, message: string };
+            const error = err as { name?: string; message: string };
             const msg = `Unable to load file from: file://${this._configPath}`;
             if (error?.name === 'ImportError' && error.message.includes(msg)) {
                 print(`config file not found: "${this._configPath}"`);
@@ -319,8 +320,10 @@ export class App extends Gtk.Application {
             this.application_id!,
             Gio.BusNameOwnerFlags.NONE,
             (connection: Gio.DBusConnection) => {
-                this._dbus = Gio.DBusExportedObject
-                    .wrapJSObject(AgsIFace(this.application_id!) as string, this);
+                this._dbus = Gio.DBusExportedObject.wrapJSObject(
+                    AgsIFace(this.application_id!) as string,
+                    this,
+                );
 
                 this._dbus.export(connection, this._objectPath);
             },
@@ -340,11 +343,19 @@ export class App extends Gtk.Application {
     RunJs(js: string, clientBusName?: string, clientObjPath?: string) {
         let fn;
 
-        const dbus = (method: 'Return' | 'Print') => (out: unknown) => Gio.DBus.session.call(
-            clientBusName!, clientObjPath!, clientBusName!, method,
-            new GLib.Variant('(s)', [`${out}`]),
-            null, Gio.DBusCallFlags.NONE, -1, null, null,
-        );
+        const dbus = (method: 'Return' | 'Print') => (out: unknown) =>
+            Gio.DBus.session.call(
+                clientBusName!,
+                clientObjPath!,
+                clientBusName!,
+                method,
+                new GLib.Variant('(s)', [`${out}`]),
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+                null,
+            );
 
         const response = dbus('Return');
         const print = dbus('Print');
@@ -371,8 +382,7 @@ export class App extends Gtk.Application {
     RunFile(file: string, bus?: string, path?: string) {
         readFileAsync(file)
             .then(content => {
-                if (content.startsWith('#!'))
-                    content = content.split('\n').slice(1).join('\n');
+                if (content.startsWith('#!')) content = content.split('\n').slice(1).join('\n');
 
                 this.RunJs(content, bus, path);
             })
@@ -381,15 +391,25 @@ export class App extends Gtk.Application {
 
     // FIXME: deprecated
     RunPromise(js: string, busName?: string, objPath?: string) {
-        console.warn('--run-promise is DEPRECATED, ' +
-            ' use --run-js instead, which now supports await syntax');
+        console.warn(
+            '--run-promise is DEPRECATED, ' +
+                ' use --run-js instead, which now supports await syntax',
+        );
 
         const client = busName && objPath;
-        const response = (out: unknown) => Gio.DBus.session.call(
-            busName!, objPath!, busName!, 'Return',
-            new GLib.Variant('(s)', [`${out}`]),
-            null, Gio.DBusCallFlags.NONE, -1, null, null,
-        );
+        const response = (out: unknown) =>
+            Gio.DBus.session.call(
+                busName!,
+                objPath!,
+                busName!,
+                'Return',
+                new GLib.Variant('(s)', [`${out}`]),
+                null,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+                null,
+            );
 
         new Promise((res, rej) => Function('resolve', 'reject', js)(res, rej))
             .then(out => {
@@ -405,10 +425,14 @@ export class App extends Gtk.Application {
         return `${this.getWindow(name)?.visible}`;
     }
 
-    Inspector() { Gtk.Window.set_interactive_debugging(true); }
+    Inspector() {
+        Gtk.Window.set_interactive_debugging(true);
+    }
 
-    Quit() { this.quit(); }
+    Quit() {
+        this.quit();
+    }
 }
 
-export const app = new App;
+export const app = new App();
 export default app;

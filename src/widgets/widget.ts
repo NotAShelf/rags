@@ -9,20 +9,23 @@ import { interval, idle } from '../utils.js';
 
 let warned = false;
 function deprecated() {
-    if (warned)
-        return;
+    if (warned) return;
 
-    console.warn(Error('Using "connections" and "binds" props are DEPRECATED\n' +
-        'Use .hook() .bind() .poll() .on() instead, refer to the wiki to see examples'));
+    console.warn(
+        Error(
+            'Using "connections" and "binds" props are DEPRECATED\n' +
+                'Use .hook() .bind() .poll() .on() instead, refer to the wiki to see examples',
+        ),
+    );
     warned = true;
 }
 
 const ALIGN = {
-    'fill': Gtk.Align.FILL,
-    'start': Gtk.Align.START,
-    'end': Gtk.Align.END,
-    'center': Gtk.Align.CENTER,
-    'baseline': Gtk.Align.BASELINE,
+    fill: Gtk.Align.FILL,
+    start: Gtk.Align.START,
+    end: Gtk.Align.END,
+    center: Gtk.Align.CENTER,
+    baseline: Gtk.Align.BASELINE,
 } as const;
 
 type Align = keyof typeof ALIGN;
@@ -32,8 +35,8 @@ type Keys = {
 };
 
 type ModifierKey = {
-    [K in keyof typeof Gdk.ModifierType as K extends `${infer M}_MASK` ? M : never]: number
-}
+    [K in keyof typeof Gdk.ModifierType as K extends `${infer M}_MASK` ? M : never]: number;
+};
 
 type Cursor =
     | 'default'
@@ -69,7 +72,7 @@ type Cursor =
     | 'nesw-resize'
     | 'nwse-resize'
     | 'zoom-in'
-    | 'zoom-out'
+    | 'zoom-out';
 
 type Property = [prop: string, value: unknown];
 
@@ -78,27 +81,22 @@ type Connection<Self> =
     | [string, (self: Self, ...args: unknown[]) => unknown]
     | [number, (self: Self, ...args: unknown[]) => unknown];
 
-type Bind = [
-    prop: string,
-    obj: GObject.Object,
-    objProp?: string,
-    transform?: (value: any) => any,
-];
+type Bind = [prop: string, obj: GObject.Object, objProp?: string, transform?: (value: any) => any];
 
 interface CommonProps<Attr> {
-    class_name?: string
-    class_names?: Array<string>
-    click_through?: boolean
-    css?: string
-    hpack?: Align
-    vpack?: Align
-    cursor?: Cursor
-    attribute?: Attr
+    class_name?: string;
+    class_names?: Array<string>;
+    click_through?: boolean;
+    css?: string;
+    hpack?: Align;
+    vpack?: Align;
+    cursor?: Cursor;
+    attribute?: Attr;
 }
 
 export type BaseProps<Self, Props, Attr = unknown> = {
-    setup?: (self: Self) => void
-} & BindableProps<CtorProps<Props & CommonProps<Attr>>>
+    setup?: (self: Self) => void;
+} & BindableProps<CtorProps<Props & CommonProps<Attr>>>;
 
 type Required<T> = { [K in keyof T]-?: T[K] };
 export interface Widget<Attr> extends Required<CommonProps<Attr>> {
@@ -106,7 +104,7 @@ export interface Widget<Attr> extends Required<CommonProps<Attr>> {
         gobject: Connectable,
         callback: (self: this, ...args: any[]) => void,
         signal?: string,
-    ): this
+    ): this;
 
     bind<
         Prop extends keyof Props<this>,
@@ -117,25 +115,16 @@ export interface Widget<Attr> extends Required<CommonProps<Attr>> {
         gobject: GObj,
         objProp?: ObjProp,
         transform?: (value: GObj[ObjProp]) => this[Prop],
-    ): this
+    ): this;
 
-    on(
-        signal: string,
-        callback: (self: this, ...args: any[]) => void
-    ): this
+    on(signal: string, callback: (self: this, ...args: any[]) => void): this;
 
-    poll(
-        timeout: number,
-        callback: (self: this) => void,
-    ): this
+    poll(timeout: number, callback: (self: this) => void): this;
 
-    keybind<
-        Fn extends (self: this, event: Gdk.Event) => void,
-        Key extends keyof Keys,
-    >(
+    keybind<Fn extends (self: this, event: Gdk.Event) => void, Key extends keyof Keys>(
         key: Key,
         callback: Fn,
-    ): this
+    ): this;
 
     keybind<
         Fn extends (self: this, event: Gdk.Event) => void,
@@ -145,21 +134,25 @@ export interface Widget<Attr> extends Required<CommonProps<Attr>> {
         mods: Mod,
         key: Key,
         callback: Fn,
-    ): this,
+    ): this;
 
-    readonly is_destroyed: boolean
-    _handleParamProp(prop: keyof this, value: any): void
+    readonly is_destroyed: boolean;
+    _handleParamProp(prop: keyof this, value: any): void;
     _get<T>(field: string): T;
-    _set<T>(field: string, value: T, notify?: boolean): void
+    _set<T>(field: string, value: T, notify?: boolean): void;
 
-    toggleClassName(className: string, condition?: boolean): void
-    setCss(css: string): void
-    isHovered(event?: Gdk.Event): boolean
+    toggleClassName(className: string, condition?: boolean): void;
+    setCss(css: string): void;
+    isHovered(event?: Gdk.Event): boolean;
 }
 
 export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
-    set attribute(attr: Attr) { this._set('attribute', attr); }
-    get attribute(): Attr { return this._get('attribute'); }
+    set attribute(attr: Attr) {
+        this._set('attribute', attr);
+    }
+    get attribute(): Attr {
+        return this._get('attribute');
+    }
 
     hook(
         gobject: Connectable,
@@ -169,8 +162,12 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         const con = typeof gobject?.connect !== 'function';
         const discon = typeof gobject?.disconnect !== 'function';
         if (con || discon) {
-            console.error(Error(`${gobject} is not a Connectable, missing ` +
-                ` ${[con ? 'connect' : '', discon ? 'disconnect' : ''].join(', ')} function`));
+            console.error(
+                Error(
+                    `${gobject} is not a Connectable, missing ` +
+                        ` ${[con ? 'connect' : '', discon ? 'disconnect' : ''].join(', ')} function`,
+                ),
+            );
             return this;
         }
 
@@ -183,8 +180,7 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         });
 
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-            if (!this.is_destroyed)
-                callback(this);
+            if (!this.is_destroyed) callback(this);
 
             return GLib.SOURCE_REMOVE;
         });
@@ -205,13 +201,13 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         const targetProp = objProp || 'value';
         const callback = transform
             ? () => {
-                // @ts-expect-error too lazy to type
-                this[prop] = transform(gobject[targetProp]);
-            }
+                  // @ts-expect-error too lazy to type
+                  this[prop] = transform(gobject[targetProp]);
+              }
             : () => {
-                // @ts-expect-error too lazy to type
-                this[prop] = gobject[targetProp];
-            };
+                  // @ts-expect-error too lazy to type
+                  this[prop] = gobject[targetProp];
+              };
 
         this.hook(gobject, callback, `notify::${kebabify(targetProp)}`);
         return this;
@@ -232,34 +228,30 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         Fn extends (self: this, event: Gdk.Event) => void,
         Key extends keyof Keys,
         Mod extends Array<keyof ModifierKey>,
-    >(
-        modsOrKey: Key | Mod,
-        keyOrCallback: Key | Fn,
-        callback?: Fn,
-    ): this {
-        const mods = callback ? modsOrKey as Mod : [] as unknown as Mod;
-        const key = callback ? keyOrCallback as Key : modsOrKey as Key;
-        const fn = callback ? callback : keyOrCallback as Fn;
+    >(modsOrKey: Key | Mod, keyOrCallback: Key | Fn, callback?: Fn): this {
+        const mods = callback ? (modsOrKey as Mod) : ([] as unknown as Mod);
+        const key = callback ? (keyOrCallback as Key) : (modsOrKey as Key);
+        const fn = callback ? callback : (keyOrCallback as Fn);
 
         this.connect('key-press-event', (_, event: Gdk.Event) => {
             const k = event.get_keyval()[1];
             const m = event.get_state()[1];
             const ms = mods.reduce((ms, m) => ms | Gdk.ModifierType[`${m}_MASK`], 0);
 
-            if (mods.length > 0 && k === Gdk[`KEY_${key}`] && m === ms)
-                return fn(this, event);
+            if (mods.length > 0 && k === Gdk[`KEY_${key}`] && m === ms) return fn(this, event);
 
-            if (mods.length === 0 && k === Gdk[`KEY_${key}`])
-                return fn(this, event);
+            if (mods.length === 0 && k === Gdk[`KEY_${key}`]) return fn(this, event);
         });
 
         return this;
     }
 
     _init(
-        config: BaseProps<this,
+        config: BaseProps<
+            this,
             Gtk.Widget.ConstructorProps & { child?: Gtk.Widget },
-            Attr> = {} as any,
+            Attr
+        > = {} as any,
         child?: Gtk.Widget,
     ) {
         const { setup, attribute, ...props } = config || {};
@@ -274,18 +266,17 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
             })
             .filter(pair => pair);
 
-        if (child)
-            props.child = child;
+        if (child) props.child = child;
 
         super._init(props as Gtk.Widget.ConstructorProps);
 
-        if (attribute !== undefined)
-            this._set('attribute', attribute);
+        if (attribute !== undefined) this._set('attribute', attribute);
 
-        (binds as unknown as Array<[keyof Props<this>, Binding<any, any, any>]>)
-            .forEach(([selfProp, { emitter, prop, transformFn }]) => {
+        (binds as unknown as Array<[keyof Props<this>, Binding<any, any, any>]>).forEach(
+            ([selfProp, { emitter, prop, transformFn }]) => {
                 this.bind(selfProp, emitter, prop, transformFn);
-            });
+            },
+        );
 
         this.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK);
         this.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK);
@@ -296,25 +287,24 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
 
         idle(() => {
             if (this.click_through && !this.is_destroyed)
-                this.input_shape_combine_region(new Cairo.Region);
+                this.input_shape_combine_region(new Cairo.Region());
         });
 
-        if (setup)
-            setup(this);
+        if (setup) setup(this);
     }
 
     _handleParamProp<Props>(prop: keyof Props, value: any) {
-        if (value === undefined)
-            return;
+        if (value === undefined) return;
 
         if (value instanceof Binding)
             // @ts-expect-error implementation in Connectable
             this.bind(prop, value.emitter, value.prop, value.transformFn);
-        else
-            this[prop as keyof this] = value;
+        else this[prop as keyof this] = value;
     }
 
-    get is_destroyed(): boolean { return this._get('is-destroyed') || false; }
+    get is_destroyed(): boolean {
+        return this._get('is-destroyed') || false;
+    }
 
     // defining private fields for typescript causes
     // gobject constructor field setters to be overridden
@@ -324,43 +314,32 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     }
 
     _set<T>(field: string, value: T, notify = true) {
-        if (this._get(field) === value)
-            return;
+        if (this._get(field) === value) return;
 
         (this as unknown as { [key: string]: T })[`__${field}`] = value;
 
-        if (notify)
-            this.notify(field);
+        if (notify) this.notify(field);
     }
 
     // FIXME: deprecated
     set connections(connections: Connection<this>[]) {
-        if (!connections)
-            return;
+        if (!connections) return;
 
         deprecated();
         connections.forEach(([s, callback, event]) => {
             if (s === undefined || callback === undefined)
                 return console.error(Error('missing arguments to connections'));
 
-            if (typeof s === 'string')
-                this.connect(s, callback);
-
-            else if (typeof s === 'number')
-                interval(s, () => callback(this), this);
-
-            else if (s instanceof GObject.Object)
-                this.hook(s, callback, event);
-
-            else
-                console.error(Error(`${s} is not a GObject | string | number`));
+            if (typeof s === 'string') this.connect(s, callback);
+            else if (typeof s === 'number') interval(s, () => callback(this), this);
+            else if (s instanceof GObject.Object) this.hook(s, callback, event);
+            else console.error(Error(`${s} is not a GObject | string | number`));
         });
     }
 
     // FIXME: deprecated
     set binds(binds: Bind[]) {
-        if (!binds)
-            return;
+        if (!binds) return;
 
         deprecated();
         binds.forEach(([prop, obj, objProp = 'value', transform = out => out]) => {
@@ -371,8 +350,7 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
 
     // FIXME: deprecated
     set properties(properties: Property[]) {
-        if (!properties)
-            return;
+        if (!properties) return;
 
         console.warn(Error('"properties" is deprecated use "attribute" instead'));
         properties.forEach(([key, value]) => {
@@ -391,13 +369,14 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     }
 
     _setPack(orientation: 'h' | 'v', align: Align) {
-        if (!align)
-            return;
+        if (!align) return;
 
         if (!Object.keys(ALIGN).includes(align)) {
-            return console.error(Error(
-                `${orientation}pack has to be on of ${Object.keys(ALIGN)}, but it is ${align}`,
-            ));
+            return console.error(
+                Error(
+                    `${orientation}pack has to be on of ${Object.keys(ALIGN)}, but it is ${align}`,
+                ),
+            );
         }
 
         this[`${orientation}align`] = ALIGN[align];
@@ -409,17 +388,23 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         }) as Align;
     }
 
-    get hpack() { return this._getPack('h'); }
-    set hpack(align: Align) { this._setPack('h', align); }
+    get hpack() {
+        return this._getPack('h');
+    }
+    set hpack(align: Align) {
+        this._setPack('h', align);
+    }
 
-    get vpack() { return this._getPack('v'); }
-    set vpack(align: Align) { this._setPack('v', align); }
+    get vpack() {
+        return this._getPack('v');
+    }
+    set vpack(align: Align) {
+        this._setPack('v', align);
+    }
 
     toggleClassName(className: string, condition = true) {
         const c = this.get_style_context();
-        condition
-            ? c.add_class(className)
-            : c.remove_class(className);
+        condition ? c.add_class(className) : c.remove_class(className);
 
         this.notify('class-names');
         this.notify('class-name');
@@ -444,16 +429,13 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
 
     _cssProvider!: Gtk.CssProvider;
     setCss(css: string) {
-        if (!css.includes('{') || !css.includes('}'))
-            css = `* { ${css} }`;
+        if (!css.includes('{') || !css.includes('}')) css = `* { ${css} }`;
 
-        if (this._cssProvider)
-            this.get_style_context().remove_provider(this._cssProvider);
+        if (this._cssProvider) this.get_style_context().remove_provider(this._cssProvider);
 
         this._cssProvider = new Gtk.CssProvider();
         this._cssProvider.load_from_data(new TextEncoder().encode(css));
-        this.get_style_context()
-            .add_provider(this._cssProvider, Gtk.STYLE_PROVIDER_PRIORITY_USER);
+        this.get_style_context().add_provider(this._cssProvider, Gtk.STYLE_PROVIDER_PRIORITY_USER);
 
         this.notify('css');
     }
@@ -463,29 +445,28 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     }
 
     set css(css: string) {
-        if (!css)
-            return;
+        if (!css) return;
 
         this.setCss(css);
     }
 
     _updateCursor() {
-        if (!this.cursor)
-            return;
+        if (!this.cursor) return;
 
         const display = Gdk.Display.get_default();
 
         if (this.isHovered() && display) {
             const cursor = Gdk.Cursor.new_from_name(display, this.cursor);
             this.get_window()?.set_cursor(cursor);
-        }
-        else if (display) {
+        } else if (display) {
             const cursor = Gdk.Cursor.new_from_name(display, 'default');
             this.get_window()?.set_cursor(cursor);
         }
     }
 
-    get cursor() { return this._get('cursor'); }
+    get cursor() {
+        return this._get('cursor');
+    }
     set cursor(cursor: Cursor) {
         this._set('cursor', cursor);
         this._updateCursor();
@@ -494,32 +475,33 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     isHovered(event?: Gdk.Event) {
         let [x, y] = this.get_pointer();
         const { width: w, height: h } = this.get_allocation();
-        if (event)
-            [, x, y] = event.get_coords();
+        if (event) [, x, y] = event.get_coords();
 
         return x > 0 && x < w && y > 0 && y < h;
     }
 
-    get click_through() { return !!this._get('click-through'); }
+    get click_through() {
+        return !!this._get('click-through');
+    }
     set click_through(clickThrough: boolean) {
-        if (this.click_through === clickThrough)
-            return;
+        if (this.click_through === clickThrough) return;
 
-        const value = clickThrough ? new Cairo.Region : null;
+        const value = clickThrough ? new Cairo.Region() : null;
         this.input_shape_combine_region(value);
         this._set('click-through', value);
         this.notify('click-through');
     }
 }
 
-export function register<T extends { new(...args: any[]): Gtk.Widget }>(
+export function register<T extends { new (...args: any[]): Gtk.Widget }>(
     klass: T,
     config?: Parameters<typeof registerGObject>[1] & { cssName?: string },
 ) {
     Object.getOwnPropertyNames(AgsWidget.prototype).forEach(name => {
-        Object.defineProperty(klass.prototype, name,
-            Object.getOwnPropertyDescriptor(AgsWidget.prototype, name) ||
-            Object.create(null),
+        Object.defineProperty(
+            klass.prototype,
+            name,
+            Object.getOwnPropertyDescriptor(AgsWidget.prototype, name) || Object.create(null),
         );
     });
     return registerGObject(klass, {
@@ -530,18 +512,18 @@ export function register<T extends { new(...args: any[]): Gtk.Widget }>(
             ...config?.properties,
             'class-name': ['string', 'rw'],
             'class-names': ['jsobject', 'rw'],
-            'css': ['string', 'rw'],
-            'hpack': ['string', 'rw'],
-            'vpack': ['string', 'rw'],
-            'cursor': ['string', 'rw'],
+            css: ['string', 'rw'],
+            hpack: ['string', 'rw'],
+            vpack: ['string', 'rw'],
+            cursor: ['string', 'rw'],
             'is-destroyed': ['boolean', 'r'],
-            'attribute': ['jsobject', 'rw'],
+            attribute: ['jsobject', 'rw'],
             'click-through': ['boolean', 'rw'],
 
             // FIXME: deprecated
-            'properties': ['jsobject', 'w'],
-            'connections': ['jsobject', 'w'],
-            'binds': ['jsobject', 'w'],
+            properties: ['jsobject', 'w'],
+            connections: ['jsobject', 'w'],
+            binds: ['jsobject', 'w'],
         },
     });
 }

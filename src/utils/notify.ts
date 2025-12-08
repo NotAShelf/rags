@@ -2,7 +2,7 @@ import App from '../app.js';
 import GLib from 'gi://GLib?version=2.0';
 import { type Urgency, type Hints } from '../service/notifications.js';
 
-type ClosedReason = ReturnType<typeof _CLOSED_REASON>
+type ClosedReason = ReturnType<typeof _CLOSED_REASON>;
 
 // libnotify is not async, so it halts the js engine
 // when the notification daemon is in the same process
@@ -15,19 +15,27 @@ export const daemon = {
 
 const _URGENCY = (urgency: Urgency) => {
     switch (urgency) {
-        case 'low': return 0;
-        case 'critical': return 2;
-        default: return 1;
+        case 'low':
+            return 0;
+        case 'critical':
+            return 2;
+        default:
+            return 1;
     }
 };
 
 const _CLOSED_REASON = (reason: number) => {
     switch (reason) {
-        case -1: return 'unset';
-        case 1: return 'timeout';
-        case 2: return 'dismissed';
-        case 3: return 'closed';
-        default: return 'undefined';
+        case -1:
+            return 'unset';
+        case 1:
+            return 'timeout';
+        case 2:
+            return 'dismissed';
+        case 3:
+            return 'closed';
+        default:
+            return 'undefined';
     }
 };
 
@@ -39,8 +47,7 @@ async function libnotify() {
     try {
         const Notify = (await import('gi://Notify')).default;
 
-        if (Notify.is_initted())
-            return Notify;
+        if (Notify.is_initted()) return Notify;
 
         Notify.init(null);
         return Notify;
@@ -51,18 +58,18 @@ async function libnotify() {
 }
 
 export interface NotificationArgs {
-    appName?: string
-    body?: string
-    iconName?: string
-    id?: number
-    summary?: string
-    urgency?: Urgency
-    category?: string
+    appName?: string;
+    body?: string;
+    iconName?: string;
+    id?: number;
+    summary?: string;
+    urgency?: Urgency;
+    category?: string;
     actions?: {
-        [label: string]: () => void,
-    }
-    timeout?: number
-    onClosed?: (reason: ClosedReason) => void
+        [label: string]: () => void;
+    };
+    timeout?: number;
+    onClosed?: (reason: ClosedReason) => void;
 
     // hints
     actionIcons?: boolean;
@@ -77,48 +84,48 @@ export interface NotificationArgs {
     y?: number;
 }
 
-export async function notify(args: NotificationArgs): Promise<number>
-export async function notify(
-    summary: string, body?: string, iconName?: string): Promise<number>
+export async function notify(args: NotificationArgs): Promise<number>;
+export async function notify(summary: string, body?: string, iconName?: string): Promise<number>;
 
 export async function notify(
     argsOrSummary: NotificationArgs | string,
     body = '',
     iconName = '',
 ): Promise<number> {
-    const args = typeof argsOrSummary === 'object'
-        ? argsOrSummary
-        : {
-            summary: argsOrSummary,
-            body,
-            iconName,
-        };
+    const args =
+        typeof argsOrSummary === 'object'
+            ? argsOrSummary
+            : {
+                  summary: argsOrSummary,
+                  body,
+                  iconName,
+              };
 
     if (daemon.running) {
         const { default: Daemon } = await import('../service/notifications.js');
 
         const actions = Object.entries(args.actions || {}).map(([label, callback], i) => ({
-            id: `${i}`, label, callback,
+            id: `${i}`,
+            label,
+            callback,
         }));
 
         const hints: Hints = {
             'action-icons': new GLib.Variant('b', args.actionIcons ?? false),
-            'category': new GLib.Variant('s', args.category ?? ''),
+            category: new GLib.Variant('s', args.category ?? ''),
             'desktop-entry': new GLib.Variant('s', args.desktopEntry ?? ''),
             'image-path': new GLib.Variant('s', args.image ?? ''),
-            'resident': new GLib.Variant('b', args.resident ?? false),
+            resident: new GLib.Variant('b', args.resident ?? false),
             'sound-file': new GLib.Variant('s', args.soundFile ?? ''),
             'sound-name': new GLib.Variant('s', args.soundName ?? ''),
             'suppress-sound': new GLib.Variant('b', args.suppressSound ?? false),
-            'transient': new GLib.Variant('b', args.transient ?? false),
-            'urgency': new GLib.Variant('y', Number(args.urgency ?? 1)),
+            transient: new GLib.Variant('b', args.transient ?? false),
+            urgency: new GLib.Variant('y', Number(args.urgency ?? 1)),
         };
 
-        if (args.x !== undefined)
-            hints['x'] = new GLib.Variant('i', args.x);
+        if (args.x !== undefined) hints['x'] = new GLib.Variant('i', args.x);
 
-        if (args.y !== undefined)
-            hints['y'] = new GLib.Variant('i', args.y);
+        if (args.y !== undefined) hints['y'] = new GLib.Variant('i', args.y);
 
         const id = Daemon.Notify(
             args.appName || App.applicationId!,
@@ -133,8 +140,7 @@ export async function notify(
 
         Daemon.getNotification(id)?.connect('invoked', (_, actionId: string) => {
             const action = actions.find(({ id }) => id === actionId);
-            if (action)
-                action.callback();
+            if (action) action.callback();
         });
 
         return id;
@@ -180,8 +186,7 @@ export async function notify(
     });
 
     n.connect('closed', () => {
-        if (args.onClosed)
-            args.onClosed(_CLOSED_REASON(n.get_closed_reason()));
+        if (args.onClosed) args.onClosed(_CLOSED_REASON(n.get_closed_reason()));
     });
 
     n.show();

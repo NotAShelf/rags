@@ -2,12 +2,12 @@ import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
 
 const TRANSITION = {
-    'none': Gtk.RevealerTransitionType.NONE,
-    'crossfade': Gtk.RevealerTransitionType.CROSSFADE,
-    'slide_right': Gtk.RevealerTransitionType.SLIDE_RIGHT,
-    'slide_left': Gtk.RevealerTransitionType.SLIDE_LEFT,
-    'slide_up': Gtk.RevealerTransitionType.SLIDE_UP,
-    'slide_down': Gtk.RevealerTransitionType.SLIDE_DOWN,
+    none: Gtk.RevealerTransitionType.NONE,
+    crossfade: Gtk.RevealerTransitionType.CROSSFADE,
+    slide_right: Gtk.RevealerTransitionType.SLIDE_RIGHT,
+    slide_left: Gtk.RevealerTransitionType.SLIDE_LEFT,
+    slide_up: Gtk.RevealerTransitionType.SLIDE_UP,
+    slide_down: Gtk.RevealerTransitionType.SLIDE_DOWN,
 } as const;
 
 type Transition = keyof typeof TRANSITION;
@@ -16,23 +16,26 @@ export type RevealerProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = Revealer<Child, Attr>,
-> = BaseProps<Self, Gtk.Revealer.ConstructorProps & {
-    child?: Child,
-    transition?: Transition
-}, Attr>
+> = BaseProps<
+    Self,
+    Gtk.Revealer.ConstructorProps & {
+        child?: Child;
+        transition?: Transition;
+    },
+    Attr
+>;
 
-export function newRevealer<
-    Child extends Gtk.Widget = Gtk.Widget,
-    Attr = unknown,
->(...props: ConstructorParameters<typeof Revealer<Child, Attr>>) {
+export function newRevealer<Child extends Gtk.Widget = Gtk.Widget, Attr = unknown>(
+    ...props: ConstructorParameters<typeof Revealer<Child, Attr>>
+) {
     return new Revealer(...props);
 }
 
-export interface Revealer<Child, Attr> extends Widget<Attr> { }
+export interface Revealer<Child, Attr> extends Widget<Attr> {}
 export class Revealer<Child extends Gtk.Widget, Attr> extends Gtk.Revealer {
     static {
         register(this, {
-            properties: { 'transition': ['string', 'rw'] },
+            properties: { transition: ['string', 'rw'] },
         });
     }
 
@@ -40,16 +43,18 @@ export class Revealer<Child extends Gtk.Widget, Attr> extends Gtk.Revealer {
         props: RevealerProps<Child, Attr> = {} as RevealerProps<Child, Attr>,
         child?: Child,
     ) {
-        if (child)
-            props.child = child;
+        if (child) props.child = child;
 
         super(props as Gtk.Revealer.ConstructorProps);
         this.connect('notify::transition-type', () => this.notify('transition'));
     }
 
-    get child() { return super.child as Child; }
-    set child(child: Child) { super.child = child; }
-
+    get child() {
+        return super.child as Child;
+    }
+    set child(child: Child) {
+        super.child = child;
+    }
 
     get transition() {
         return Object.keys(TRANSITION).find(key => {
@@ -58,14 +63,15 @@ export class Revealer<Child extends Gtk.Widget, Attr> extends Gtk.Revealer {
     }
 
     set transition(transition: Transition) {
-        if (this.transition === transition)
-            return;
+        if (this.transition === transition) return;
 
         if (!Object.keys(TRANSITION).includes(transition)) {
-            console.error(Error(
-                `transition on Revealer has to be one of ${Object.keys(TRANSITION)}, ` +
-                `but it is ${transition}`,
-            ));
+            console.error(
+                Error(
+                    `transition on Revealer has to be one of ${Object.keys(TRANSITION)}, ` +
+                        `but it is ${transition}`,
+                ),
+            );
             return;
         }
 

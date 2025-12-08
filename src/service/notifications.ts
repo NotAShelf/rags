@@ -3,9 +3,12 @@ import GdkPixbuf from 'gi://GdkPixbuf';
 import GLib from 'gi://GLib';
 import Service from '../service.js';
 import {
-    CACHE_DIR, ensureDirectory,
-    loadInterfaceXML, readFileAsync,
-    timeout, writeFile,
+    CACHE_DIR,
+    ensureDirectory,
+    loadInterfaceXML,
+    readFileAsync,
+    timeout,
+    writeFile,
 } from '../utils.js';
 import { daemon } from '../utils/notify.js';
 
@@ -14,36 +17,36 @@ const CACHE_FILE = NOTIFICATIONS_CACHE_PATH + '/notifications.json';
 const NotificationIFace = loadInterfaceXML('org.freedesktop.Notifications');
 
 export interface Action {
-    id: string
-    label: string
+    id: string;
+    label: string;
 }
 
 export interface Hints {
-    'action-icons'?: GLib.Variant // boolean
-    'category'?: GLib.Variant // string
-    'desktop-entry'?: GLib.Variant // string
-    'image-data'?: GLib.Variant // iiibiiay
-    'image-path'?: GLib.Variant // string
-    'resident'?: GLib.Variant // boolean
-    'sound-file'?: GLib.Variant // string
-    'sound-name'?: GLib.Variant // string
-    'suppress-sound'?: GLib.Variant // boolean
-    'transient'?: GLib.Variant // boolean
-    'urgency'?: GLib.Variant // 0 | 1 | 2
-    'x'?: GLib.Variant // number
-    'y'?: GLib.Variant // number
-    [hint: string]: GLib.Variant | undefined
+    'action-icons'?: GLib.Variant; // boolean
+    category?: GLib.Variant; // string
+    'desktop-entry'?: GLib.Variant; // string
+    'image-data'?: GLib.Variant; // iiibiiay
+    'image-path'?: GLib.Variant; // string
+    resident?: GLib.Variant; // boolean
+    'sound-file'?: GLib.Variant; // string
+    'sound-name'?: GLib.Variant; // string
+    'suppress-sound'?: GLib.Variant; // boolean
+    transient?: GLib.Variant; // boolean
+    urgency?: GLib.Variant; // 0 | 1 | 2
+    x?: GLib.Variant; // number
+    y?: GLib.Variant; // number
+    [hint: string]: GLib.Variant | undefined;
 }
 
 interface NotifcationJson {
-    id: number
-    appName: string
-    appIcon: string
-    summary: string
-    body: string
-    actions: Action[]
-    urgency: Urgency
-    time: number
+    id: number;
+    appName: string;
+    appIcon: string;
+    summary: string;
+    body: string;
+    actions: Action[];
+    urgency: Urgency;
+    time: number;
     image?: string;
     appEntry?: string;
     actionIcons?: boolean;
@@ -57,46 +60,53 @@ interface NotifcationJson {
     y?: number;
 }
 
-export type Urgency = 'low' | 'critical' | 'normal'
+export type Urgency = 'low' | 'critical' | 'normal';
 
 const _URGENCY = (urgency?: number): Urgency => {
     switch (urgency) {
-        case 0: return 'low';
-        case 2: return 'critical';
-        default: return 'normal';
+        case 0:
+            return 'low';
+        case 2:
+            return 'critical';
+        default:
+            return 'normal';
     }
 };
 
 export class Notification extends Service {
     static {
-        Service.register(this, {
-            'dismissed': [],
-            'closed': [],
-            'invoked': ['string'],
-        }, {
-            'action-icons': ['boolean'],
-            'actions': ['jsobject'],
-            'app-entry': ['string'],
-            'app-icon': ['string'],
-            'app-name': ['string'],
-            'body': ['string'],
-            'category': ['string'],
-            'id': ['int'],
-            'image': ['string'],
-            'popup': ['boolean'],
-            'resident': ['boolean'],
-            'sound-file': ['string'],
-            'sound-name': ['string'],
-            'summary': ['string'],
-            'suppress-sound': ['boolean'],
-            'time': ['int'],
-            'timeout': ['int', 'rw'],
-            'transient': ['boolean'],
-            'urgency': ['string'],
-            'x': ['int'],
-            'y': ['int'],
-            'hints': ['jsobject'],
-        });
+        Service.register(
+            this,
+            {
+                dismissed: [],
+                closed: [],
+                invoked: ['string'],
+            },
+            {
+                'action-icons': ['boolean'],
+                actions: ['jsobject'],
+                'app-entry': ['string'],
+                'app-icon': ['string'],
+                'app-name': ['string'],
+                body: ['string'],
+                category: ['string'],
+                id: ['int'],
+                image: ['string'],
+                popup: ['boolean'],
+                resident: ['boolean'],
+                'sound-file': ['string'],
+                'sound-name': ['string'],
+                summary: ['string'],
+                'suppress-sound': ['boolean'],
+                time: ['int'],
+                timeout: ['int', 'rw'],
+                transient: ['boolean'],
+                urgency: ['string'],
+                x: ['int'],
+                y: ['int'],
+                hints: ['jsobject'],
+            },
+        );
     }
 
     private _actionIcons?: boolean;
@@ -122,28 +132,72 @@ export class Notification extends Service {
     private _y?: number;
     private _hints: Hints = {};
 
-    get action_icons() { return this._actionIcons; }
-    get actions() { return this._actions; }
-    get app_entry() { return this._appEntry; }
-    get app_icon() { return this._appIcon; }
-    get app_name() { return this._appName; }
-    get body() { return this._body; }
-    get category() { return this._category; }
-    get id() { return this._id; }
-    get image() { return this._image; }
-    get popup() { return this._popup; }
-    get resident() { return this._resident; }
-    get sound_file() { return this._soundFile; }
-    get sound_name() { return this._soundName; }
-    get summary() { return this._summary; }
-    get suppress_sound() { return this._suppressSound; }
-    get time() { return this._time; }
-    get timeout() { return this._timeout; }
-    get transient() { return this._transient; }
-    get urgency() { return this._urgency; }
-    get x() { return this._x; }
-    get y() { return this._y; }
-    get hints() { return this._hints; }
+    get action_icons() {
+        return this._actionIcons;
+    }
+    get actions() {
+        return this._actions;
+    }
+    get app_entry() {
+        return this._appEntry;
+    }
+    get app_icon() {
+        return this._appIcon;
+    }
+    get app_name() {
+        return this._appName;
+    }
+    get body() {
+        return this._body;
+    }
+    get category() {
+        return this._category;
+    }
+    get id() {
+        return this._id;
+    }
+    get image() {
+        return this._image;
+    }
+    get popup() {
+        return this._popup;
+    }
+    get resident() {
+        return this._resident;
+    }
+    get sound_file() {
+        return this._soundFile;
+    }
+    get sound_name() {
+        return this._soundName;
+    }
+    get summary() {
+        return this._summary;
+    }
+    get suppress_sound() {
+        return this._suppressSound;
+    }
+    get time() {
+        return this._time;
+    }
+    get timeout() {
+        return this._timeout;
+    }
+    get transient() {
+        return this._transient;
+    }
+    get urgency() {
+        return this._urgency;
+    }
+    get x() {
+        return this._x;
+    }
+    get y() {
+        return this._y;
+    }
+    get hints() {
+        return this._hints;
+    }
 
     constructor(
         appName: string,
@@ -158,10 +212,11 @@ export class Notification extends Service {
         super();
 
         for (let i = 0; i < acts.length; i += 2) {
-            acts[i + 1] !== '' && this._actions.push({
-                label: acts[i + 1],
-                id: acts[i],
-            });
+            acts[i + 1] !== '' &&
+                this._actions.push({
+                    label: acts[i + 1],
+                    id: acts[i],
+                });
         }
 
         this._id = id;
@@ -170,7 +225,8 @@ export class Notification extends Service {
         this._summary = summary;
         this._body = body;
         this._time = GLib.DateTime.new_now_local().to_unix();
-        this._image = this._appIconImage() ||
+        this._image =
+            this._appIconImage() ||
             this._parseImageData(hints['image-data']) ||
             (hints['image-path']?.unpack() as string | undefined);
 
@@ -202,8 +258,7 @@ export class Notification extends Service {
 
     readonly invoke = (id: string) => {
         this.emit('invoked', id);
-        if (!this.resident)
-            this.close();
+        if (!this.resident) this.close();
     };
 
     toJson(cacheActions = notifications.cacheActions): NotifcationJson {
@@ -242,14 +297,15 @@ export class Notification extends Service {
     }
 
     private _appIconImage() {
-        if (GLib.file_test(this._appIcon, GLib.FileTest.EXISTS) ||
-            GLib.file_test(this._appIcon.replace(/^(file\:\/\/)/, ''), GLib.FileTest.EXISTS))
+        if (
+            GLib.file_test(this._appIcon, GLib.FileTest.EXISTS) ||
+            GLib.file_test(this._appIcon.replace(/^(file\:\/\/)/, ''), GLib.FileTest.EXISTS)
+        )
             return this._appIcon;
     }
 
     private _parseImageData(imageData?: InstanceType<typeof GLib.Variant>) {
-        if (!imageData)
-            return null;
+        if (!imageData) return null;
 
         ensureDirectory(NOTIFICATIONS_CACHE_PATH);
         const fileName = NOTIFICATIONS_CACHE_PATH + `/${this._id}`;
@@ -257,19 +313,31 @@ export class Notification extends Service {
             .recursiveUnpack<[number, number, number, boolean, number, number, GLib.Bytes]>();
 
         if (bps !== 8) {
-            console.warn(`Notification image error from ${this.app_name}: ` +
-                'Currently only RGB images with 8 bits per sample are supported.');
+            console.warn(
+                `Notification image error from ${this.app_name}: ` +
+                    'Currently only RGB images with 8 bits per sample are supported.',
+            );
             return null;
         }
 
         const pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
-            data, GdkPixbuf.Colorspace.RGB, alpha, bps, w, h, rs);
+            data,
+            GdkPixbuf.Colorspace.RGB,
+            alpha,
+            bps,
+            w,
+            h,
+            rs,
+        );
 
-        if (!pixbuf)
-            return null;
+        if (!pixbuf) return null;
 
-        const outputStream = Gio.File.new_for_path(fileName)
-            .replace(null, false, Gio.FileCreateFlags.NONE, null);
+        const outputStream = Gio.File.new_for_path(fileName).replace(
+            null,
+            false,
+            Gio.FileCreateFlags.NONE,
+            null,
+        );
 
         pixbuf.save_to_streamv(outputStream, 'png', null, null, null);
         outputStream.close(null);
@@ -280,15 +348,19 @@ export class Notification extends Service {
 
 export class Notifications extends Service {
     static {
-        Service.register(this, {
-            'dismissed': ['int'],
-            'notified': ['int'],
-            'closed': ['int'],
-        }, {
-            'notifications': ['jsobject'],
-            'popups': ['jsobject'],
-            'dnd': ['boolean'],
-        });
+        Service.register(
+            this,
+            {
+                dismissed: ['int'],
+                notified: ['int'],
+                closed: ['int'],
+            },
+            {
+                notifications: ['jsobject'],
+                popups: ['jsobject'],
+                dnd: ['boolean'],
+            },
+        );
     }
 
     public popupTimeout = 3000;
@@ -309,7 +381,9 @@ export class Notifications extends Service {
         this._register();
     }
 
-    get dnd() { return this._dnd; }
+    get dnd() {
+        return this._dnd;
+    }
     set dnd(value: boolean) {
         this._dnd = value;
         this.changed('dnd');
@@ -322,8 +396,7 @@ export class Notifications extends Service {
     get popups() {
         const list = [];
         for (const [, notification] of this._notifications) {
-            if (notification.popup)
-                list.push(notification);
+            if (notification.popup) list.push(notification);
         }
         return list;
     }
@@ -355,8 +428,7 @@ export class Notifications extends Service {
             timeout(this.popupTimeout, () => this.DismissNotification(id));
         } else {
             n.updateProperty('timeout', expiration);
-            if (expiration > 0)
-                timeout(expiration, () => this.DismissNotification(id));
+            if (expiration > 0) timeout(expiration, () => this.DismissNotification(id));
         }
 
         this._addNotification(n);
@@ -368,7 +440,9 @@ export class Notifications extends Service {
         return id;
     }
 
-    Clear() { this.clear(); }
+    Clear() {
+        this.clear();
+    }
 
     DismissNotification(id: number) {
         this._notifications.get(id)?.dismiss();
@@ -400,11 +474,12 @@ export class Notifications extends Service {
     }
 
     readonly clear = async () => {
-        const close = (n: Notification, delay: number) => new Promise(resolve => {
-            this._notifications.has(n.id)
-                ? timeout(delay, () => resolve(n.close()))
-                : resolve(null);
-        });
+        const close = (n: Notification, delay: number) =>
+            new Promise(resolve => {
+                this._notifications.has(n.id)
+                    ? timeout(delay, () => resolve(n.close()))
+                    : resolve(null);
+            });
         return Promise.all(this.notifications.map((n, i) => close(n, this.clearDelay * i)));
     };
 
@@ -421,8 +496,7 @@ export class Notifications extends Service {
     }
 
     private _onClosed(n: Notification) {
-        this._dbus.emit_signal('NotificationClosed',
-            new GLib.Variant('(uu)', [n.id, 3]));
+        this._dbus.emit_signal('NotificationClosed', new GLib.Variant('(uu)', [n.id, 3]));
 
         this._notifications.delete(n.id);
         this.notify('notifications');
@@ -433,8 +507,7 @@ export class Notifications extends Service {
     }
 
     private _onInvoked(n: Notification, id: string) {
-        this._dbus.emit_signal('ActionInvoked',
-            new GLib.Variant('(us)', [n.id, id]));
+        this._dbus.emit_signal('ActionInvoked', new GLib.Variant('(us)', [n.id, id]));
     }
 
     private _register() {
@@ -443,8 +516,7 @@ export class Notifications extends Service {
             'org.freedesktop.Notifications',
             Gio.BusNameOwnerFlags.NONE,
             (connection: Gio.DBusConnection) => {
-                this._dbus = Gio.DBusExportedObject
-                    .wrapJSObject(NotificationIFace as string, this);
+                this._dbus = Gio.DBusExportedObject.wrapJSObject(NotificationIFace as string, this);
 
                 this._dbus.export(connection, '/org/freedesktop/Notifications');
             },
@@ -452,16 +524,19 @@ export class Notifications extends Service {
                 daemon.running = true;
             },
             () => {
-                const [name] = Gio.DBus.session.call_sync(
-                    'org.freedesktop.Notifications',
-                    '/org/freedesktop/Notifications',
-                    'org.freedesktop.Notifications',
-                    'GetServerInformation',
-                    null,
-                    null,
-                    Gio.DBusCallFlags.NONE,
-                    -1,
-                    null).deepUnpack() as string[];
+                const [name] = Gio.DBus.session
+                    .call_sync(
+                        'org.freedesktop.Notifications',
+                        '/org/freedesktop/Notifications',
+                        'org.freedesktop.Notifications',
+                        'GetServerInformation',
+                        null,
+                        null,
+                        Gio.DBusCallFlags.NONE,
+                        -1,
+                        null,
+                    )
+                    .deepUnpack() as string[];
 
                 console.warn(`Another notification daemon is already running: ${name}`);
             },
@@ -471,13 +546,13 @@ export class Notifications extends Service {
     private async _readFromFile() {
         try {
             const file = await readFileAsync(CACHE_FILE);
-            const notifications = JSON.parse(file)
-                .map((n: NotifcationJson) => Notification.fromJson(n));
+            const notifications = JSON.parse(file).map((n: NotifcationJson) =>
+                Notification.fromJson(n),
+            );
 
             for (const n of notifications) {
                 this._addNotification(n);
-                if (n.id > this._idCount)
-                    this._idCount = n.id + 1;
+                if (n.id > this._idCount) this._idCount = n.id + 1;
             }
 
             this.changed('notifications');
@@ -493,5 +568,5 @@ export class Notifications extends Service {
     }
 }
 
-export const notifications = new Notifications;
+export const notifications = new Notifications();
 export default notifications;

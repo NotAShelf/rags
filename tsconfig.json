@@ -2,25 +2,16 @@
     "compilerOptions": {
         "target": "ES2022",
         "module": "ES2022",
-        "lib": [
-            "ES2022",
-            "DOM"
-        ],
+        "lib": ["ES2022", "DOM"],
         "allowJs": true,
         "checkJs": false,
         "outDir": "_build/tsc-out",
         "strict": true,
         "moduleResolution": "node",
         "baseUrl": ".",
-        "typeRoots": [
-            "./node_modules/@girs"
-        ],
+        "typeRoots": ["./node_modules/@girs"],
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true
     },
-    "include": [
-        "node_modules/@girs/**/*-ambient.d.ts",
-        "types/*",
-        "src"
-    ]
+    "include": ["node_modules/@girs/**/*-ambient.d.ts", "types/*", "src"]
 }

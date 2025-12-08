@@ -7,33 +7,33 @@ Gio._promisify(Gio.InputStream.prototype, 'read_bytes_async');
 const SOCK = GLib.getenv('GREETD_SOCK') || '/run/greetd.sock';
 
 type Request = {
-  create_session: {
-    username: string;
-  };
-  post_auth_message_response: {
-    response?: string;
-  };
-  start_session: {
-    cmd: string[];
-    env: string[];
-  };
-  cancel_session: Record<never, never>;
+    create_session: {
+        username: string;
+    };
+    post_auth_message_response: {
+        response?: string;
+    };
+    start_session: {
+        cmd: string[];
+        env: string[];
+    };
+    cancel_session: Record<never, never>;
 };
 
 type Response =
-  | {
-      type: 'success';
-    }
-  | {
-      type: 'error';
-      error_type: 'auth_error' | 'error';
-      description: string;
-    }
-  | {
-      type: 'auth_message';
-      auth_message_type: 'visible' | 'secret' | 'info' | 'error';
-      auth_message: string;
-    };
+    | {
+          type: 'success';
+      }
+    | {
+          type: 'error';
+          error_type: 'auth_error' | 'error';
+          description: string;
+      }
+    | {
+          type: 'auth_message';
+          auth_message_type: 'visible' | 'secret' | 'info' | 'error';
+          auth_message: string;
+      };
 
 export class Greetd extends Service {
     static {
@@ -78,7 +78,7 @@ export class Greetd extends Service {
     };
 
     readonly startSession = (cmd: string[] | string, env: string[] = []) => {
-        const cmdv = Array.isArray(cmd) ? cmd : (GLib.shell_parse_argv(cmd)[1] || []);
+        const cmdv = Array.isArray(cmd) ? cmd : GLib.shell_parse_argv(cmd)[1] || [];
 
         return this._send('start_session', { cmd: cmdv, env });
     };
@@ -87,10 +87,7 @@ export class Greetd extends Service {
         return this._send('cancel_session', {});
     };
 
-    private async _send<R extends keyof Request>(
-        req: R,
-        payload: Request[R],
-    ): Promise<Response> {
+    private async _send<R extends keyof Request>(req: R, payload: Request[R]): Promise<Response> {
         const connection = new Gio.SocketClient().connect(
             new Gio.UnixSocketAddress({ path: SOCK }),
             undefined,
@@ -108,19 +105,9 @@ export class Greetd extends Service {
             ostream.put_int32(json.length, null);
             ostream.put_string(json, null);
 
-            const data = await istream.read_bytes_async(
-                4,
-                GLib.PRIORITY_DEFAULT,
-                null,
-            );
-            const length = new Uint32Array(
-                (data.get_data() ?? new Uint8Array([0])).buffer,
-            )[0];
-            const res = await istream.read_bytes_async(
-                length,
-                GLib.PRIORITY_DEFAULT,
-                null,
-            );
+            const data = await istream.read_bytes_async(4, GLib.PRIORITY_DEFAULT, null);
+            const length = new Uint32Array((data.get_data() ?? new Uint8Array([0])).buffer)[0];
+            const res = await istream.read_bytes_async(length, GLib.PRIORITY_DEFAULT, null);
             return JSON.parse(this._decoder.decode(res.get_data()!)) as Response;
         } finally {
             connection.close(null);

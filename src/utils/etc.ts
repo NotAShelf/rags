@@ -21,26 +21,19 @@ export function bulkConnect(
     list: Array<[event: string, callback: (...args: any[]) => void]>,
 ) {
     const ids = [];
-    for (const [event, callback] of list)
-        ids.push(service.connect(event, callback));
+    for (const [event, callback] of list) ids.push(service.connect(event, callback));
 
     return ids;
 }
 
 export function bulkDisconnect(service: GObject.Object, ids: number[]) {
-    for (const id of ids)
-        service.disconnect(id);
+    for (const id of ids) service.disconnect(id);
 }
 
 export function lookUpIcon(name?: string, size = 16) {
-    if (!name)
-        return null;
+    if (!name) return null;
 
-    return Gtk.IconTheme.get_default().lookup_icon(
-        name,
-        size,
-        Gtk.IconLookupFlags.USE_BUILTIN,
-    );
+    return Gtk.IconTheme.get_default().lookup_icon(name, size, Gtk.IconLookupFlags.USE_BUILTIN);
 }
 
 export function ensureDirectory(path: string) {
