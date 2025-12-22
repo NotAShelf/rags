@@ -2,11 +2,12 @@
   lib,
   stdenv,
   fetchFromGitLab,
-  symlinkJoin,
+  fetchPnpmDeps,
   # Build dependencies
   meson,
   typescript,
   pnpm,
+  pnpmConfigHook,
   pkg-config,
   ninja,
   gobject-introspection,
@@ -62,14 +63,15 @@ in
     };
 
     pnpmInstallFlags = ["--dev"]; # don't install TSC
-    pnpmDeps = pnpm.fetchDeps {
+    pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src;
       hash = "sha256-T3GyHkGqwNjLC8EYdnABrjn0Wh+4xSW6dPNN97VlUjo=";
       fetcherVersion = 2; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
     nativeBuildInputs = [
-      pnpm.configHook # dependency resolution
+      pnpm
+      pnpmConfigHook # dependency resolution
 
       pkg-config
       meson
