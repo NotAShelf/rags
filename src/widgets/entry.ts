@@ -38,10 +38,13 @@ export class Entry<Attr> extends Gtk.Entry {
     }
 
     constructor(props: EntryProps<Attr> = {} as EntryProps<Attr>) {
-        super(props as Gtk.Entry.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.Entry.ConstructorProps);
 
         this.connect('activate', () => this.on_accept?.(this));
         this.connect('notify::text', () => this.on_change?.(this));
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** Callback invoked when Enter is pressed. */

@@ -27,11 +27,13 @@ export class Spinner<Attr> extends Gtk.Spinner {
             Attr
         >,
     ) {
-        super(props as Gtk.Widget.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.Widget.ConstructorProps);
         this.start();
         this.connect('notify::visible', ({ visible }) => {
             visible ? this.start() : this.stop();
         });
+        if (typeof setup === 'function') setup(this);
     }
 }
 

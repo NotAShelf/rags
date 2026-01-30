@@ -63,13 +63,17 @@ export class CenterBox<
         centerWidget?: CenterWidget,
         endWidget?: EndWidget,
     ) {
-        if (startWidget) props.start_widget = startWidget;
+        const { setup, ...rest } = props as any;
 
-        if (centerWidget) props.center_widget = centerWidget;
+        if (startWidget) rest.start_widget = startWidget;
 
-        if (endWidget) props.end_widget = endWidget;
+        if (centerWidget) rest.center_widget = centerWidget;
 
-        super(props as Gtk.Widget.ConstructorProps);
+        if (endWidget) rest.end_widget = endWidget;
+
+        super(rest as Gtk.Widget.ConstructorProps);
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The three slot children as a tuple: [start, center, end]. */

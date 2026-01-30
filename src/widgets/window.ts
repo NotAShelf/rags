@@ -110,6 +110,7 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
             gdkmonitor,
             popup = false,
             visible = true,
+            setup,
             ...params
         }: WindowProps<Child, Attr> = {} as WindowProps<Child, Attr>,
         child?: Child,
@@ -117,6 +118,19 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
         if (child) params.child = child;
 
         super(params as unknown as Gtk.Window.ConstructorProps);
+
+        const self = this as any;
+        self._onHandlerIds = [];
+        this.connect('destroy', () => {
+            if (self._onHandlerIds) {
+                for (const id of self._onHandlerIds) {
+                    this.disconnect(id);
+                }
+                self._onHandlerIds = [];
+            }
+            self._set('is-destroyed', true);
+        });
+
         LayerShell.init_for_window(this);
         LayerShell.set_namespace(this, this.name);
 
@@ -135,6 +149,8 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
 
         if (visible instanceof Binding) this._handleParamProp('visible', visible);
         else this.visible = visible === true || (visible === null && !popup);
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The child widget of this window. */
@@ -143,7 +159,12 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
     }
 
     set child(child: Child) {
-        super.child = child;
+        const old = this.get_child();
+        if (old && old !== child) this.remove(old);
+        if (child) {
+            this.add(child);
+            child.show();
+        }
     }
 
     /** The GDK monitor this window is assigned to. */

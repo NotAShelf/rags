@@ -45,12 +45,28 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
         ...children: Gtk.Widget[]
     ) {
         const props: any = Array.isArray(propsOrChildren) ? {} : propsOrChildren;
+        const { setup, ...rest } = props;
 
-        if (Array.isArray(propsOrChildren)) props.children = propsOrChildren;
-        else if (children.length > 0) props.children = children as Child[];
+        if (Array.isArray(propsOrChildren)) rest.children = propsOrChildren;
+        else if (children.length > 0) rest.children = children as Child[];
 
-        super(props as Gtk.Box.ConstructorProps);
+        super(rest as Gtk.Box.ConstructorProps);
+
+        const self = this as any;
+        self._onHandlerIds = [];
+        this.connect('destroy', () => {
+            if (self._onHandlerIds) {
+                for (const id of self._onHandlerIds) {
+                    this.disconnect(id);
+                }
+                self._onHandlerIds = [];
+            }
+            self._set('is-destroyed', true);
+        });
+
         this.connect('notify::orientation', () => this.notify('vertical'));
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The first child widget. */

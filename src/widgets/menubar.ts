@@ -21,7 +21,9 @@ export class MenuBar<Attr> extends Gtk.MenuBar {
     }
 
     constructor(props: MenuBarProps<Attr> = {} as MenuBarProps<Attr>) {
-        super(props as Gtk.MenuBar.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.MenuBar.ConstructorProps);
+        if (typeof setup === 'function') setup(this);
     }
 }
 

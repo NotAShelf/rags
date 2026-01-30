@@ -36,7 +36,7 @@ export class Icon<Attr> extends Gtk.Image {
     }
 
     constructor(props: IconProps<Attr> | Ico = {} as IconProps<Attr>) {
-        const { icon = '', ...rest } = props as IconProps<Attr>;
+        const { icon = '', setup, ...rest } = props as any;
         super(
             typeof props === 'string' || props instanceof GdkPixbuf.Pixbuf
                 ? {}
@@ -48,6 +48,8 @@ export class Icon<Attr> extends Gtk.Image {
             'icon',
             typeof props === 'string' || props instanceof GdkPixbuf.Pixbuf ? props : icon,
         );
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The pixel size of the icon, falls back to CSS font-size. */

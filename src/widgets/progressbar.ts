@@ -31,9 +31,12 @@ export class ProgressBar<Attr> extends Gtk.ProgressBar {
     }
 
     constructor(props: ProgressBarProps<Attr> = {} as ProgressBarProps<Attr>) {
-        super(props as Gtk.ProgressBar.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.ProgressBar.ConstructorProps);
         this.connect('notify::fraction', () => this.notify('value'));
         this.connect('notify::orientation', () => this.notify('vertical'));
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The progress value, an alias for the underlying `fraction` property. */

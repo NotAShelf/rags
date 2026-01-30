@@ -66,9 +66,10 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
         props: EventBoxProps<Child, Attr> = {} as EventBoxProps<Child, Attr>,
         child?: Child,
     ) {
-        if (child) props.child = child;
+        const { setup, ...rest } = props as any;
+        if (child) rest.child = child;
 
-        super(props as Gtk.EventBox.ConstructorProps);
+        super(rest as Gtk.EventBox.ConstructorProps);
         this.add_events(Gdk.EventMask.SCROLL_MASK);
         this.add_events(Gdk.EventMask.SMOOTH_SCROLL_MASK);
 
@@ -110,6 +111,8 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
             if (event.get_scroll_deltas()[2] < 0) return this.on_scroll_up?.(this, event);
             else if (event.get_scroll_deltas()[2] > 0) return this.on_scroll_down?.(this, event);
         });
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The child widget inside the event box. */

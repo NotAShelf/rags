@@ -41,8 +41,10 @@ export class FileChooserButton<Child extends Gtk.Widget, Attr> extends Gtk.FileC
     ) {
         if (child) props.child = child;
 
-        super(props as Gtk.FileChooserButton.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.FileChooserButton.ConstructorProps);
         this.connect('file-set', this.on_file_set.bind(this));
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The child widget inside the button. */

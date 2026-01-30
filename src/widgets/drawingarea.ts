@@ -32,12 +32,14 @@ export class DrawingArea<Attr> extends Gtk.DrawingArea {
     }
 
     constructor(props: DrawingAreaProps<Attr> = {} as DrawingAreaProps<Attr>) {
-        super(props as Gtk.DrawingArea.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.DrawingArea.ConstructorProps);
         this.connect('draw', (self, cr: any) => {
             const w = this.get_allocated_width();
             const h = this.get_allocated_height();
             this.draw_fn(self, cr, w, h);
         });
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The function called on each draw with (self, cr, width, height). */

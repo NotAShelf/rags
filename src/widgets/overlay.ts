@@ -51,11 +51,14 @@ export class Overlay<Child extends Gtk.Widget, OverlayChild extends Gtk.Widget, 
         child?: Child,
         ...overlays: Gtk.Widget[]
     ) {
-        if (child) props.child = child;
+        const { setup, ...rest } = props as any;
+        if (child) rest.child = child;
 
-        if (overlays.length > 0) props.overlays = overlays as OverlayChild[];
+        if (overlays.length > 0) rest.overlays = overlays as OverlayChild[];
 
-        super(props as Gtk.Overlay.ConstructorProps);
+        super(rest as Gtk.Overlay.ConstructorProps);
+
+        if (typeof setup === 'function') setup(this);
     }
 
     private _updatePassThrough() {

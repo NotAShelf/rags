@@ -35,8 +35,10 @@ export class SpinButton<Attr> extends Gtk.SpinButton {
     }
 
     constructor(props: SpinButtonProps<Attr> = {} as SpinButtonProps<Attr>) {
-        super(props as Gtk.SpinButton.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.SpinButton.ConstructorProps);
         this.connect('value-changed', this.on_value_changed.bind(this));
+        if (typeof setup === 'function') setup(this);
     }
 
     /** Callback invoked when the spin button value changes. */

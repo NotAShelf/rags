@@ -55,10 +55,13 @@ export class Revealer<Child extends Gtk.Widget, Attr> extends Gtk.Revealer {
         props: RevealerProps<Child, Attr> = {} as RevealerProps<Child, Attr>,
         child?: Child,
     ) {
-        if (child) props.child = child;
+        const { setup, ...rest } = props as any;
+        if (child) rest.child = child;
 
-        super(props as Gtk.Revealer.ConstructorProps);
+        super(rest as Gtk.Revealer.ConstructorProps);
         this.connect('notify::transition-type', () => this.notify('transition'));
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The child widget to reveal or hide. */

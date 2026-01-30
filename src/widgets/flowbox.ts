@@ -23,7 +23,9 @@ export class FlowBox<Attr> extends Gtk.FlowBox {
     }
 
     constructor(props: FlowBoxProps<Attr> = {} as FlowBoxProps<Attr>) {
-        super(props as Gtk.FlowBox.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.FlowBox.ConstructorProps);
+        if (typeof setup === 'function') setup(this);
     }
 }
 
