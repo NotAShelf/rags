@@ -34,11 +34,18 @@
         "@girs/xlib-2.0": "2.0.0-4.0.0-beta.38",
         "@typescript-eslint/eslint-plugin": "^8.54.0",
         "@typescript-eslint/parser": "^8.54.0",
-        "eslint": "^9.39.2"
+        "eslint": "^9.39.2",
+        "eslint-config-prettier": "^10.1.8",
+        "prettier": "^3.8.1",
+        "typedoc": "^0.28.16",
+        "typedoc-rhineai-theme": "^1.2.0"
     },
     "scripts": {
         "lint": "eslint .",
+        "fmt": "prettier --write 'src/**/*.ts' 'types/**/*.ts' 'eslint.config.js'",
+        "fmt:check": "prettier --check 'src/**/*.ts' 'types/**/*.ts' 'eslint.config.js'",
         "build": "tsc --skipLibCheck",
-        "dev": "tsc --watch --skipLibCheck"
+        "dev": "tsc --watch --skipLibCheck",
+        "docs": "typedoc"
     }
 }
