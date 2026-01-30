@@ -1,3 +1,12 @@
+/**
+ * Global type references for the GJS runtime environment.
+ *
+ * This file pulls in ambient type declarations for all GI (GObject
+ * Introspection) libraries used by RAGS, enabling `gi://` imports
+ * to be type-checked.
+ *
+ * @module
+ */
 /// <reference types="node" />
 /// <reference types="@girs/gjs" />
 
@@ -18,8 +27,11 @@
 /// <reference types="@girs/dbusmenugtk3-0.4/dbusmenugtk3-0.4-ambient" />
 
 declare global {
+    /** GJS package metadata available globally at runtime. */
     const pkg: {
+        /** The application identifier / bus name. */
         name: string;
+        /** The application version string. */
         version: string;
     };
 }
