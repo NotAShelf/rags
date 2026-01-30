@@ -8,6 +8,7 @@ import Gio from 'gi://Gio';
  * to make libsoup an optional dependency we do this
  */
 let init = false;
+let _session: any = null;
 async function libnotify() {
     try {
         import('gi://Soup?version=3.0');
@@ -21,6 +22,7 @@ async function libnotify() {
     if (init) return Soup;
 
     init = true;
+    _session = new Soup.Session();
     Gio._promisify(Soup.Session.prototype, 'send_async');
     Gio._promisify(Gio.MemoryOutputStream.prototype, 'splice_async');
     return Soup;
@@ -133,7 +135,7 @@ export async function fetch(url: string, options: FetchOptions = {}) {
         return new Response(400, 'can not fetch: missing dependency: libsoup3', false, null);
     }
 
-    const session = new Soup.Session();
+    const session = _session!;
 
     if (options.params) {
         url +=

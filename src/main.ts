@@ -11,6 +11,14 @@ const APP_BUS = (name: string) => `${pkg.name}.${name}`;
 const APP_PATH = (name: string) => `/${pkg.name.split('.').join('/')}/${name}`;
 const DEFAULT_CONF = `${GLib.get_user_config_dir()}/${BIN_NAME}/config.js`;
 
+function nextArg(args: string[], i: number, flag: string): string {
+    if (i + 1 >= args.length) {
+        console.error(`${flag} requires an argument`);
+        return '';
+    }
+    return args[i + 1];
+}
+
 const help = (bin: string) => `USAGE:
     ${bin} [OPTIONS]
 
@@ -77,12 +85,14 @@ export async function main(args: string[]) {
 
             case '-b':
             case '--bus-name':
-                flags.busName = args[++i];
+                flags.busName = nextArg(args, i, args[i]);
+                ++i;
                 break;
 
             case '-c':
             case '--config':
-                flags.config = parsePath(args[++i]);
+                flags.config = parsePath(nextArg(args, i, args[i]));
+                ++i;
                 break;
 
             case 'inspector':
@@ -99,26 +109,30 @@ export async function main(args: string[]) {
             case 'run-js':
             case '-r':
             case '--run-js':
-                flags.runJs = args[++i];
+                flags.runJs = nextArg(args, i, args[i]);
+                ++i;
                 break;
 
             case 'run-file':
             case '-f':
             case '--run-file':
-                flags.runFile = parsePath(args[++i]);
+                flags.runFile = parsePath(nextArg(args, i, args[i]));
+                ++i;
                 break;
 
             // FIXME: deprecated
             case 'run-promise':
             case '-p':
             case '--run-promise':
-                flags.runPromise = args[++i];
+                flags.runPromise = nextArg(args, i, args[i]);
+                ++i;
                 break;
 
             case 'toggle-window':
             case '-t':
             case '--toggle-window':
-                flags.toggleWindow = args[++i];
+                flags.toggleWindow = nextArg(args, i, args[i]);
+                ++i;
                 break;
 
             case 'quit':

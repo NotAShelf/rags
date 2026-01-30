@@ -1,6 +1,31 @@
 import GObject from 'gi://GObject';
 import { pspec, registerGObject, PspecFlag, PspecType } from './utils/gobject.js';
 
+function shallowEqual(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+    const keysA = Object.keys(a as Record<string, unknown>);
+    const keysB = Object.keys(b as Record<string, unknown>);
+    if (keysA.length !== keysB.length) return false;
+    for (const key of keysA) {
+        if ((a as any)[key] !== (b as any)[key]) return false;
+    }
+    return true;
+}
+
+const kebabToCamelCache = new Map<string, string>();
+
+function kebabToCamel(prop: string): string {
+    let result = kebabToCamelCache.get(prop);
+    if (result !== undefined) return result;
+    result = prop
+        .split('-')
+        .map((w, i) => (i > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+        .join('');
+    kebabToCamelCache.set(prop, result);
+    return result;
+}
+
 /**
  * An object that supports signal connections and disconnections.
  */
@@ -219,16 +244,9 @@ export default class Service extends GObject.Object {
      * @param value - The new value
      */
     updateProperty(prop: string, value: unknown) {
-        if (
-            this[prop as keyof typeof this] === value ||
-            JSON.stringify(this[prop as keyof typeof this]) === JSON.stringify(value)
-        )
-            return;
+        if (shallowEqual(this[prop as keyof typeof this], value)) return;
 
-        const privateProp = prop
-            .split('-')
-            .map((w, i) => (i > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
-            .join('');
+        const privateProp = kebabToCamel(prop);
 
         // @ts-expect-error
         this[`_${privateProp}`] = value;

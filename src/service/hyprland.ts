@@ -266,17 +266,6 @@ export class Hyprland extends Service {
         });
     }
 
-    /**
-     * @deprecated Use {@link message} or {@link messageAsync} instead.
-     */
-    readonly sendMessage = (cmd: string) => {
-        console.warn(
-            'hyprland.sendMessage is DEPRECATED, ' +
-                ' use hyprland.message or hyprland.messageAsync',
-        );
-        return this.messageAsync(cmd);
-    };
-
     private _socketStream(cmd: string) {
         const connection = this._connection('socket');
 
@@ -406,29 +395,28 @@ export class Hyprland extends Service {
                     break;
 
                 case 'openwindow':
-                    await this._syncClients(false);
-                    await this._syncWorkspaces(false);
+                    await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
                     ['clients', 'workspaces'].forEach(e => this.notify(e));
                     this.emit('client-added', '0x' + argv[0]);
                     break;
 
                 case 'movewindow':
                 case 'windowtitle':
-                    await this._syncClients(false);
-                    await this._syncWorkspaces(false);
+                    await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
                     ['clients', 'workspaces'].forEach(e => this.notify(e));
                     break;
 
                 case 'moveworkspace':
-                    await this._syncClients(false);
-                    await this._syncWorkspaces(false);
-                    await this._syncMonitors(false);
+                    await Promise.all([
+                        this._syncClients(false),
+                        this._syncWorkspaces(false),
+                        this._syncMonitors(false),
+                    ]);
                     ['clients', 'workspaces', 'monitors'].forEach(e => this.notify(e));
                     break;
 
                 case 'fullscreen':
-                    await this._syncClients(false);
-                    await this._syncWorkspaces(false);
+                    await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
                     ['clients', 'workspaces'].forEach(e => this.notify(e));
                     this.emit('fullscreen', argv[0] === '1');
                     break;
@@ -445,8 +433,7 @@ export class Hyprland extends Service {
                     break;
 
                 case 'closewindow':
-                    await this._syncWorkspaces(false);
-                    await this._syncClients(false);
+                    await Promise.all([this._syncWorkspaces(false), this._syncClients(false)]);
                     if (this._active.client.address === '0x' + argv[0]) {
                         this._active.client.updateProperty('class', '');
                         this._active.client.updateProperty('title', '');

@@ -446,6 +446,7 @@ export class Notifications extends Service {
     private _notifications: Map<number, Notification>;
     private _dnd = false;
     private _idCount = 1;
+    private _cacheTimeoutId = 0;
 
     constructor() {
         super();
@@ -673,9 +674,14 @@ export class Notifications extends Service {
     }
 
     private _cache() {
-        ensureDirectory(NOTIFICATIONS_CACHE_PATH);
-        const arr = Array.from(this._notifications.values()).map(n => n.toJson());
-        writeFile(JSON.stringify(arr, null, 2), CACHE_FILE).catch(err => console.error(err));
+        if (this._cacheTimeoutId) GLib.source_remove(this._cacheTimeoutId);
+        this._cacheTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+            this._cacheTimeoutId = 0;
+            ensureDirectory(NOTIFICATIONS_CACHE_PATH);
+            const arr = Array.from(this._notifications.values()).map(n => n.toJson());
+            writeFile(JSON.stringify(arr, null, 2), CACHE_FILE).catch(err => console.error(err));
+            return GLib.SOURCE_REMOVE;
+        });
     }
 }
 
