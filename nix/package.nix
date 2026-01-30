@@ -66,7 +66,7 @@ in
     pnpmInstallFlags = ["--dev"]; # don't install TSC
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
-      hash = "sha256-J9n8aV9ligZhf2X2DUYksqkdlQ0w8tTDEPifoU5sz5M=";
+      hash = "sha256-ii2aLYAyp45qevMm15xeblPBXBSWi5mMd1R50/eTueY=";
       fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
