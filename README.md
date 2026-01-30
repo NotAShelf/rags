@@ -34,6 +34,272 @@ while trying to migrate. As such I want to continue using v1, but also ensure
 that it remains usable for the duration I continue using it. Maybe you are in a
 similar position, and could benefit from a public fork.
 
+## API Documentation
+
+This documentation site is auto-generated from JSDoc comments in the RAGS source
+code using [TypeDoc](https://typedoc.org). Use the sidebar to navigate between
+modules, or the search bar to find specific classes, functions, or types.
+
+The API is organized into several areas:
+
+- **Widgets** -- GTK widget wrappers with reactive property binding
+  (`widgets/box`, `widgets/button`, `widgets/window`, etc.)
+- **Services** -- Singleton GObject classes exposing system state
+  (`service/audio`, `service/battery`, `service/network`, etc.)
+- **Utils** -- Helper functions for shell commands, file I/O, timers, and more
+  (`utils/exec`, `utils/file`, `utils/timeout`, etc.)
+- **Core** -- The reactive primitives: `Variable`, `Binding`, `Service` base
+  class, and the `App` singleton
+
+## Quick Start
+
+A minimal RAGS configuration file:
+
+```javascript
+const time = Variable('', {
+    poll: [1000, function() {
+        return Date().toString()
+    }],
+})
+
+const Bar = (monitor) => Widget.Window({
+    monitor,
+    name: `bar${monitor}`,
+    anchor: ['top', 'left', 'right'],
+    exclusivity: 'exclusive',
+    child: Widget.CenterBox({
+        start_widget: Widget.Label({
+            hpack: 'center',
+            label: 'Welcome to AGS!',
+        }),
+        end_widget: Widget.Label({
+            hpack: 'center',
+            label: time.bind(),
+        }),
+    }),
+})
+
+App.config({
+    windows: [Bar(0)],
+})
+```
+
+## Usage Examples
+
+### Widgets
+
+Widgets are GTK 3 widget classes extended with reactive capabilities. Every
+widget supports property binding, CSS styling, event hooks, and keyboard
+shortcuts through the common `Widget` mixin.
+
+All widgets accept a `setup` callback invoked after construction, and support
+`.hook()`, `.bind()`, `.on()`, `.poll()`, and `.keybind()` methods for
+reactive composition.
+
+<details open>
+<summary>Widget examples</summary>
+
+```typescript
+// Create widgets using factory functions
+const myBox = Widget.Box({
+    vertical: true,
+    css: 'padding: 12px;',
+    children: [
+        Widget.Label({ label: 'Hello' }),
+        Widget.Button({
+            child: Widget.Label({ label: 'Click me' }),
+            on_clicked: (self) => print('clicked!'),
+        }),
+    ],
+})
+
+// Bind reactive data to widget properties
+const myLabel = Widget.Label({
+    label: someVariable.bind(),
+})
+
+// Use CSS class toggling
+const myButton = Widget.Button({
+    setup: (self) => {
+        self.toggleClassName('active', true)
+    },
+})
+```
+
+</details>
+
+### Variables
+
+`Variable` is the core reactive primitive. It holds a value and notifies
+listeners when it changes.
+
+<details open>
+<summary>Variable examples</summary>
+
+```typescript
+// Simple variable
+const count = Variable(0)
+count.value++
+
+// Poll a command every 5 seconds
+const cpu = Variable('', {
+    poll: [5000, 'top -bn1 | grep Cpu'],
+})
+
+// Listen to a subprocess output stream
+const workspaces = Variable([], {
+    listen: ['hyprctl workspaces -j', (out) => JSON.parse(out)],
+})
+
+// Bind to a widget property
+Widget.Label({ label: count.bind().as(v => `Count: ${v}`) })
+```
+
+</details>
+
+### Bindings
+
+Bindings connect reactive sources (services, variables) to widget properties.
+They transform values through a functional pipeline.
+
+<details open>
+<summary>Binding examples</summary>
+
+```typescript
+// Bind a service property
+Widget.Label({
+    label: Audio.speaker.bind('volume').as(
+        (v) => `Volume: ${Math.round(v * 100)}%`
+    ),
+})
+
+// Merge multiple bindings
+const label = Utils.merge(
+    [Battery.bind('percent'), Battery.bind('charging')],
+    (percent, charging) => `${percent}%${charging ? ' (charging)' : ''}`
+)
+```
+
+</details>
+
+### Services
+
+Services are singleton GObject subclasses that expose system state via D-Bus
+or other backends. They emit signals and notify on property changes.
+
+<details open>
+<summary>Service examples</summary>
+
+```typescript
+// Audio service
+const volume = Audio.speaker?.volume ?? 0
+Audio.speaker?.connect('changed', () => {
+    print(`Volume: ${Audio.speaker.volume}`)
+})
+
+// Battery service
+Widget.Label({
+    label: Battery.bind('percent').as(p => `${p}%`),
+})
+
+// Network service
+const ssid = Network.wifi?.ssid
+const strength = Network.wifi?.strength
+
+// Hyprland IPC
+Hyprland.active.workspace.bind('id')
+
+// MPRIS media players
+const player = Mpris.players[0]
+player?.playPause()
+```
+
+</details>
+
+### Utility Functions
+
+<details open>
+<summary>Utility examples</summary>
+
+```typescript
+// Run shell commands
+const output = Utils.exec('whoami')
+const asyncOutput = await Utils.execAsync('ls -la')
+
+// Spawn a long-running subprocess
+Utils.subprocess(
+    ['tail', '-f', '/tmp/some.log'],
+    (line) => print(line),
+)
+
+// File I/O
+const content = Utils.readFile('/etc/hostname')
+await Utils.writeFile('hello', '/tmp/test.txt')
+Utils.monitorFile('/tmp/test.txt', (file, event) => {
+    print(`File changed: ${event}`)
+})
+
+// Timers
+Utils.timeout(1000, () => print('1 second later'))
+Utils.interval(5000, () => print('every 5 seconds'))
+
+// Desktop notifications
+Utils.notify({
+    summary: 'Hello',
+    body: 'This is a notification',
+    iconName: 'dialog-information',
+})
+```
+
+</details>
+
+### Windows and Layer Shell
+
+Windows are positioned using the Wayland Layer Shell protocol.
+
+<details open>
+<summary>Window examples</summary>
+
+```typescript
+Widget.Window({
+    name: 'my-bar',
+    anchor: ['top', 'left', 'right'],
+    exclusivity: 'exclusive',
+    layer: 'top',
+    monitor: 0,
+    margins: [0, 0, 0, 0],
+    keymode: 'on-demand',
+    child: Widget.Box({ /* ... */ }),
+})
+```
+
+</details>
+
+### Application Lifecycle
+
+The `App` singleton manages windows, CSS, and the application lifecycle.
+
+<details open>
+<summary>App examples</summary>
+
+```typescript
+App.config({
+    style: './style.css',
+    windows: [Bar(0), Notifications()],
+})
+
+// Dynamically manage windows
+App.toggleWindow('my-popup')
+App.openWindow('my-popup')
+App.closeWindow('my-popup')
+
+// Hot-reload CSS
+App.resetCss()
+App.applyCss('./style.css')
+```
+
+</details>
+
 ## Future Plans
 
 My main plans for RAGS is to focus solely on performance and security. I will
