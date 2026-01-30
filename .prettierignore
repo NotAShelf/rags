@@ -2,6 +2,7 @@ node_modules
 _build
 build
 docs
+docs/guides/
 result
 *.md
 pnpm-lock.yaml

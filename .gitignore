@@ -1,7 +1,7 @@
 node_modules
 _build
 build
-docs
+docs/html/
 run.sh
 tmp
 result

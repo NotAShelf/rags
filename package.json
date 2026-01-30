@@ -46,6 +46,6 @@
         "fmt:check": "prettier --check 'src/**/*.ts' 'types/**/*.ts' 'eslint.config.js'",
         "build": "tsc --skipLibCheck",
         "dev": "tsc --watch --skipLibCheck",
-        "docs": "typedoc"
+        "doc": "typedoc"
     }
 }
