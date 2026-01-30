@@ -23,6 +23,7 @@
     "sort": ["documents-first", "kind", "instance-first", "alphabetical-ignoring-documents"],
     "categoryOrder": ["Guides", "*"],
     "groupOrder": ["Getting Started", "Configuration", "Advanced", "Services", "*"],
+    "customJs": "docs/assets/nav-expand.js",
     "highlightLanguages": ["bash", "c", "css", "js", "json", "nix", "toml", "ts", "typescript", "javascript"],
     "intentionallyNotExported": [
         "Anchor",
