@@ -1,0 +1,46 @@
+name: "Version Check"
+
+on:
+  push:
+    tags:
+      - "v*"
+    paths:
+      - "version"
+      - "package.json"
+  pull_request:
+    paths:
+      - "version"
+      - "package.json"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check version consistency
+        run: |
+          FILE_VERSION=$(cat version | tr -d '[:space:]')
+          PKG_VERSION=$(node -e "console.log(require('./package.json').version)")
+
+          echo "version file: $FILE_VERSION"
+          echo "package.json: $PKG_VERSION"
+
+          FAIL=0
+
+          if [ "$FILE_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Version mismatch: version file ($FILE_VERSION) != package.json ($PKG_VERSION)"
+            FAIL=1
+          fi
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "tag: $TAG_VERSION"
+
+            if [ "$FILE_VERSION" != "$TAG_VERSION" ]; then
+              echo "::error::Version mismatch: version file ($FILE_VERSION) != tag ($TAG_VERSION)"
+              FAIL=1
+            fi
+          fi
+
+          exit $FAIL
