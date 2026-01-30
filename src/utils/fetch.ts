@@ -175,14 +175,11 @@ export async function fetch(url: string, options: FetchOptions = {}) {
         );
     }
 
-    const inputStream = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+    const gbytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+    const memoryInputStream = new Gio.MemoryInputStream();
+    memoryInputStream.add_bytes(gbytes);
     const { status_code, reason_phrase } = message;
     const ok = status_code >= 200 && status_code < 300;
 
-    return new Response(
-        status_code,
-        reason_phrase,
-        ok,
-        (inputStream as unknown as Gio.InputStream) || null,
-    );
+    return new Response(status_code, reason_phrase, ok, memoryInputStream);
 }
