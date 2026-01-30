@@ -42,7 +42,7 @@ jobs:
           cache: "pnpm"
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run docs
+      - run: pnpm run doc
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
