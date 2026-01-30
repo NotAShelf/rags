@@ -118,11 +118,11 @@ export async function main(args: string[]) {
 
             default:
                 // Treat unknown arguments as config file paths
-                if (!args[i].startsWith('-')) {
+                if (!args[i].startsWith('-'))
                     flags.config = parsePath(args[i]);
-                } else {
+                else
                     console.error(`unknown option: ${args[i]}`);
-                }
+
                 break;
         }
     }
