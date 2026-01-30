@@ -24,6 +24,7 @@ async function libnotify() {
     init = true;
     _session = new Soup.Session();
     Gio._promisify(Soup.Session.prototype, 'send_async');
+    Gio._promisify(Soup.Session.prototype, 'send_and_read_async');
     Gio._promisify(Gio.MemoryOutputStream.prototype, 'splice_async');
     return Soup;
 }
@@ -174,7 +175,7 @@ export async function fetch(url: string, options: FetchOptions = {}) {
         );
     }
 
-    const inputStream = await session.send_and_read_async(message, 0, null);
+    const inputStream = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
     const { status_code, reason_phrase } = message;
     const ok = status_code >= 200 && status_code < 300;
 
