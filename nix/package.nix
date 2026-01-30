@@ -63,10 +63,10 @@ in
       ];
     };
 
-    pnpmInstallFlags = ["--dev"]; # don't install TSC
+    pnpmInstallFlags = ["--prod"]; # only install build deps, skip dev tooling
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
-      hash = "sha256-ii2aLYAyp45qevMm15xeblPBXBSWi5mMd1R50/eTueY=";
+      hash = "sha256-pYC+82WU7FFDFFf8WFryhAHSbgfJijDQ4rt1cotpulU=";
       fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
