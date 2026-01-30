@@ -2,7 +2,6 @@ node_modules
 _build
 build
 docs
-run.sh
-tmp
 result
-*/.wraplock
+*.md
+pnpm-lock.yaml

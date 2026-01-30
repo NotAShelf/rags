@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
+import prettierConfig from 'eslint-config-prettier';
 
 export default [
     {
@@ -10,6 +11,7 @@ export default [
             'gi-types/**',
             '_build/**',
             'build/**',
+            'docs/**',
             'result/**',
             'node_modules/**',
             'pnpm-lock.yaml',
@@ -64,38 +66,13 @@ export default [
             '@typescript-eslint/no-empty-object-type': 'off',
             'no-redeclare': 'off',
             'no-import-assign': 'off',
-            'arrow-parens': ['error', 'as-needed'],
-            'comma-dangle': ['error', 'always-multiline'],
-            'comma-spacing': ['error', { before: false, after: true }],
-            'comma-style': ['error', 'last'],
-            'curly': ['error', 'multi-or-nest', 'consistent'],
-            'dot-location': ['error', 'property'],
-            'eol-last': 'error',
-            'indent': ['error', 4, { SwitchCase: 1 }],
-            'keyword-spacing': ['error', { before: true }],
+            'no-useless-escape': 'off',
+            '@typescript-eslint/no-unused-expressions': 'off',
+            curly: ['error', 'multi-or-nest', 'consistent'],
             'lines-between-class-members': ['error', 'always', { exceptAfterSingleLine: true }],
             'padded-blocks': ['error', 'never', { allowSingleLineBlocks: false }],
             'prefer-const': 'error',
-            'quotes': ['error', 'single', { avoidEscape: true }],
-            'semi': ['error', 'always'],
-            'nonblock-statement-body-position': ['error', 'below'],
-            'no-trailing-spaces': 'error',
-            'no-useless-escape': 'off',
-            '@typescript-eslint/no-unused-expressions': 'off',
-            'max-len': ['error', { code: 100 }],
-            'func-call-spacing': 'error',
-            'array-bracket-spacing': 'error',
-            'space-before-function-paren': [
-                'error',
-                {
-                    anonymous: 'never',
-                    named: 'never',
-                    asyncArrow: 'ignore',
-                },
-            ],
-            'space-before-blocks': 'error',
-            'key-spacing': 'error',
-            'object-curly-spacing': ['error', 'always'],
         },
     },
+    prettierConfig,
 ];
