@@ -346,6 +346,7 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         > = {} as any,
         child?: Gtk.Widget,
     ) {
+        this._onHandlerIds = [];
         const { setup, attribute, ...props } = config || {};
 
         const binds = (Object.keys(props) as Array<keyof typeof props>)
