@@ -33,18 +33,42 @@ import { newSwitch as Switch } from './widgets/switch.js';
 import { newToggleButton as ToggleButton } from './widgets/togglebutton.js';
 import { newWindow as Window } from './widgets/window.js';
 
-// ts can't compile export default { subclass, Box, Button ... }
-// so we use a function and add members to it instead
-// to bundle everything in a default export
-export default function W<
-    T extends { new(...args: any[]): Gtk.Widget },
-    Props,
->(
-    Base: T, typename = Base.name,
+/**
+ * Creates a subclassed AGS widget factory from a GTK widget class.
+ *
+ * Registers the subclass as a GObject and returns a factory function
+ * that creates instances with AGS widget features (binding, hooking, etc.).
+ *
+ * Also serves as the default export namespace containing all built-in
+ * widget factories (e.g., `Widget.Box`, `Widget.Label`).
+ *
+ * @typeParam T - The base GTK widget class
+ * @typeParam Props - The constructor props type for the base class
+ * @param Base - The GTK widget class to subclass
+ * @param typename - GObject type name (defaults to the class name)
+ * @returns A factory function that creates widget instances
+ *
+ * @example
+ * ```typescript
+ * // Create a custom widget from a GTK class
+ * const MyWidget = Widget(Gtk.DrawingArea, 'MyDrawingArea');
+ *
+ * // Use built-in widget factories
+ * const box = Widget.Box({ children: [Widget.Label({ label: 'hello' })] });
+ * ```
+ */
+export default function W<T extends { new (...args: any[]): Gtk.Widget }, Props>(
+    Base: T,
+    typename = Base.name,
 ) {
     class Subclassed extends Base {
-        static { register(this, { typename }); }
-        constructor(...params: any[]) { super(...params); }
+        static {
+            register(this, { typename });
+        }
+
+        constructor(...params: any[]) {
+            super(...params);
+        }
     }
     type Instance<Attr> = InstanceType<typeof Subclassed> & TWidget<Attr>;
     return <Attr>(props: BaseProps<Instance<Attr>, Props, Attr>) => {

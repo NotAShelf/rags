@@ -27,6 +27,15 @@ OPTIONS:
     --init                  Initialize the configuration directory
     --clear-cache           Remove ${Utils.CACHE_DIR} and exit`;
 
+/**
+ * Main entry point for the AGS CLI.
+ *
+ * Parses command-line arguments and either starts the application,
+ * connects as a client to a running instance, or performs a one-shot
+ * action (version, help, init, etc.).
+ *
+ * @param args - Command-line arguments (including the binary name at index 0)
+ */
 export async function main(args: string[]) {
     const flags = {
         busName: BIN_NAME,
@@ -60,7 +69,9 @@ export async function main(args: string[]) {
             case '--clear-cache':
                 try {
                     Gio.File.new_for_path(Utils.CACHE_DIR).trash(null);
-                } catch { /**/ }
+                } catch {
+                    /**/
+                }
                 app.quit();
                 break;
 
@@ -118,10 +129,8 @@ export async function main(args: string[]) {
 
             default:
                 // Treat unknown arguments as config file paths
-                if (!args[i].startsWith('-'))
-                    flags.config = parsePath(args[i]);
-                else
-                    console.error(`unknown option: ${args[i]}`);
+                if (!args[i].startsWith('-')) flags.config = parsePath(args[i]);
+                else console.error(`unknown option: ${args[i]}`);
 
                 break;
         }
@@ -131,32 +140,25 @@ export async function main(args: string[]) {
     const bus = APP_BUS(flags.busName);
     const path = APP_PATH(flags.busName);
 
-    if (flags.init)
-        return await init(configDir, flags.config);
+    if (flags.init) return await init(configDir, flags.config);
 
     if (isRunning(bus, 'session')) {
         return client(bus, path, flags);
     } else {
-        if (flags.quit)
-            return;
+        if (flags.quit) return;
 
         app.setup(bus, path, configDir, flags.config);
         app.connect('config-parsed', () => {
-            if (flags.toggleWindow)
-                app.ToggleWindow(flags.toggleWindow);
+            if (flags.toggleWindow) app.ToggleWindow(flags.toggleWindow);
 
-            if (flags.runJs)
-                app.RunJs(flags.runJs);
+            if (flags.runJs) app.RunJs(flags.runJs);
 
-            if (flags.runFile)
-                app.RunFile(flags.runFile);
+            if (flags.runFile) app.RunFile(flags.runFile);
 
             // FIXME: deprecated
-            if (flags.runPromise)
-                app.RunPromise(flags.runPromise);
+            if (flags.runPromise) app.RunPromise(flags.runPromise);
 
-            if (flags.inspector)
-                app.Inspector();
+            if (flags.inspector) app.Inspector();
         });
 
         // @ts-expect-error missing type declaration

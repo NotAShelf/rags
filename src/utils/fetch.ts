@@ -18,8 +18,7 @@ async function libnotify() {
 
     const Soup = (await import('gi://Soup?version=3.0')).default;
 
-    if (init)
-        return Soup;
+    if (init) return Soup;
 
     init = true;
     Gio._promisify(Soup.Session.prototype, 'send_async');
@@ -27,18 +26,34 @@ async function libnotify() {
     return Soup;
 }
 
+/**
+ * Options for the {@link fetch} function.
+ */
 export type FetchOptions = {
+    /** HTTP method (defaults to `'GET'`). */
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+    /** Request body as a string. */
     body?: string;
+    /** HTTP headers as key-value pairs. */
     headers?: Record<string, string>;
+    /** URL query parameters. Objects are JSON-serialized, arrays are expanded. */
     params?: Record<string, any>;
 };
 
+/**
+ * Represents an HTTP response, providing methods to read the body
+ * as text, JSON, ArrayBuffer, or raw GBytes.
+ */
 export class Response {
+    /** HTTP status code. */
     status: number;
+    /** HTTP status text (reason phrase). */
     statusText: string | null;
+    /** Whether the status code is in the 2xx range. */
     ok: boolean;
+    /** The raw response input stream. */
     stream: Gio.InputStream | null;
+    /** Response type (always `'basic'`). */
     type = 'basic';
 
     constructor(
@@ -53,67 +68,91 @@ export class Response {
         this.stream = stream;
     }
 
+    /** Reads the response body and parses it as JSON. */
     async json() {
         const text = await this.text();
         return JSON.parse(text);
     }
 
+    /** Reads the response body as a UTF-8 string. */
     async text() {
         const gBytes = await this.gBytes();
         return new TextDecoder().decode(gBytes ? gBytes.toArray() : new Uint8Array());
     }
 
+    /** Reads the response body as an ArrayBuffer. */
     async arrayBuffer() {
         const gBytes = await this.gBytes();
-        if (!gBytes)
-            return null;
+        if (!gBytes) return null;
 
         return gBytes.toArray().buffer;
     }
 
+    /** Reads the response body as GLib.Bytes. */
     async gBytes() {
         const outputStream = Gio.MemoryOutputStream.new_resizable();
-        if (!this.stream)
-            return null;
+        if (!this.stream) return null;
 
-        await outputStream.splice_async(this.stream,
-            Gio.OutputStreamSpliceFlags.CLOSE_TARGET |
-            Gio.OutputStreamSpliceFlags.CLOSE_SOURCE,
+        await outputStream.splice_async(
+            this.stream,
+            Gio.OutputStreamSpliceFlags.CLOSE_TARGET | Gio.OutputStreamSpliceFlags.CLOSE_SOURCE,
             GLib.PRIORITY_DEFAULT,
-            null);
+            null,
+        );
 
         return outputStream.steal_as_bytes();
     }
 }
 
+/**
+ * Performs an HTTP request using libsoup3.
+ *
+ * Requires `libsoup3` as an optional runtime dependency. If not available,
+ * returns a Response with status 400.
+ *
+ * @param url - The URL to fetch
+ * @param options - Request options (method, headers, body, params)
+ * @returns A Response object
+ *
+ * @example
+ * ```typescript
+ * const res = await fetch('https://api.example.com/data');
+ * const data = await res.json();
+ *
+ * const res2 = await fetch('https://api.example.com/post', {
+ *     method: 'POST',
+ *     body: JSON.stringify({ key: 'value' }),
+ *     headers: { 'Content-Type': 'application/json' },
+ * });
+ * ```
+ */
 export async function fetch(url: string, options: FetchOptions = {}) {
     const Soup = await libnotify();
     if (!Soup) {
         console.error(Error('missing dependency: libsoup3'));
-        return new Response(
-            400,
-            'can not fetch: missing dependency: libsoup3',
-            false,
-            null,
-        );
+        return new Response(400, 'can not fetch: missing dependency: libsoup3', false, null);
     }
 
     const session = new Soup.Session();
 
     if (options.params) {
-        url += '?' + Object.entries(options.params)
-            .map(([key, value]) => {
-                if (Array.isArray(value)) {
-                    return value.map(val =>
-                        `${encodeURIComponent(key)}=${encodeURIComponent(val)}`).join('&');
-                } else if (typeof value === 'object') {
-                    return `${encodeURIComponent(key)}=${encodeURIComponent(
-                        JSON.stringify(value))}`;
-                } else {
-                    return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-                }
-            })
-            .join('&');
+        url +=
+            '?' +
+            Object.entries(options.params)
+                .map(([key, value]) => {
+                    if (Array.isArray(value)) {
+                        return value
+                            .map(val => `${encodeURIComponent(key)}=${encodeURIComponent(val)}`)
+                            .join('&');
+                    } else if (typeof value === 'object') {
+                        return `${encodeURIComponent(key)}=${encodeURIComponent(
+                            JSON.stringify(value),
+                        )}`;
+                    } else {
+                        return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+                    }
+                })
+                .join('&');
     }
 
     const message = new Soup.Message({
@@ -127,14 +166,20 @@ export async function fetch(url: string, options: FetchOptions = {}) {
     }
 
     if (typeof options.body === 'string') {
-        message.set_request_body_from_bytes(null,
-            new GLib.Bytes((new TextEncoder).encode(options.body)));
+        message.set_request_body_from_bytes(
+            null,
+            new GLib.Bytes(new TextEncoder().encode(options.body)),
+        );
     }
 
     const inputStream = await session.send_and_read_async(message, 0, null);
     const { status_code, reason_phrase } = message;
     const ok = status_code >= 200 && status_code < 300;
 
-    return new Response(status_code, reason_phrase, ok,
-        inputStream as unknown as Gio.InputStream || null);
+    return new Response(
+        status_code,
+        reason_phrase,
+        ok,
+        (inputStream as unknown as Gio.InputStream) || null,
+    );
 }

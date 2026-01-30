@@ -1,18 +1,24 @@
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
 
+/** Props for the Overlay widget. */
 export type OverlayProps<
     Child extends Gtk.Widget = Gtk.Widget,
     OverlayChild extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = Overlay<Child, OverlayChild, Attr>,
-> = BaseProps<Self, Gtk.Overlay.ConstructorProps & {
-    pass_through?: boolean
-    overlays?: OverlayChild[]
-    overlay?: OverlayChild
-    child?: Child
-}, Attr>
+> = BaseProps<
+    Self,
+    Gtk.Overlay.ConstructorProps & {
+        pass_through?: boolean;
+        overlays?: OverlayChild[];
+        overlay?: OverlayChild;
+        child?: Child;
+    },
+    Attr
+>;
 
+/** Creates a new Overlay widget for stacking children on top of each other. */
 export function newOverlay<
     Child extends Gtk.Widget = Gtk.Widget,
     OverlayChild extends Gtk.Widget = Gtk.Widget,
@@ -21,58 +27,67 @@ export function newOverlay<
     return new Overlay(...props);
 }
 
-export interface Overlay<Child, OverlayChild, Attr> extends Widget<Attr> { }
-export class Overlay<
-    Child extends Gtk.Widget,
-    OverlayChild extends Gtk.Widget,
-    Attr
-> extends Gtk.Overlay {
+/** GTK Overlay wrapper for stacking widgets on top of a main child. */
+export interface Overlay<Child, OverlayChild, Attr> extends Widget<Attr> {}
+export class Overlay<Child extends Gtk.Widget, OverlayChild extends Gtk.Widget, Attr>
+    extends Gtk.Overlay
+{
     static {
         register(this, {
             properties: {
                 'pass-through': ['boolean', 'rw'],
-                'overlays': ['jsobject', 'rw'],
-                'overlay': ['jsobject', 'rw'],
+                overlays: ['jsobject', 'rw'],
+                overlay: ['jsobject', 'rw'],
             },
         });
     }
 
     constructor(
-        props: OverlayProps<Child, OverlayChild, Attr> = {} as
-            OverlayProps<Child, OverlayChild, Attr>,
+        props: OverlayProps<Child, OverlayChild, Attr> = {} as OverlayProps<
+            Child,
+            OverlayChild,
+            Attr
+        >,
         child?: Child,
         ...overlays: Gtk.Widget[]
     ) {
-        if (child)
-            props.child = child;
+        if (child) props.child = child;
 
-        if (overlays.length > 0)
-            props.overlays = overlays as OverlayChild[];
+        if (overlays.length > 0) props.overlays = overlays as OverlayChild[];
 
         super(props as Gtk.Overlay.ConstructorProps);
     }
 
     private _updatePassThrough() {
         this.get_children().forEach(ch =>
-            this.set_overlay_pass_through(ch, this._get('pass-through')));
+            this.set_overlay_pass_through(ch, this._get('pass-through')),
+        );
     }
 
-    get pass_through() { return this._get('pass-through'); }
+    /** Whether input events pass through overlay children. */
+    get pass_through() {
+        return this._get('pass-through');
+    }
+
     set pass_through(passthrough: boolean) {
-        if (this.pass_through === passthrough)
-            return;
+        if (this.pass_through === passthrough) return;
 
         this._set('pass-through', passthrough);
         this._updatePassThrough();
         this.notify('pass-through');
     }
 
-    get overlay() { return this.overlays[0] as Child; }
+    /** The first overlay child widget. */
+    get overlay() {
+        return this.overlays[0] as Child;
+    }
+
     set overlay(overlay: Child) {
         this.overlays = [overlay];
         this.notify('overlay');
     }
 
+    /** All overlay children stacked on top of the main child. */
     get overlays() {
         return this.get_children().filter(ch => ch !== this.child) as Child[];
     }

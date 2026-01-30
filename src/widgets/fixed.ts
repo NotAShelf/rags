@@ -3,20 +3,24 @@ import Gtk from 'gi://Gtk?version=3.0';
 
 // TODO:
 
-export type FixedProps<
-    Attr = unknown,
-    Self = Fixed<Attr>,
-> = BaseProps<Self, Gtk.Fixed.ConstructorProps, Attr>
+/** Props for the Fixed position container widget. */
+export type FixedProps<Attr = unknown, Self = Fixed<Attr>> = BaseProps<
+    Self,
+    Gtk.Fixed.ConstructorProps,
+    Attr
+>;
 
-export function newFixed<
-    Attr = unknown
->(...props: ConstructorParameters<typeof Fixed<Attr>>) {
+/** Create a new Fixed container for placing children at exact positions. */
+export function newFixed<Attr = unknown>(...props: ConstructorParameters<typeof Fixed<Attr>>) {
     return new Fixed(...props);
 }
 
-export interface Fixed<Attr> extends Widget<Attr> { }
+export interface Fixed<Attr> extends Widget<Attr> {}
+/** A container that places children at fixed pixel coordinates. */
 export class Fixed<Attr> extends Gtk.Fixed {
-    static { register(this); }
+    static {
+        register(this);
+    }
 
     constructor(props: FixedProps<Attr> = {} as FixedProps<Attr>) {
         super(props as Gtk.Fixed.ConstructorProps);

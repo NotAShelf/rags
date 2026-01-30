@@ -1,3 +1,11 @@
+/**
+ * Utility module that re-exports all utility functions and constants.
+ *
+ * Available as the global `Utils` object at runtime, or can be imported
+ * directly for tree-shaking.
+ *
+ * @module
+ */
 import GLib from 'gi://GLib';
 import * as Exec from './utils/exec.js';
 import * as File from './utils/file.js';
@@ -9,57 +17,29 @@ import * as Pam from './utils/pam.js';
 import * as Gobject from './utils/gobject.js';
 import * as Binding from './utils/binding.js';
 
+/** The current system user's login name. */
 export const USER = GLib.get_user_name();
+/** The current user's home directory path. */
 export const HOME = GLib.get_home_dir();
+/** The AGS cache directory path (e.g., `~/.cache/ags`). */
 export const CACHE_DIR = `${GLib.get_user_cache_dir()}/${pkg.name.split('.').pop()}`;
 
-export const {
-    exec,
-    execAsync,
-    subprocess,
-} = Exec;
+export const { exec, execAsync, subprocess } = Exec;
 
-export const {
-    readFile,
-    readFileAsync,
-    writeFile,
-    writeFileSync,
-    monitorFile,
-} = File;
+export const { readFile, readFileAsync, writeFile, writeFileSync, monitorFile } = File;
 
-export const {
-    timeout,
-    interval,
-    idle,
-} = Timeout;
+export const { timeout, interval, idle } = Timeout;
 
-export const {
-    loadInterfaceXML,
-    bulkConnect,
-    bulkDisconnect,
-    ensureDirectory,
-    lookUpIcon,
-} = Etc;
+export const { loadInterfaceXML, bulkConnect, bulkDisconnect, ensureDirectory, lookUpIcon } = Etc;
 
-export const {
-    authenticate,
-    authenticateUser,
-} = Pam;
+export const { authenticate, authenticateUser } = Pam;
 
 export const { fetch } = Fetch;
 export const { notify } = Notify;
 
-export const {
-    kebabify,
-    pspec,
-    registerGObject,
-} = Gobject;
+export const { kebabify, pspec, registerGObject } = Gobject;
 
-export const {
-    merge,
-    derive,
-    watch,
-} = Binding;
+export const { merge, derive, watch } = Binding;
 
 export default {
     USER,

@@ -1,37 +1,105 @@
 import GObject from 'gi://GObject';
 import { pspec, registerGObject, PspecFlag, PspecType } from './utils/gobject.js';
 
+/**
+ * An object that supports signal connections and disconnections.
+ */
 export type Connectable = {
-    connect: (sig: string, callback: (...args: unknown[]) => unknown) => number
-    disconnect: (id: number) => void
-}
+    connect: (sig: string, callback: (...args: unknown[]) => unknown) => number;
+    disconnect: (id: number) => void;
+};
 
+/**
+ * Filters a type to only allow string keys.
+ * @typeParam S - The type to filter
+ */
 export type OnlyString<S extends string | unknown> = S extends string ? S : never;
 
-export type Props<T> = Omit<Pick<T, {
-    [K in keyof T]: T[K] extends (...args: any[]) => any ? never : OnlyString<K>
-}[keyof T]>, 'g_type_instance'>;
+/**
+ * Extracts non-method, non-internal property keys from a GObject type.
+ *
+ * Useful for constraining property bindings to valid GObject properties.
+ *
+ * @typeParam T - The GObject type to extract properties from
+ */
+export type Props<T> = Omit<
+    Pick<
+        T,
+        {
+            [K in keyof T]: T[K] extends (...args: any[]) => any ? never : OnlyString<K>;
+        }[keyof T]
+    >,
+    'g_type_instance'
+>;
 
+/**
+ * Maps each property of `T` to accept either its original type or a {@link Binding}.
+ *
+ * Used in widget constructors to allow properties to be set directly or bound to
+ * a reactive source.
+ *
+ * @typeParam T - The props type to make bindable
+ */
 export type BindableProps<T> = {
     [K in keyof T]: Binding<any, any, NonNullable<T[K]>> | T[K];
-}
+};
 
+/**
+ * Represents a reactive binding between a GObject property and a consumer.
+ *
+ * Bindings track a source emitter and property, and can apply transform
+ * functions to map the source value before it reaches the consumer.
+ *
+ * @typeParam Emitter - The GObject type that emits property changes
+ * @typeParam Prop - The property key on the emitter
+ * @typeParam Return - The transformed output type (defaults to the property type)
+ *
+ * @example
+ * ```typescript
+ * const label = Widget.Label({
+ *     label: battery.bind('percent').as(p => `${p}%`),
+ * });
+ * ```
+ */
 export class Binding<
     Emitter extends GObject.Object,
     Prop extends keyof Props<Emitter>,
     Return = Emitter[Prop],
 > {
+    /** The source GObject that emits property change notifications. */
     emitter: Emitter;
+    /** The property name on the emitter being observed. */
     prop: Prop;
+    /** The transform function applied to the raw property value. */
     transformFn = (v: any) => v; // see #262
     constructor(emitter: Emitter, prop: Prop) {
         this.emitter = emitter;
         this.prop = prop;
     }
 
-    /** alias for transform */
-    as<T>(fn: (v: Return) => T) { return this.transform(fn); }
+    /**
+     * Alias for {@link transform}.
+     *
+     * @param fn - Transform function to apply to the bound value
+     * @returns A new Binding with the transform applied
+     */
+    as<T>(fn: (v: Return) => T) {
+        return this.transform(fn);
+    }
 
+    /**
+     * Creates a new Binding with a transform function chained after any existing transforms.
+     *
+     * @param fn - Transform function to apply to the bound value
+     * @returns A new Binding with the transform applied
+     *
+     * @example
+     * ```typescript
+     * const binding = service.bind('value')
+     *     .transform(v => v * 2)
+     *     .transform(v => `${v}px`);
+     * ```
+     */
     transform<T>(fn: (v: Return) => T) {
         const bind = new Binding<Emitter, Prop, T>(this.emitter, this.prop);
         const prev = this.transformFn;
@@ -41,35 +109,87 @@ export class Binding<
 }
 
 interface Services {
-    applications: typeof import('./service/applications.js').default
-    audio: typeof import('./service/audio.js').default
-    battery: typeof import('./service/battery.js').default
-    bluetooth: typeof import('./service/bluetooth.js').default
-    hyprland: typeof import('./service/hyprland.js').default
-    mpris: typeof import('./service/mpris.js').default
-    network: typeof import('./service/network.js').default
-    notifications: typeof import('./service/notifications.js').default
-    powerprofiles: typeof import('./service/powerprofiles.js').default
-    systemtray: typeof import('./service/systemtray.js').default
-    greetd: typeof import('./service/greetd.js').default
+    applications: typeof import('./service/applications.js').default;
+    audio: typeof import('./service/audio.js').default;
+    battery: typeof import('./service/battery.js').default;
+    bluetooth: typeof import('./service/bluetooth.js').default;
+    hyprland: typeof import('./service/hyprland.js').default;
+    mpris: typeof import('./service/mpris.js').default;
+    network: typeof import('./service/network.js').default;
+    notifications: typeof import('./service/notifications.js').default;
+    powerprofiles: typeof import('./service/powerprofiles.js').default;
+    systemtray: typeof import('./service/systemtray.js').default;
+    greetd: typeof import('./service/greetd.js').default;
 }
 
+/**
+ * Base class for all AGS services.
+ *
+ * Services are singleton GObject instances that expose system state
+ * (audio, battery, network, etc.) as observable properties with
+ * change notifications.
+ *
+ * @example
+ * ```typescript
+ * // Import a built-in service
+ * const Audio = await Service.import('audio');
+ *
+ * // Create a custom service
+ * class MyService extends Service {
+ *     static {
+ *         Service.register(this, {}, {
+ *             'my-prop': ['string', 'r'],
+ *         });
+ *     }
+ * }
+ * ```
+ */
 export default class Service extends GObject.Object {
     static {
-        GObject.registerClass({
-            GTypeName: 'AgsService',
-            Signals: { 'changed': {} },
-        }, this);
+        GObject.registerClass(
+            {
+                GTypeName: 'AgsService',
+                Signals: { changed: {} },
+            },
+            this,
+        );
     }
 
+    /**
+     * Dynamically imports a built-in service by name.
+     *
+     * @param service - The service name to import
+     * @returns The default export of the service module
+     *
+     * @example
+     * ```typescript
+     * const Audio = await Service.import('audio');
+     * const Battery = await Service.import('battery');
+     * ```
+     */
     static async import<S extends keyof Services>(service: S): Promise<Services[S]> {
         return (await import(`./service/${service}.js`)).default;
     }
 
+    /**
+     * Creates a GObject property specification.
+     *
+     * @param name - The property name in kebab-case
+     * @param type - The property type (defaults to `'jsobject'`)
+     * @param handle - The access flag: `'r'`, `'w'`, or `'rw'` (defaults to `'r'`)
+     * @returns A GObject.ParamSpec
+     */
     static pspec(name: string, type: PspecType = 'jsobject', handle: PspecFlag = 'r') {
         return pspec(name, type, handle);
     }
 
+    /**
+     * Registers a GObject subclass with signals and properties.
+     *
+     * @param service - The class constructor to register
+     * @param signals - Map of signal names to their parameter types
+     * @param properties - Map of property names to `[type, accessFlag]` tuples
+     */
     static register(
         service: new (...args: any[]) => GObject.Object,
         signals?: { [signal: string]: PspecType[] },
@@ -78,18 +198,36 @@ export default class Service extends GObject.Object {
         registerGObject(service, { signals, properties });
     }
 
+    /**
+     * Connects a callback to a signal on this service.
+     *
+     * @param signal - The signal name (defaults to `'changed'`)
+     * @param callback - The callback to invoke when the signal is emitted
+     * @returns The signal connection ID
+     */
     connect(signal = 'changed', callback: (_: this, ...args: any[]) => void): number {
         return super.connect(signal, callback);
     }
 
+    /**
+     * Updates a property value and emits a `notify` signal if the value changed.
+     *
+     * Performs a deep equality check via JSON serialization to avoid
+     * unnecessary notifications.
+     *
+     * @param prop - The property name in kebab-case
+     * @param value - The new value
+     */
     updateProperty(prop: string, value: unknown) {
-        if (this[prop as keyof typeof this] === value ||
-            JSON.stringify(this[prop as keyof typeof this]) === JSON.stringify(value))
+        if (
+            this[prop as keyof typeof this] === value ||
+            JSON.stringify(this[prop as keyof typeof this]) === JSON.stringify(value)
+        )
             return;
 
         const privateProp = prop
             .split('-')
-            .map((w, i) => i > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)
+            .map((w, i) => (i > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
             .join('');
 
         // @ts-expect-error
@@ -97,11 +235,29 @@ export default class Service extends GObject.Object {
         this.notify(prop);
     }
 
+    /**
+     * Notifies listeners that a property changed and emits the `'changed'` signal.
+     *
+     * @param property - The property name that changed
+     */
     changed(property: string) {
         this.notify(property);
         this.emit('changed');
     }
 
+    /**
+     * Creates a {@link Binding} for a property on this service.
+     *
+     * @param prop - The property to bind
+     * @returns A Binding that can be used in widget constructors
+     *
+     * @example
+     * ```typescript
+     * const label = Widget.Label({
+     *     label: audio.bind('volume').as(v => `${Math.round(v * 100)}%`),
+     * });
+     * ```
+     */
     bind<Prop extends keyof Props<this>>(prop: Prop) {
         return new Binding(this, prop);
     }

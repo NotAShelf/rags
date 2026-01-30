@@ -9,19 +9,17 @@ import { StatusNotifierItemProxy, connectSignal } from '../dbus/types.js';
 import { bulkConnect, loadInterfaceXML } from '../utils.js';
 import Widget from '../widget.js';
 
-const StatusNotifierWatcherIFace = loadInterfaceXML(
-    'org.kde.StatusNotifierWatcher',
-)!;
+const StatusNotifierWatcherIFace = loadInterfaceXML('org.kde.StatusNotifierWatcher')!;
 const StatusNotifierItemIFace = loadInterfaceXML('org.kde.StatusNotifierItem')!;
 const StatusNotifierItemProxy = Gio.DBusProxy.makeProxyWrapper(
     StatusNotifierItemIFace,
 ) as unknown as StatusNotifierItemProxy;
 
-const DbusmenuGtk3Menu = Widget<
-  typeof DbusmenuGtk3.Menu,
-  DbusmenuGtk3.Menu.ConstructorProps
->(DbusmenuGtk3.Menu);
+const DbusmenuGtk3Menu = Widget<typeof DbusmenuGtk3.Menu, DbusmenuGtk3.Menu.ConstructorProps>(
+    DbusmenuGtk3.Menu,
+);
 
+/** Represents a single StatusNotifierItem (system tray icon) with its properties and actions. */
 export class TrayItem extends Service {
     static {
         Service.register(
@@ -65,81 +63,95 @@ export class TrayItem extends Service {
         );
     }
 
+    /**
+     * Sends an Activate request to the tray item at the event's coordinates.
+     *
+     * @param event - The GDK event providing root coordinates
+     */
     readonly activate = (event: Gdk.Event) => {
-        this._proxy.ActivateAsync(
-            event.get_root_coords()[1],
-            event.get_root_coords()[2],
-        );
+        this._proxy.ActivateAsync(event.get_root_coords()[1], event.get_root_coords()[2]);
     };
 
+    /**
+     * Sends a SecondaryActivate (middle-click) request to the tray item.
+     *
+     * @param event - The GDK event providing root coordinates
+     */
     readonly secondaryActivate = (event: Gdk.Event) => {
-        this._proxy.SecondaryActivateAsync(
-            event.get_root_coords()[1],
-            event.get_root_coords()[2],
-        );
+        this._proxy.SecondaryActivateAsync(event.get_root_coords()[1], event.get_root_coords()[2]);
     };
 
+    /**
+     * Sends a Scroll event to the tray item.
+     *
+     * @param event - The GDK scroll event with direction and delta
+     */
     readonly scroll = (event: Gdk.EventScroll) => {
-        const direction =
-      event.direction == 0 || event.direction == 1 ? 'vertical' : 'horizontal';
+        const direction = event.direction == 0 || event.direction == 1 ? 'vertical' : 'horizontal';
 
-        const delta =
-      event.direction == 0 || event.direction == 1
-          ? event.delta_y
-          : event.delta_x;
+        const delta = event.direction == 0 || event.direction == 1 ? event.delta_y : event.delta_x;
 
         this._proxy.ScrollAsync(delta, direction);
     };
 
+    /**
+     * Opens the context menu for this tray item, using DbusmenuGtk3 if available.
+     *
+     * @param event - The GDK event for popup positioning
+     */
     readonly openMenu = (event: Gdk.Event) => {
         this.menu
             ? this.menu.popup_at_pointer(event)
-            : this._proxy.ContextMenuAsync(
-                event.get_root_coords()[1],
-                event.get_root_coords()[2],
-            );
+            : this._proxy.ContextMenuAsync(event.get_root_coords()[1], event.get_root_coords()[2]);
     };
 
+    /** The tray item's category (e.g. "ApplicationStatus", "Communications"). */
     get category() {
         return this._proxy.Category;
     }
 
+    /** The unique application identifier for this tray item. */
     get id() {
         return this._proxy.Id;
     }
 
+    /** The display title of the tray item. */
     get title() {
         return this._proxy.Title;
     }
 
+    /** The current status: "Passive", "Active", or "NeedsAttention". */
     get status() {
         return this._proxy.Status;
     }
 
+    /** The X11 window ID associated with this tray item, or 0. */
     get window_id() {
         return this._proxy.WindowId;
     }
 
+    /** Whether the item only supports menu activation (no primary activate). */
     get is_menu() {
         return this._proxy.ItemIsMenu;
     }
 
+    /** Markup string from the item's tooltip, combining title and description. */
     get tooltip_markup() {
-        if (!this._proxy.ToolTip)
-            return '';
+        if (!this._proxy.ToolTip) return '';
 
         let tooltipMarkup = this._proxy.ToolTip[2];
-        if (this._proxy.ToolTip[3] !== '')
-            tooltipMarkup += '\n' + this._proxy.ToolTip[3];
+        if (this._proxy.ToolTip[3] !== '') tooltipMarkup += '\n' + this._proxy.ToolTip[3];
 
         return tooltipMarkup;
     }
 
+    /**
+     * The icon as a name string, GdkPixbuf, or fallback
+     * "image-missing". Uses attention icon when "NeedsAttention".
+     */
     get icon() {
         const iconName =
-      this.status === 'NeedsAttention'
-          ? this._proxy.AttentionIconName
-          : this._proxy.IconName;
+            this.status === 'NeedsAttention' ? this._proxy.AttentionIconName : this._proxy.IconName;
 
         if (this._iconTheme && iconName) {
             const size = Math.max(...this._iconTheme.get_icon_sizes(iconName));
@@ -149,13 +161,12 @@ export class TrayItem extends Service {
                 Gtk.IconLookupFlags.FORCE_SIZE,
             );
 
-            if (iconInfo)
-                return iconInfo.load_icon();
+            if (iconInfo) return iconInfo.load_icon();
         }
         const iconPixmap =
-      this.status === 'NeedsAttention'
-          ? this._proxy.AttentionIconPixmap
-          : this._proxy.IconPixmap;
+            this.status === 'NeedsAttention'
+                ? this._proxy.AttentionIconPixmap
+                : this._proxy.IconPixmap;
 
         return iconName || this._getPixbuf(iconPixmap) || 'image-missing';
     }
@@ -178,22 +189,14 @@ export class TrayItem extends Service {
             [
                 'notify::g-name-owner',
                 () => {
-                    if (!proxy.g_name_owner)
-                        this.emit('removed', this._busName);
+                    if (!proxy.g_name_owner) this.emit('removed', this._busName);
                 },
             ],
             ['g-signal', this._refreshAllProperties.bind(this)],
             ['g-properties-changed', () => this.emit('changed')],
         ]);
 
-        [
-            'Title',
-            'Icon',
-            'AttentionIcon',
-            'OverlayIcon',
-            'ToolTip',
-            'Status',
-        ].forEach(prop =>
+        ['Title', 'Icon', 'AttentionIcon', 'OverlayIcon', 'ToolTip', 'Status'].forEach(prop =>
             connectSignal(proxy, `New${prop}`, () => {
                 this._notify();
             }),
@@ -220,43 +223,38 @@ export class TrayItem extends Service {
     private _refreshAllProperties() {
         this._proxy.g_connection.call(
             this._proxy.g_name,
-      this._proxy.g_object_path!,
-      'org.freedesktop.DBus.Properties',
-      'GetAll',
-      new GLib.Variant('(s)', [this._proxy.g_interface_name]),
-      new GLib.VariantType('(a{sv})'),
-      Gio.DBusCallFlags.NONE,
-      -1,
-      null,
-      (proxy, result) => {
-          const variant = proxy?.call_finish(result) as GLib.Variant;
-          if (!variant)
-              return;
-          const [properties] =
-          variant.deepUnpack<Record<string, GLib.Variant>[]>();
-          Object.entries(properties).map(([propertyName, value]) => {
-              this._proxy.set_cached_property(propertyName, value);
-          });
+            this._proxy.g_object_path!,
+            'org.freedesktop.DBus.Properties',
+            'GetAll',
+            new GLib.Variant('(s)', [this._proxy.g_interface_name]),
+            new GLib.VariantType('(a{sv})'),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (proxy, result) => {
+                const variant = proxy?.call_finish(result) as GLib.Variant;
+                if (!variant) return;
+                const [properties] = variant.deepUnpack<Record<string, GLib.Variant>[]>();
+                Object.entries(properties).map(([propertyName, value]) => {
+                    this._proxy.set_cached_property(propertyName, value);
+                });
 
-          if (this._proxy.IconThemePath) {
-              if (!this._iconTheme)
-                  this._iconTheme = Gtk.IconTheme.new();
+                if (this._proxy.IconThemePath) {
+                    if (!this._iconTheme) this._iconTheme = Gtk.IconTheme.new();
 
-              this._iconTheme.set_search_path([this._proxy.IconThemePath]);
-          }
+                    this._iconTheme.set_search_path([this._proxy.IconThemePath]);
+                }
 
-          this._notify();
-      },
+                this._notify();
+            },
         );
     }
 
     private _getPixbuf(pixMapArray: [number, number, Uint8Array][]) {
-        if (!pixMapArray)
-            return;
+        if (!pixMapArray) return;
 
         const pixMap = pixMapArray.sort((a, b) => a[0] - b[0]).pop();
-        if (!pixMap)
-            return;
+        if (!pixMap) return;
 
         const array = Uint8Array.from(pixMap[2]);
         for (let i = 0; i < 4 * pixMap[0] * pixMap[1]; i += 4) {
@@ -278,6 +276,10 @@ export class TrayItem extends Service {
     }
 }
 
+/**
+ * Service that implements the StatusNotifierWatcher D-Bus interface,
+ * managing all system tray items on the session bus.
+ */
 export class SystemTray extends Service {
     static {
         Service.register(
@@ -295,22 +297,31 @@ export class SystemTray extends Service {
     private _dbus!: Gio.DBusExportedObject;
     private _items: Map<string, TrayItem>;
 
+    /** Whether a StatusNotifierHost is registered (always `true`). */
     get IsStatusNotifierHostRegistered() {
         return true;
     }
 
+    /** The StatusNotifierWatcher protocol version. */
     get ProtocolVersion() {
         return 0;
     }
 
+    /** Bus names of all currently registered StatusNotifierItems. */
     get RegisteredStatusNotifierItems() {
         return Array.from(this._items.keys());
     }
 
+    /** All currently registered tray items. */
     get items() {
         return Array.from(this._items.values());
     }
 
+    /**
+     * Retrieves a tray item by its bus name.
+     *
+     * @param name - The D-Bus bus name of the item
+     */
     readonly getItem = (name: string) => this._items.get(name);
 
     constructor() {
@@ -326,8 +337,8 @@ export class SystemTray extends Service {
             Gio.BusNameOwnerFlags.NONE,
             (connection: Gio.DBusConnection) => {
                 this._dbus = Gio.DBusExportedObject.wrapJSObject(
-          StatusNotifierWatcherIFace as string,
-          this,
+                    StatusNotifierWatcherIFace as string,
+                    this,
                 );
 
                 this._dbus.export(connection, '/StatusNotifierWatcher');
@@ -339,10 +350,7 @@ export class SystemTray extends Service {
         );
     }
 
-    RegisterStatusNotifierItemAsync(
-        serviceName: string[],
-        invocation: Gio.DBusMethodInvocation,
-    ) {
+    RegisterStatusNotifierItemAsync(serviceName: string[], invocation: Gio.DBusMethodInvocation) {
         let busName: string, objectPath: string;
         const [service] = serviceName;
         if (service.startsWith('/')) {

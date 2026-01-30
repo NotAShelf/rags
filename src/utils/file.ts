@@ -1,11 +1,27 @@
+/**
+ * File I/O utilities for reading, writing, and monitoring files.
+ *
+ * @module
+ */
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
+/**
+ * Reads a file synchronously and returns its contents as a string.
+ *
+ * Returns an empty string if the file cannot be read.
+ *
+ * @param file - File path string or Gio.File object
+ * @returns The file contents, or `''` on error
+ *
+ * @example
+ * ```typescript
+ * const content = readFile('/etc/hostname');
+ * ```
+ */
 export function readFile(file: string | Gio.File) {
     try {
-        const f = typeof file === 'string'
-            ? Gio.File.new_for_path(file)
-            : file;
+        const f = typeof file === 'string' ? Gio.File.new_for_path(file) : file;
 
         const [, bytes] = f.load_contents(null);
         return new TextDecoder().decode(bytes);
@@ -14,10 +30,14 @@ export function readFile(file: string | Gio.File) {
     }
 }
 
+/**
+ * Reads a file asynchronously and returns a Promise of its contents.
+ *
+ * @param file - File path string or Gio.File object
+ * @returns A promise resolving to the file contents as a string
+ */
 export function readFileAsync(file: string | Gio.File): Promise<string> {
-    const f = typeof file === 'string'
-        ? Gio.File.new_for_path(file)
-        : file;
+    const f = typeof file === 'string' ? Gio.File.new_for_path(file) : file;
 
     return new Promise((resolve, reject) => {
         f.load_contents_async(null, (_, res) => {
@@ -25,8 +45,7 @@ export function readFileAsync(file: string | Gio.File): Promise<string> {
                 const [success, bytes] = f.load_contents_finish(res);
                 if (success) {
                     resolve(new TextDecoder().decode(bytes));
-                }
-                else {
+                } else {
                     const path = typeof file === 'string' ? file : file.get_path();
                     reject(Error(`reading file ${path} was unsuccessful`));
                 }
@@ -37,6 +56,13 @@ export function readFileAsync(file: string | Gio.File): Promise<string> {
     });
 }
 
+/**
+ * Writes a string to a file asynchronously, replacing existing contents.
+ *
+ * @param string - The content to write
+ * @param path - The file path
+ * @returns A promise resolving to the Gio.File that was written
+ */
 export function writeFile(string: string, path: string): Promise<Gio.File> {
     const file = Gio.File.new_for_path(path);
 
@@ -59,6 +85,13 @@ export function writeFile(string: string, path: string): Promise<Gio.File> {
     });
 }
 
+/**
+ * Writes a string to a file synchronously, replacing existing contents.
+ *
+ * @param string - The content to write
+ * @param path - The file path
+ * @returns The Gio.File that was written
+ */
 export function writeFileSync(string: string, path: string): Gio.File {
     const file = Gio.File.new_for_path(path);
     file.replace_contents(
@@ -71,7 +104,26 @@ export function writeFileSync(string: string, path: string): Gio.File {
     return file;
 }
 
-const fileMonitors: Map<Gio.FileMonitor, boolean> = new Map;
+const fileMonitors: Map<Gio.FileMonitor, boolean> = new Map();
+
+/**
+ * Watches a file or directory for changes.
+ *
+ * Recursively monitors subdirectories by default. The returned monitor
+ * is kept alive internally to prevent garbage collection.
+ *
+ * @param path - The file or directory path to monitor
+ * @param callback - Callback invoked on file changes
+ * @param options - Monitor flags and recursion setting
+ * @returns The file monitor, or `null` on error
+ *
+ * @example
+ * ```typescript
+ * monitorFile('/tmp/myfile', (file, event) => {
+ *     console.log('changed:', file.get_path(), event);
+ * });
+ * ```
+ */
 export function monitorFile(
     path: string,
     callback?: (file: Gio.File, event: Gio.FileMonitorEvent) => void,
@@ -84,8 +136,8 @@ export function monitorFile(
     if (typeof options === 'number') {
         console.warn(
             `${options}` +
-            ' passed as a parameter in `options`.\n' +
-            'options parameter should be {flags: Gio.FileMonitorFlags, recursive: boolean}.',
+                ' passed as a parameter in `options`.\n' +
+                'options parameter should be {flags: Gio.FileMonitorFlags, recursive: boolean}.',
         );
     }
 
@@ -93,19 +145,20 @@ export function monitorFile(
         const file = Gio.File.new_for_path(path);
         const mon = file.monitor(options.flags, null);
 
-        if (callback)
-            mon.connect('changed', (_, file, _f, event) => callback(file, event));
+        if (callback) mon.connect('changed', (_, file, _f, event) => callback(file, event));
 
         if (options.recursive && GLib.file_test(path, GLib.FileTest.IS_DIR)) {
-            const enumerator = file.enumerate_children('standard::*',
-                Gio.FileQueryInfoFlags.NONE, null);
+            const enumerator = file.enumerate_children(
+                'standard::*',
+                Gio.FileQueryInfoFlags.NONE,
+                null,
+            );
 
             let i = enumerator.next_file(null);
             while (i) {
                 if (i.get_file_type() === Gio.FileType.DIRECTORY) {
                     const path = file.get_child(i.get_name()).get_path();
-                    if (path)
-                        monitorFile(path, callback, options);
+                    if (path) monitorFile(path, callback, options);
                 }
                 i = enumerator.next_file(null);
             }

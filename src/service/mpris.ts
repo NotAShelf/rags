@@ -16,82 +16,160 @@ const MprisProxy = Gio.DBusProxy.makeProxyWrapper(MprisIFace) as unknown as Mpri
 const DBUS_PREFIX = 'org.mpris.MediaPlayer2.';
 const MEDIA_CACHE_PATH = `${CACHE_DIR}/media`;
 
+/** MPRIS playback status. */
 type PlaybackStatus = 'Playing' | 'Paused' | 'Stopped';
+/** MPRIS loop/repeat mode. */
 type LoopStatus = 'None' | 'Track' | 'Playlist';
+/** MPRIS metadata dictionary following the xesam/mpris ontology. */
 type MprisMetadata = {
-    'mpris:trackid'?: string
-    'mpris:length'?: number
-    'mpris:artUrl'?: string
-    'xesam:album'?: string
-    'xesam:albumArtist'?: string
-    'xesam:artist'?: string[]
-    'xesam:asText'?: string
-    'xesam:audioBPM'?: number
-    'xesam:autoRating'?: number
-    'xesam:comment'?: string[]
-    'xesam:composer'?: string[]
-    'xesam:contentCreated'?: string
-    'xesam:discNumber'?: number
-    'xesam:firstUsed'?: string
-    'xesam:genre'?: string[]
-    'xesam:lastUsed'?: string
-    'xesam:lyricist'?: string[]
-    'xesam:title'?: string
-    'xesam:trackNumber'?: number
-    'xesam:url'?: string
-    'xesam:useCount'?: number
-    'xesam:userRating'?: number
-    [key: string]: unknown
-}
+    'mpris:trackid'?: string;
+    'mpris:length'?: number;
+    'mpris:artUrl'?: string;
+    'xesam:album'?: string;
+    'xesam:albumArtist'?: string;
+    'xesam:artist'?: string[];
+    'xesam:asText'?: string;
+    'xesam:audioBPM'?: number;
+    'xesam:autoRating'?: number;
+    'xesam:comment'?: string[];
+    'xesam:composer'?: string[];
+    'xesam:contentCreated'?: string;
+    'xesam:discNumber'?: number;
+    'xesam:firstUsed'?: string;
+    'xesam:genre'?: string[];
+    'xesam:lastUsed'?: string;
+    'xesam:lyricist'?: string[];
+    'xesam:title'?: string;
+    'xesam:trackNumber'?: number;
+    'xesam:url'?: string;
+    'xesam:useCount'?: number;
+    'xesam:userRating'?: number;
+    [key: string]: unknown;
+};
 
+/** Represents a single MPRIS-compatible media player on the session bus. */
 export class MprisPlayer extends Service {
     static {
-        Service.register(this, {
-            'closed': [],
-            'position': ['int'],
-        }, {
-            'bus-name': ['string'],
-            'name': ['string'],
-            'entry': ['string'],
-            'identity': ['string'],
-            'metadata': ['string'],
-            'trackid': ['string'],
-            'track-artists': ['jsobject'],
-            'track-title': ['string'],
-            'track-album': ['string'],
-            'track-cover-url': ['string'],
-            'cover-path': ['string'],
-            'play-back-status': ['string'],
-            'can-go-next': ['boolean'],
-            'can-go-prev': ['boolean'],
-            'can-play': ['boolean'],
-            'shuffle-status': ['jsobject'],
-            'loop-status': ['jsobject'],
-            'length': ['int'],
-            'position': ['float', 'rw'],
-            'volume': ['float', 'rw'],
-        });
+        Service.register(
+            this,
+            {
+                closed: [],
+                position: ['int'],
+            },
+            {
+                'bus-name': ['string'],
+                name: ['string'],
+                entry: ['string'],
+                identity: ['string'],
+                metadata: ['string'],
+                trackid: ['string'],
+                'track-artists': ['jsobject'],
+                'track-title': ['string'],
+                'track-album': ['string'],
+                'track-cover-url': ['string'],
+                'cover-path': ['string'],
+                'play-back-status': ['string'],
+                'can-go-next': ['boolean'],
+                'can-go-prev': ['boolean'],
+                'can-play': ['boolean'],
+                'shuffle-status': ['jsobject'],
+                'loop-status': ['jsobject'],
+                length: ['int'],
+                position: ['float', 'rw'],
+                volume: ['float', 'rw'],
+            },
+        );
     }
 
-    get bus_name() { return this._busName; }
-    get name() { return this._name; }
-    get entry() { return this._entry; }
-    get identity() { return this._identity; }
-    get metadata() { return this._metadata; }
+    /** The full D-Bus bus name (e.g. "org.mpris.MediaPlayer2.spotify"). */
+    get bus_name() {
+        return this._busName;
+    }
 
-    get trackid() { return this._trackid; }
-    get track_artists() { return this._trackArtists; }
-    get track_title() { return this._trackTitle; }
-    get track_album() { return this._trackAlbum; }
-    get track_cover_url() { return this._trackCoverUrl; }
-    get cover_path() { return this._coverPath; }
-    get play_back_status() { return this._playBackStatus; }
-    get can_go_next() { return this._canGoNext; }
-    get can_go_prev() { return this._canGoPrev; }
-    get can_play() { return this._canPlay; }
-    get shuffle_status() { return this._shuffleStatus; }
-    get loop_status() { return this._loopStatus; }
-    get length() { return this._length; }
+    /** Short player name extracted from the bus name. */
+    get name() {
+        return this._name;
+    }
+
+    /** Desktop entry identifier from the MPRIS interface. */
+    get entry() {
+        return this._entry;
+    }
+
+    /** Human-readable player identity string. */
+    get identity() {
+        return this._identity;
+    }
+
+    /** Raw MPRIS metadata dictionary. */
+    get metadata() {
+        return this._metadata;
+    }
+
+    /** The MPRIS track ID. */
+    get trackid() {
+        return this._trackid;
+    }
+
+    /** List of track artist names. */
+    get track_artists() {
+        return this._trackArtists;
+    }
+
+    /** Current track title. */
+    get track_title() {
+        return this._trackTitle;
+    }
+
+    /** Current track album name. */
+    get track_album() {
+        return this._trackAlbum;
+    }
+
+    /** URL of the track's cover art. */
+    get track_cover_url() {
+        return this._trackCoverUrl;
+    }
+
+    /** Local file path of the cached cover art image. */
+    get cover_path() {
+        return this._coverPath;
+    }
+
+    /** Current playback status: "Playing", "Paused", or "Stopped". */
+    get play_back_status() {
+        return this._playBackStatus;
+    }
+
+    /** Whether the player can advance to the next track. */
+    get can_go_next() {
+        return this._canGoNext;
+    }
+
+    /** Whether the player can go to the previous track. */
+    get can_go_prev() {
+        return this._canGoPrev;
+    }
+
+    /** Whether the player can start playback. */
+    get can_play() {
+        return this._canPlay;
+    }
+
+    /** Current shuffle status (true/false/null if unsupported). */
+    get shuffle_status() {
+        return this._shuffleStatus;
+    }
+
+    /** Current loop status: "None", "Track", "Playlist", or null if unsupported. */
+    get loop_status() {
+        return this._loopStatus;
+    }
+
+    /** Track length in seconds (-1 if unknown). */
+    get length() {
+        return this._length;
+    }
 
     private _busName: string;
     private _name: string;
@@ -123,13 +201,9 @@ export class MprisPlayer extends Service {
         this._busName = busName;
         this._name = busName.substring(23).split('.')[0];
 
-        this._mprisProxy = new MprisProxy(
-            Gio.DBus.session, busName,
-            '/org/mpris/MediaPlayer2');
+        this._mprisProxy = new MprisProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
 
-        this._playerProxy = new PlayerProxy(
-            Gio.DBus.session, busName,
-            '/org/mpris/MediaPlayer2');
+        this._playerProxy = new PlayerProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
 
         this._onPlayerProxyReady();
         this._onMprisProxyReady();
@@ -145,24 +219,22 @@ export class MprisPlayer extends Service {
     }
 
     private _onMprisProxyReady() {
-        this._binding.mpris[0] = this._mprisProxy.connect(
-            'notify::g-name-owner',
-            () => {
-                if (!this._mprisProxy.g_name_owner)
-                    this.close();
-            });
-        this._binding.mpris[1] = this._mprisProxy.connect(
-            'g-properties-changed', () => this._updateState());
+        this._binding.mpris[0] = this._mprisProxy.connect('notify::g-name-owner', () => {
+            if (!this._mprisProxy.g_name_owner) this.close();
+        });
+        this._binding.mpris[1] = this._mprisProxy.connect('g-properties-changed', () =>
+            this._updateState(),
+        );
 
         this._identity = this._mprisProxy.Identity;
         this._entry = this._mprisProxy.DesktopEntry;
-        if (!this._mprisProxy.g_name_owner)
-            this.close();
+        if (!this._mprisProxy.g_name_owner) this.close();
     }
 
     private _onPlayerProxyReady() {
-        this._binding.player = this._playerProxy.connect(
-            'g-properties-changed', () => this._updateState());
+        this._binding.player = this._playerProxy.connect('g-properties-changed', () =>
+            this._updateState(),
+        );
     }
 
     private _updateState() {
@@ -171,21 +243,20 @@ export class MprisPlayer extends Service {
             metadata[prop] = this._playerProxy.Metadata[prop].deepUnpack();
 
         let trackArtists = metadata['xesam:artist'];
-        if (!Array.isArray(trackArtists) ||
-            !trackArtists.every(artist => typeof artist === 'string'))
+        if (
+            !Array.isArray(trackArtists) ||
+            !trackArtists.every(artist => typeof artist === 'string')
+        )
             trackArtists = ['Unknown artist'];
 
         let trackTitle = metadata['xesam:title'];
-        if (typeof trackTitle !== 'string')
-            trackTitle = 'Unknown title';
+        if (typeof trackTitle !== 'string') trackTitle = 'Unknown title';
 
         let trackAlbum = metadata['xesam:album'];
-        if (typeof trackAlbum !== 'string')
-            trackAlbum = 'Unknown album';
+        if (typeof trackAlbum !== 'string') trackAlbum = 'Unknown album';
 
         let trackCoverUrl = metadata['mpris:artUrl'];
-        if (typeof trackCoverUrl !== 'string')
-            trackCoverUrl = '';
+        if (typeof trackCoverUrl !== 'string') trackCoverUrl = '';
 
         let length = metadata['mpris:length'];
         length = typeof length === 'number' ? length / 1_000_000 : -1;
@@ -210,10 +281,11 @@ export class MprisPlayer extends Service {
     }
 
     private _cacheCoverArt() {
-        if (!mpris.cacheCoverArt || this._trackCoverUrl === '')
-            return;
+        if (!mpris.cacheCoverArt || this._trackCoverUrl === '') return;
 
-        this._coverPath = MEDIA_CACHE_PATH + '/' +
+        this._coverPath =
+            MEDIA_CACHE_PATH +
+            '/' +
             GLib.compute_checksum_for_string(GLib.ChecksumType.SHA1, this._trackCoverUrl, -1);
 
         if (GLib.file_test(this._coverPath, GLib.FileTest.EXISTS))
@@ -224,24 +296,26 @@ export class MprisPlayer extends Service {
             Gio.File.new_for_path(this._coverPath),
             Gio.FileCopyFlags.OVERWRITE,
             GLib.PRIORITY_DEFAULT,
-            null, null, (source: Gio.File, result: Gio.AsyncResult) => {
+            null,
+            null,
+            (source: Gio.File, result: Gio.AsyncResult) => {
                 try {
                     source.copy_finish(result);
                     this.changed('cover-path');
-                }
-                catch (err) {
+                } catch (err) {
                     logError(err);
-                    console.error(`failed to cache ${this._coverPath},` +
-                        ' do you have gvfs installed?');
+                    console.error(
+                        `failed to cache ${this._coverPath},` + ' do you have gvfs installed?',
+                    );
                 }
             },
         );
     }
 
+    /** Player volume level (0.0-1.0, or -1 if unavailable). */
     get volume() {
         let volume = this._playerProxy.Volume;
-        if (typeof volume !== 'number')
-            volume = -1;
+        if (typeof volume !== 'number') volume = -1;
 
         return volume;
     }
@@ -250,6 +324,7 @@ export class MprisPlayer extends Service {
         this._playerProxy.Volume = value;
     }
 
+    /** Current playback position in seconds (-1 if unavailable). */
     get position() {
         const proxy = Gio.DBusProxy.new_for_bus_sync(
             Gio.BusType.SESSION,
@@ -265,6 +340,7 @@ export class MprisPlayer extends Service {
         return pos ? pos / 1_000_000 : -1;
     }
 
+    /** Sets the playback position in seconds. */
     set position(time: number) {
         const micro = Math.floor(time * 1_000_000);
         this._playerProxy.SetPositionAsync(this.trackid, micro);
@@ -272,14 +348,21 @@ export class MprisPlayer extends Service {
         this.emit('position', time);
     }
 
+    /** Toggles between play and pause. */
     readonly playPause = () => this._playerProxy.PlayPauseAsync().catch(console.error);
+    /** Starts playback. */
     readonly play = () => this._playerProxy.PlayAsync().catch(console.error);
+    /** Stops playback. */
     readonly stop = () => this._playerProxy.StopAsync().catch(console.error);
 
+    /** Advances to the next track. */
     readonly next = () => this._playerProxy.NextAsync().catch(console.error);
+    /** Returns to the previous track. */
     readonly previous = () => this._playerProxy.PreviousAsync().catch(console.error);
 
-    readonly shuffle = () => this._playerProxy.Shuffle = !this._playerProxy.Shuffle;
+    /** Toggles shuffle mode. */
+    readonly shuffle = () => (this._playerProxy.Shuffle = !this._playerProxy.Shuffle);
+    /** Cycles loop status through None -> Track -> Playlist -> None. */
     readonly loop = () => {
         switch (this._playerProxy.LoopStatus) {
             case 'None':
@@ -297,22 +380,29 @@ export class MprisPlayer extends Service {
     };
 }
 
+/** Service that discovers and manages MPRIS media players on the D-Bus session bus. */
 export class Mpris extends Service {
     static {
-        Service.register(this, {
-            'player-changed': ['string'],
-            'player-closed': ['string'],
-            'player-added': ['string'],
-        }, {
-            'players': ['jsobject'],
-        });
+        Service.register(
+            this,
+            {
+                'player-changed': ['string'],
+                'player-closed': ['string'],
+                'player-added': ['string'],
+            },
+            {
+                players: ['jsobject'],
+            },
+        );
     }
 
+    /** Whether to cache cover art images locally (default true). */
     public cacheCoverArt = true;
 
     private _proxy: DBusProxy;
-    private _players: Map<string, MprisPlayer> = new Map;
+    private _players: Map<string, MprisPlayer> = new Map();
 
+    /** All currently active MPRIS players. */
     get players() {
         return Array.from(this._players.values());
     }
@@ -320,16 +410,18 @@ export class Mpris extends Service {
     constructor() {
         super();
 
-        this._proxy = new DBusProxy(Gio.DBus.session,
+        this._proxy = new DBusProxy(
+            Gio.DBus.session,
             'org.freedesktop.DBus',
             '/org/freedesktop/DBus',
             this._onProxyReady.bind(this),
-            null, Gio.DBusProxyFlags.NONE);
+            null,
+            Gio.DBusProxyFlags.NONE,
+        );
     }
 
     private _addPlayer(busName: string) {
-        if (this._players.has(busName))
-            return;
+        if (this._players.has(busName)) return;
 
         const player = new MprisPlayer(busName);
 
@@ -350,17 +442,14 @@ export class Mpris extends Service {
     }
 
     private async _onProxyReady(_: DBusProxy, error: GLib.Error) {
-        if (error)
-            return logError(error);
+        if (error) return logError(error);
 
         const [names] = await this._proxy.ListNamesAsync();
         for (const name of names) {
-            if (name.startsWith(DBUS_PREFIX))
-                this._addPlayer(name);
+            if (name.startsWith(DBUS_PREFIX)) this._addPlayer(name);
         }
 
-        connectSignal(this._proxy, 'NameOwnerChanged',
-            this._onNameOwnerChanged.bind(this));
+        connectSignal(this._proxy, 'NameOwnerChanged', this._onNameOwnerChanged.bind(this));
     }
 
     private _onNameOwnerChanged(
@@ -368,21 +457,24 @@ export class Mpris extends Service {
         _sender: string,
         [name, oldOwner, newOwner]: string[],
     ) {
-        if (!name.startsWith(DBUS_PREFIX))
-            return;
+        if (!name.startsWith(DBUS_PREFIX)) return;
 
-        if (newOwner && !oldOwner)
-            this._addPlayer(name);
+        if (newOwner && !oldOwner) this._addPlayer(name);
     }
 
+    /**
+     * Finds the first player whose bus name contains the given string.
+     *
+     * @param name - Substring to match against bus names (empty matches any)
+     * @returns The matching MprisPlayer or null
+     */
     readonly getPlayer = (name = '') => {
         for (const [busName, player] of this._players) {
-            if (busName.includes(name))
-                return player;
+            if (busName.includes(name)) return player;
         }
         return null;
     };
 }
 
-export const mpris = new Mpris;
+export const mpris = new Mpris();
 export default mpris;

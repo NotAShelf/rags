@@ -1,10 +1,20 @@
+/**
+ * Runtime overrides applied at startup.
+ *
+ * Adds `toJSON()` to all GObjects for serialization and overrides
+ * `Gtk.Bin.prototype.child` for proper child management.
+ *
+ * @module
+ * @internal
+ */
 import Gtk from 'gi://Gtk?version=3.0';
 import GObject from 'gi://GObject';
 
+/** Properties excluded from GObject JSON serialization to avoid recursion. */
 const PROP_FILTER = ['parent', 'window', 'font-options', 'pixels'];
 
 // @ts-expect-error
-GObject.Object.prototype.toJSON = function() {
+GObject.Object.prototype.toJSON = function () {
     const result = {};
     const props = (this.constructor as unknown as GObject.ObjectClass)
         .list_properties()
@@ -14,8 +24,7 @@ GObject.Object.prototype.toJSON = function() {
         try {
             //@ts-expect-error
             result[p.name] = this[p.name];
-        }
-        catch (e) {
+        } catch (e) {
             logError(e as object, p.name);
         }
     });
@@ -23,16 +32,15 @@ GObject.Object.prototype.toJSON = function() {
 };
 
 Object.defineProperty(Gtk.Bin.prototype, 'child', {
-    get() { return this.get_child(); },
+    get() {
+        return this.get_child();
+    },
     set(child) {
         const prev = this.get_child();
-        if (prev)
-            this.remove(prev);
+        if (prev) this.remove(prev);
 
-        if (prev !== child)
-            prev?.destroy();
+        if (prev !== child) prev?.destroy();
 
         this.add(child);
     },
 });
-

@@ -1,23 +1,31 @@
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
 
-export type SpinnerProps<
-    Attr = unknown
-> = BaseProps<Spinner<Attr>, Gtk.Spinner.ConstructorProps, Attr>;
+/** Props for the Spinner widget. */
+export type SpinnerProps<Attr = unknown> = BaseProps<
+    Spinner<Attr>,
+    Gtk.Spinner.ConstructorProps,
+    Attr
+>;
 
-export function newSpinner<
-    Attr = unknown
->(...props: ConstructorParameters<typeof Spinner<Attr>>) {
+/** Creates a new Spinner widget that displays a loading animation. */
+export function newSpinner<Attr = unknown>(...props: ConstructorParameters<typeof Spinner<Attr>>) {
     return new Spinner(...props);
 }
 
-export interface Spinner<Attr> extends Widget<Attr> { }
+/** GTK Spinner wrapper that automatically starts and stops based on visibility. */
+export interface Spinner<Attr> extends Widget<Attr> {}
 export class Spinner<Attr> extends Gtk.Spinner {
-    static { register(this); }
+    static {
+        register(this);
+    }
 
     constructor(
-        props: BaseProps<Spinner<Attr>, Gtk.Spinner.ConstructorProps, Attr> = {} as
-            BaseProps<Spinner<Attr>, Gtk.Spinner.ConstructorProps, Attr>,
+        props: BaseProps<Spinner<Attr>, Gtk.Spinner.ConstructorProps, Attr> = {} as BaseProps<
+            Spinner<Attr>,
+            Gtk.Spinner.ConstructorProps,
+            Attr
+        >,
     ) {
         super(props as Gtk.Widget.ConstructorProps);
         this.start();

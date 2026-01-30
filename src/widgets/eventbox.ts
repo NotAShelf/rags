@@ -4,35 +4,41 @@ import Gdk from 'gi://Gdk?version=3.0';
 
 type EventHandler<Self> = (self: Self, event: Gdk.Event) => boolean | unknown;
 
+/** Props for the EventBox widget with hover, click, and scroll handlers. */
 export type EventBoxProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
     Self = EventBox<Child, Attr>,
-> = BaseProps<Self, Gtk.EventBox.ConstructorProps & {
-    child?: Child,
-    on_hover?: EventHandler<Self>
-    on_hover_lost?: EventHandler<Self>
+> = BaseProps<
+    Self,
+    Gtk.EventBox.ConstructorProps & {
+        child?: Child;
+        on_hover?: EventHandler<Self>;
+        on_hover_lost?: EventHandler<Self>;
 
-    on_scroll_up?: EventHandler<Self>
-    on_scroll_down?: EventHandler<Self>
+        on_scroll_up?: EventHandler<Self>;
+        on_scroll_down?: EventHandler<Self>;
 
-    on_primary_click?: EventHandler<Self>
-    on_middle_click?: EventHandler<Self>
-    on_secondary_click?: EventHandler<Self>
+        on_primary_click?: EventHandler<Self>;
+        on_middle_click?: EventHandler<Self>;
+        on_secondary_click?: EventHandler<Self>;
 
-    on_primary_click_release?: EventHandler<Self>
-    on_middle_click_release?: EventHandler<Self>
-    on_secondary_click_release?: EventHandler<Self>
-}, Attr>
+        on_primary_click_release?: EventHandler<Self>;
+        on_middle_click_release?: EventHandler<Self>;
+        on_secondary_click_release?: EventHandler<Self>;
+    },
+    Attr
+>;
 
-export function newEventBox<
-    Child extends Gtk.Widget = Gtk.Widget,
-    Attr = unknown
->(...props: ConstructorParameters<typeof EventBox<Child, Attr>>) {
+/** Create a new EventBox for capturing input events on a child widget. */
+export function newEventBox<Child extends Gtk.Widget = Gtk.Widget, Attr = unknown>(
+    ...props: ConstructorParameters<typeof EventBox<Child, Attr>>
+) {
     return new EventBox(...props);
 }
 
-export interface EventBox<Child, Attr> extends Widget<Attr> { }
+export interface EventBox<Child, Attr> extends Widget<Attr> {}
+/** An invisible container that captures input events for its child. */
 export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
     static {
         register(this, {
@@ -60,8 +66,7 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
         props: EventBoxProps<Child, Attr> = {} as EventBoxProps<Child, Attr>,
         child?: Child,
     ) {
-        if (child)
-            props.child = child;
+        if (child) props.child = child;
 
         super(props as Gtk.EventBox.ConstructorProps);
         this.add_events(Gdk.EventMask.SCROLL_MASK);
@@ -85,10 +90,8 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
             this.set_state_flags(Gtk.StateFlags.ACTIVE, false);
             if (event.get_button()[1] === Gdk.BUTTON_PRIMARY)
                 return this.on_primary_click?.(this, event);
-
             else if (event.get_button()[1] === Gdk.BUTTON_MIDDLE)
                 return this.on_middle_click?.(this, event);
-
             else if (event.get_button()[1] === Gdk.BUTTON_SECONDARY)
                 return this.on_secondary_click?.(this, event);
         });
@@ -97,72 +100,113 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
             this.unset_state_flags(Gtk.StateFlags.ACTIVE);
             if (event.get_button()[1] === Gdk.BUTTON_PRIMARY)
                 return this.on_primary_click_release?.(this, event);
-
             else if (event.get_button()[1] === Gdk.BUTTON_MIDDLE)
                 return this.on_middle_click_release?.(this, event);
-
             else if (event.get_button()[1] === Gdk.BUTTON_SECONDARY)
                 return this.on_secondary_click_release?.(this, event);
         });
 
         this.connect('scroll-event', (_, event: Gdk.Event) => {
-            if (event.get_scroll_deltas()[2] < 0)
-                return this.on_scroll_up?.(this, event);
-
-            else if (event.get_scroll_deltas()[2] > 0)
-                return this.on_scroll_down?.(this, event);
+            if (event.get_scroll_deltas()[2] < 0) return this.on_scroll_up?.(this, event);
+            else if (event.get_scroll_deltas()[2] > 0) return this.on_scroll_down?.(this, event);
         });
     }
 
-    get child() { return super.child as Child; }
-    set child(child: Child) { super.child = child; }
+    /** The child widget inside the event box. */
+    get child() {
+        return super.child as Child;
+    }
 
-    get on_hover() { return this._get('on-hover'); }
+    set child(child: Child) {
+        super.child = child;
+    }
+
+    /** Callback invoked when the pointer enters the widget. */
+    get on_hover() {
+        return this._get('on-hover');
+    }
+
     set on_hover(callback: EventHandler<this>) {
         this._set('on-hover', callback);
     }
 
-    get on_hover_lost() { return this._get('on-hover-lost'); }
+    /** Callback invoked when the pointer leaves the widget. */
+    get on_hover_lost() {
+        return this._get('on-hover-lost');
+    }
+
     set on_hover_lost(callback: EventHandler<this>) {
         this._set('on-hover-lost', callback);
     }
 
-    get on_scroll_up() { return this._get('on-scroll-up'); }
+    /** Callback invoked on scroll-up over the widget. */
+    get on_scroll_up() {
+        return this._get('on-scroll-up');
+    }
+
     set on_scroll_up(callback: EventHandler<this>) {
         this._set('on-scroll-up', callback);
     }
 
-    get on_scroll_down() { return this._get('on-scroll-down'); }
+    /** Callback invoked on scroll-down over the widget. */
+    get on_scroll_down() {
+        return this._get('on-scroll-down');
+    }
+
     set on_scroll_down(callback: EventHandler<this>) {
         this._set('on-scroll-down', callback);
     }
 
-    get on_primary_click() { return this._get('on-primary-click'); }
+    /** Callback invoked on primary (left) mouse button press. */
+    get on_primary_click() {
+        return this._get('on-primary-click');
+    }
+
     set on_primary_click(callback: EventHandler<this>) {
         this._set('on-primary-click', callback);
     }
 
-    get on_middle_click() { return this._get('on-middle-click'); }
+    /** Callback invoked on middle mouse button press. */
+    get on_middle_click() {
+        return this._get('on-middle-click');
+    }
+
     set on_middle_click(callback: EventHandler<this>) {
         this._set('on-middle-click', callback);
     }
 
-    get on_secondary_click() { return this._get('on-secondary-click'); }
+    /** Callback invoked on secondary (right) mouse button press. */
+    get on_secondary_click() {
+        return this._get('on-secondary-click');
+    }
+
     set on_secondary_click(callback: EventHandler<this>) {
         this._set('on-secondary-click', callback);
     }
 
-    get on_primary_click_release() { return this._get('on-primary-click-release'); }
+    /** Callback invoked on primary (left) mouse button release. */
+    get on_primary_click_release() {
+        return this._get('on-primary-click-release');
+    }
+
     set on_primary_click_release(callback: EventHandler<this>) {
         this._set('on-primary-click-release', callback);
     }
 
-    get on_middle_click_release() { return this._get('on-middle-click-release'); }
+    /** Callback invoked on middle mouse button release. */
+    get on_middle_click_release() {
+        return this._get('on-middle-click-release');
+    }
+
     set on_middle_click_release(callback: EventHandler<this>) {
         this._set('on-middle-click-release', callback);
     }
 
-    get on_secondary_click_release() { return this._get('on-secondary-click-release'); }
+    /** Callback invoked on secondary (right) mouse button release. */
+    get on_secondary_click_release() {
+        return this._get('on-secondary-click-release');
+    }
+
     set on_secondary_click_release(callback: EventHandler<this>) {
         this._set('on-secondary-click-release', callback);
     }

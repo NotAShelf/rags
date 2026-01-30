@@ -5,24 +5,41 @@ import { readFile, writeFile } from './file.js';
 import { exec } from './exec.js';
 import { HOME } from '../utils.js';
 
+/**
+ * Checks whether a DBus name is currently owned on the given bus.
+ *
+ * @param dbusName - The DBus bus name to check
+ * @param bus - The bus type: `'session'` or `'system'`
+ * @returns `true` if the name has an owner
+ */
 export function isRunning(dbusName: string, bus: 'session' | 'system') {
-    return Gio.DBus[bus].call_sync(
-        'org.freedesktop.DBus',
-        '/org/freedesktop/DBus',
-        'org.freedesktop.DBus',
-        'NameHasOwner',
-        new GLib.Variant('(s)', [dbusName]),
-        new GLib.VariantType('(b)'),
-        Gio.DBusCallFlags.NONE,
-        -1,
-        null,
-    ).deepUnpack()?.toString() === 'true' || false;
+    return (
+        Gio.DBus[bus]
+            .call_sync(
+                'org.freedesktop.DBus',
+                '/org/freedesktop/DBus',
+                'org.freedesktop.DBus',
+                'NameHasOwner',
+                new GLib.Variant('(s)', [dbusName]),
+                new GLib.VariantType('(b)'),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                null,
+            )
+            .deepUnpack()
+            ?.toString() === 'true' || false
+    );
 }
 
+/**
+ * Resolves a relative path (starting with `.`) to an absolute path
+ * using the current working directory.
+ *
+ * @param path - The path to resolve
+ * @returns The absolute path
+ */
 export function parsePath(path: string) {
-    return path.startsWith('.')
-        ? `${GLib.getenv('PWD')}${path.slice(1)}`
-        : path;
+    return path.startsWith('.') ? `${GLib.getenv('PWD')}${path.slice(1)}` : path;
 }
 
 const defaultConfig = `
@@ -102,13 +119,20 @@ if it was symlinked to /nix/store you need to run --init on updates`;
 const tsconfigWarning = `existing tsconfig detected
 make sure it has "typeRoots": ["./types"]`;
 
+/**
+ * Initializes the AGS configuration directory.
+ *
+ * Creates a default config file, tsconfig.json, symlinks types, and
+ * generates a README. Handles both Nix and non-Nix installations.
+ *
+ * @param configDir - Path to the configuration directory
+ * @param entry - Path to the entry config file
+ */
 export async function init(configDir: string, entry: string) {
     ensureDirectory(configDir);
     const tsconfig = configDir + '/' + 'tsconfig.json';
 
-    if (!GLib.file_test(entry, GLib.FileTest.EXISTS))
-        await writeFile(defaultConfig.trim(), entry);
-
+    if (!GLib.file_test(entry, GLib.FileTest.EXISTS)) await writeFile(defaultConfig.trim(), entry);
 
     if (!GLib.file_test(tsconfig, GLib.FileTest.EXISTS)) {
         await writeFile(JSON.stringify(defaultTsConfig, null, 2), tsconfig);
@@ -116,8 +140,7 @@ export async function init(configDir: string, entry: string) {
         try {
             const conf = JSON.parse(readFile(tsconfig));
             const list = conf.compilerOptions.typeRoots;
-            if (!list.includes('./types'))
-                conf.compilerOptions.typeRoots = [...list, './types'];
+            if (!list.includes('./types')) conf.compilerOptions.typeRoots = [...list, './types'];
 
             await writeFile(JSON.stringify(conf, null, 2), tsconfig);
         } catch (err) {
@@ -127,15 +150,15 @@ export async function init(configDir: string, entry: string) {
     }
 
     const linkStore = GLib.getenv('AGS_LINK_NIX_STORE');
-    const nixPath = linkStore ? '' : nixPaths.find(path => {
-        if (GLib.file_test(path, GLib.FileTest.EXISTS))
-            return true;
-    });
+    const nixPath = linkStore
+        ? ''
+        : nixPaths.find(path => {
+              if (GLib.file_test(path, GLib.FileTest.EXISTS)) return true;
+          });
 
     const types = nixPath || `${pkg.pkgdatadir}/types`;
 
-    if (exec('which nix'))
-        console.warn(nixWarning);
+    if (exec('which nix')) console.warn(nixWarning);
 
     exec(`ln -s -f ${types} ${configDir}/types`);
     await writeFile(readMe(types), `${configDir}/README.md`);

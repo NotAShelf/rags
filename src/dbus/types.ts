@@ -1,12 +1,30 @@
+/**
+ * DBus proxy type definitions for system services.
+ *
+ * These interfaces describe the DBus properties and methods exposed by
+ * various system daemons (UPower, MPRIS, StatusNotifierItem, etc.) and
+ * are used to create typed proxy wrappers via `Gio.DBusProxy.makeProxyWrapper`.
+ *
+ * @module
+ */
 /* eslint-disable @typescript-eslint/no-misused-new */
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
+/** Generic DBus proxy with name listing capability. */
 export interface DBusProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): DBusProxy
-    ListNamesAsync: () => Promise<string[][]>
+    new (...args: unknown[]): DBusProxy;
+    ListNamesAsync: () => Promise<string[][]>;
 }
 
+/**
+ * Connects to a DBus signal on a proxy.
+ *
+ * @param proxy - The DBus proxy
+ * @param signalName - The signal name
+ * @param callback - Callback invoked when the signal fires
+ * @returns The signal connection ID
+ */
 export function connectSignal<T extends Gio.DBusProxy>(
     proxy: T,
     signalName: string,
@@ -15,8 +33,9 @@ export function connectSignal<T extends Gio.DBusProxy>(
     return (proxy as any).connectSignal(signalName, callback);
 }
 
+/** DBus proxy for MPRIS Player interface (`org.mpris.MediaPlayer2.Player`). */
 export interface PlayerProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): PlayerProxy;
+    new (...args: unknown[]): PlayerProxy;
     CanControl: boolean;
     CanGoNext: boolean;
     CanGoPrevious: boolean;
@@ -36,8 +55,9 @@ export interface PlayerProxy extends Gio.DBusProxy {
     PlayAsync: () => Promise<void>;
 }
 
+/** DBus proxy for MPRIS root interface (`org.mpris.MediaPlayer2`). */
 export interface MprisProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): MprisProxy;
+    new (...args: unknown[]): MprisProxy;
     Raise: () => void;
     Quit: () => void;
     CanQuit: boolean;
@@ -46,8 +66,9 @@ export interface MprisProxy extends Gio.DBusProxy {
     DesktopEntry: string;
 }
 
+/** DBus proxy for UPower battery device properties. */
 export interface BatteryProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): BatteryProxy;
+    new (...args: unknown[]): BatteryProxy;
     State: number;
     Percentage: number;
     IsPresent: boolean;
@@ -58,8 +79,9 @@ export interface BatteryProxy extends Gio.DBusProxy {
     EnergyRate: number;
 }
 
+/** DBus proxy for StatusNotifierItem (system tray items). */
 export interface StatusNotifierItemProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): StatusNotifierItemProxy;
+    new (...args: unknown[]): StatusNotifierItemProxy;
     Category: string;
     Id: string;
     Title: string;
@@ -79,32 +101,21 @@ export interface StatusNotifierItemProxy extends Gio.DBusProxy {
     ScrollAsync: (delta: number, orientation: string) => Promise<void>;
 }
 
+/** DBus proxy for the AGS application interface. */
 export interface AgsProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): AgsProxy;
+    new (...args: unknown[]): AgsProxy;
     InspectorRemote: () => void;
     QuitRemote: () => void;
     ToggleWindowSync: (name: string) => boolean;
-    RunFileRemote: (
-        js: string,
-        busName?: string,
-        objPath?: string,
-    ) => void;
-    RunJsRemote: (
-        js: string,
-        busName?: string,
-        objPath?: string,
-    ) => void;
+    RunFileRemote: (js: string, busName?: string, objPath?: string) => void;
+    RunJsRemote: (js: string, busName?: string, objPath?: string) => void;
 
-    // FIXME: deprecated
-    RunPromiseRemote: (
-        js: string,
-        busName?: string,
-        objPath?: string,
-    ) => void;
+    /** @deprecated Use `RunJsRemote` instead. */
+    RunPromiseRemote: (js: string, busName?: string, objPath?: string) => void;
 }
 
 export interface StatusNotifierItemProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): StatusNotifierItemProxy;
+    new (...args: unknown[]): StatusNotifierItemProxy;
     Category: string;
     Id: string;
     Title: string;
@@ -124,8 +135,9 @@ export interface StatusNotifierItemProxy extends Gio.DBusProxy {
     ScrollAsync: (delta: number, orientation: string) => Promise<void>;
 }
 
+/** DBus proxy for power-profiles-daemon (`net.hadess.PowerProfiles`). */
 export interface PowerProfilesProxy extends Gio.DBusProxy {
-    new(...args: unknown[]): PowerProfilesProxy;
+    new (...args: unknown[]): PowerProfilesProxy;
     ActiveProfile: string;
     PerformanceInhibited: string;
     PerformanceDegraded: string;

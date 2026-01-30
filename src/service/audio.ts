@@ -10,32 +10,40 @@ const _MIXER_CONTROL_STATE = {
     [Gvc.MixerControlState.FAILED]: 'failed',
 };
 
+/** Represents a single audio stream (sink, source, application, or recorder). */
 export class Stream extends Service {
     static {
-        Service.register(this, {
-            'closed': [],
-        }, {
-            'application-id': ['string'],
-            'description': ['string'],
-            'is-muted': ['boolean'],
-            'volume': ['float', 'rw'],
-            'icon-name': ['string'],
-            'id': ['int'],
-            'state': ['string'],
-            'stream': ['jsobject'],
-        });
+        Service.register(
+            this,
+            {
+                closed: [],
+            },
+            {
+                'application-id': ['string'],
+                description: ['string'],
+                'is-muted': ['boolean'],
+                volume: ['float', 'rw'],
+                'icon-name': ['string'],
+                id: ['int'],
+                state: ['string'],
+                stream: ['jsobject'],
+            },
+        );
     }
 
     private _stream?: Gvc.MixerStream;
     private _ids?: number[];
     private _oldVolume = 0;
 
+    /**
+     * Binds this wrapper to a Gvc.MixerStream, forwarding property change signals.
+     *
+     * @param stream - The mixer stream to bind, or null to unbind
+     */
     readonly setStream = (stream: Gvc.MixerStream | null) => {
-        if (this._ids)
-            bulkDisconnect((this._stream as unknown) as GObject.Object, this._ids);
+        if (this._ids) bulkDisconnect(this._stream as unknown as GObject.Object, this._ids);
 
-        if (!stream)
-            return;
+        if (!stream) return;
 
         this._stream = stream;
         this._ids = [
@@ -61,16 +69,42 @@ export class Stream extends Service {
         this.setStream(stream || null);
     }
 
-    get application_id() { return this._stream?.application_id ?? null; }
-    get stream() { return this._stream ?? null; }
-    get description() { return this._stream?.description ?? null; }
-    get icon_name() { return this._stream?.icon_name ?? null; }
-    get id() { return this._stream?.id ?? null; }
-    get name() { return this._stream?.name ?? null; }
+    /** The PulseAudio/PipeWire application ID. */
+    get application_id() {
+        return this._stream?.application_id ?? null;
+    }
+
+    /** The underlying Gvc.MixerStream instance. */
+    get stream() {
+        return this._stream ?? null;
+    }
+
+    /** Human-readable description of the stream. */
+    get description() {
+        return this._stream?.description ?? null;
+    }
+
+    /** Icon name representing this stream. */
+    get icon_name() {
+        return this._stream?.icon_name ?? null;
+    }
+
+    /** Numeric stream identifier. */
+    get id() {
+        return this._stream?.id ?? null;
+    }
+
+    /** Internal stream name. */
+    get name() {
+        return this._stream?.name ?? null;
+    }
+
+    /** Current stream state: "closed", "ready", "connecting", or "failed". */
     get state() {
         return _MIXER_CONTROL_STATE[this._stream?.state || Gvc.MixerControlState.CLOSED];
     }
 
+    /** Whether the stream is currently muted. */
     get is_muted(): boolean | null {
         return this._stream?.is_muted ?? null;
     }
@@ -82,46 +116,54 @@ export class Stream extends Service {
         }
     }
 
+    /** Volume level as a float from 0.0 to maxStreamVolume (default 1.5). */
     get volume() {
         const max = audio.control.get_vol_max_norm();
         return this._stream ? this._stream.volume / max : 0;
     }
 
-    set volume(value) { // 0..100
-        if (value > (audio.maxStreamVolume))
-            value = (audio.maxStreamVolume);
+    /** Sets the volume level, clamped between 0 and maxStreamVolume. */
+    set volume(value) {
+        // 0..100
+        if (value > audio.maxStreamVolume) value = audio.maxStreamVolume;
 
-        if (value < 0)
-            value = 0;
+        if (value < 0) value = 0;
 
         const max = audio.control.get_vol_max_norm();
         this._stream?.set_volume(value * max);
         this._stream?.push_volume();
     }
 
+    /** Unbinds the underlying stream and emits the "closed" signal. */
     readonly close = () => {
         this.setStream(null);
         this.emit('closed');
     };
 }
 
+/** Service for managing PulseAudio/PipeWire audio streams, speakers, and microphones via Gvc. */
 export class Audio extends Service {
     static {
-        Service.register(this, {
-            'speaker-changed': [],
-            'microphone-changed': [],
-            'stream-added': ['int'],
-            'stream-removed': ['int'],
-        }, {
-            'apps': ['jsobject'],
-            'recorders': ['jsobject'],
-            'speakers': ['jsobject'],
-            'microphones': ['jsobject'],
-            'speaker': ['jsobject', 'rw'],
-            'microphone': ['jsobject', 'rw'],
-        });
+        Service.register(
+            this,
+            {
+                'speaker-changed': [],
+                'microphone-changed': [],
+                'stream-added': ['int'],
+                'stream-removed': ['int'],
+            },
+            {
+                apps: ['jsobject'],
+                recorders: ['jsobject'],
+                speakers: ['jsobject'],
+                microphones: ['jsobject'],
+                speaker: ['jsobject', 'rw'],
+                microphone: ['jsobject', 'rw'],
+            },
+        );
     }
 
+    /** Maximum allowed stream volume as a multiplier (default 1.5 = 150%). */
     public maxStreamVolume = 1.5;
 
     private _control: Gvc.MixerControl;
@@ -157,31 +199,64 @@ export class Audio extends Service {
         this._control.open();
     }
 
-    get control() { return this._control; }
+    /** The underlying Gvc.MixerControl instance. */
+    get control() {
+        return this._control;
+    }
 
-    get speaker() { return this._speaker; }
+    /** The default audio output (sink) stream. */
+    get speaker() {
+        return this._speaker;
+    }
+
+    /** Sets the default audio output device. */
     set speaker(stream: Stream) {
         this._control.set_default_sink(stream.stream!);
     }
 
-    get microphone() { return this._microphone; }
+    /** The default audio input (source) stream. */
+    get microphone() {
+        return this._microphone;
+    }
+
+    /** Sets the default audio input device. */
     set microphone(stream: Stream) {
         this._control.set_default_source(stream.stream!);
     }
 
-    get microphones() { return this._getStreams(Gvc.MixerSource); }
-    get speakers() { return this._getStreams(Gvc.MixerSink); }
-    get apps() { return this._getStreams(Gvc.MixerSinkInput); }
-    get recorders() { return this._getStreams(Gvc.MixerSourceOutput); }
+    /** All available microphone (source) streams. */
+    get microphones() {
+        return this._getStreams(Gvc.MixerSource);
+    }
 
+    /** All available speaker (sink) streams. */
+    get speakers() {
+        return this._getStreams(Gvc.MixerSink);
+    }
+
+    /** All application audio output streams. */
+    get apps() {
+        return this._getStreams(Gvc.MixerSinkInput);
+    }
+
+    /** All application audio recording streams. */
+    get recorders() {
+        return this._getStreams(Gvc.MixerSourceOutput);
+    }
+
+    /**
+     * Retrieves a stream wrapper by its numeric ID.
+     *
+     * @param id - The stream identifier
+     * @returns The Stream instance or undefined
+     */
     readonly getStream = (id: number) => {
         return this._streams.get(id);
     };
 
     private _defaultChanged(id: number, type: 'speaker' | 'microphone') {
         const stream = this._streams.get(id);
-        if (!stream)
-            return;
+        if (!stream) return;
 
         this[`_${type}`].setStream(stream.stream);
         this.changed(type);
@@ -189,8 +264,7 @@ export class Audio extends Service {
     }
 
     private _streamAdded(_c: Gvc.MixerControl, id: number) {
-        if (this._streams.has(id))
-            return;
+        if (this._streams.has(id)) return;
 
         const gvcstream = this._control.lookup_stream_id(id);
         const stream = new Stream(gvcstream);
@@ -206,8 +280,7 @@ export class Audio extends Service {
 
     private _streamRemoved(_c: Gvc.MixerControl, id: number) {
         const stream = this._streams.get(id);
-        if (!stream)
-            return;
+        if (!stream) return;
 
         stream.disconnect(this._streamBindings.get(id) as number);
         stream.close();
@@ -220,29 +293,24 @@ export class Audio extends Service {
         this.emit('changed');
     }
 
-    private _getStreams(filter: { new(): Gvc.MixerStream }) {
+    private _getStreams(filter: { new (): Gvc.MixerStream }) {
         const list = [];
         for (const [, stream] of this._streams) {
-            if (stream.stream instanceof filter)
-                list.push(stream);
+            if (stream.stream instanceof filter) list.push(stream);
         }
         return list;
     }
 
     private _notifyStreams(stream: Stream) {
-        if (stream.stream instanceof Gvc.MixerSource)
-            this.notify('microphones');
+        if (stream.stream instanceof Gvc.MixerSource) this.notify('microphones');
 
-        if (stream.stream instanceof Gvc.MixerSink)
-            this.notify('speakers');
+        if (stream.stream instanceof Gvc.MixerSink) this.notify('speakers');
 
-        if (stream.stream instanceof Gvc.MixerSinkInput)
-            this.notify('apps');
+        if (stream.stream instanceof Gvc.MixerSinkInput) this.notify('apps');
 
-        if (stream.stream instanceof Gvc.MixerSourceOutput)
-            this.notify('recorders');
+        if (stream.stream instanceof Gvc.MixerSourceOutput) this.notify('recorders');
     }
 }
 
-const audio = new Audio;
+const audio = new Audio();
 export default audio;

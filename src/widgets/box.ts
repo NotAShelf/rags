@@ -1,30 +1,41 @@
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
 
+/** Props for the Box container widget. */
 export type BoxProps<
     Child extends Gtk.Widget = Gtk.Widget,
     Attr = unknown,
-    Self = Box<Child, Attr>
-> = BaseProps<Self, Gtk.Box.ConstructorProps & {
-    child?: Child
-    children?: Child[]
-    vertical?: boolean
-}, Attr>;
+    Self = Box<Child, Attr>,
+> = BaseProps<
+    Self,
+    Gtk.Box.ConstructorProps & {
+        child?: Child;
+        children?: Child[];
+        vertical?: boolean;
+    },
+    Attr
+>;
 
-export function newBox<
-    Child extends Gtk.Widget = Gtk.Widget,
-    Attr = unknown
->(...props: ConstructorParameters<typeof Box<Child, Attr>>) {
+/**
+ * Create a new Box container widget.
+ * @example
+ * const myBox = newBox({ vertical: true, children: [child1, child2] });
+ * const hBox = newBox([child1, child2]);
+ */
+export function newBox<Child extends Gtk.Widget = Gtk.Widget, Attr = unknown>(
+    ...props: ConstructorParameters<typeof Box<Child, Attr>>
+) {
     return new Box(...props);
 }
 
-export interface Box<Child, Attr> extends Widget<Attr> { }
+export interface Box<Child, Attr> extends Widget<Attr> {}
+/** A container that arranges children in a single row or column. */
 export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
     static {
         register(this, {
             properties: {
-                'vertical': ['boolean', 'rw'],
-                'children': ['jsobject', 'rw'],
+                vertical: ['boolean', 'rw'],
+                children: ['jsobject', 'rw'],
             },
         });
     }
@@ -35,20 +46,27 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
     ) {
         const props: any = Array.isArray(propsOrChildren) ? {} : propsOrChildren;
 
-        if (Array.isArray(propsOrChildren))
-            props.children = propsOrChildren;
-
-        else if (children.length > 0)
-            props.children = children as Child[];
+        if (Array.isArray(propsOrChildren)) props.children = propsOrChildren;
+        else if (children.length > 0) props.children = children as Child[];
 
         super(props as Gtk.Box.ConstructorProps);
         this.connect('notify::orientation', () => this.notify('vertical'));
     }
 
-    get child() { return this.children[0] as Child; }
-    set child(child: Child) { this.children = [child]; }
+    /** The first child widget. */
+    get child() {
+        return this.children[0] as Child;
+    }
 
-    get children() { return this.get_children() as Child[]; }
+    set child(child: Child) {
+        this.children = [child];
+    }
+
+    /** The list of child widgets in this box. */
+    get children() {
+        return this.get_children() as Child[];
+    }
+
     set children(children: Child[]) {
         const newChildren = children || [];
 
@@ -58,18 +76,20 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
 
         // remove any children that weren't destroyed so
         // we can re-add everything in the correct new order
-        this.get_children()
-            .forEach(ch => this.remove(ch));
+        this.get_children().forEach(ch => this.remove(ch));
 
-        if (!children)
-            return;
+        if (!children) return;
 
         children.forEach(w => w && this.add(w));
         this.notify('children');
         this.show_all();
     }
 
-    get vertical() { return this.orientation === Gtk.Orientation.VERTICAL; }
+    /** Whether the box lays out children vertically. */
+    get vertical() {
+        return this.orientation === Gtk.Orientation.VERTICAL;
+    }
+
     set vertical(v: boolean) {
         this.orientation = Gtk.Orientation[v ? 'VERTICAL' : 'HORIZONTAL'];
     }
