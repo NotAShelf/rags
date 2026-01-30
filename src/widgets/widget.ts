@@ -306,6 +306,7 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     }
 
     on(signal: string, callback: (self: this, ...args: any[]) => void): this {
+        if (!this._onHandlerIds) this._onHandlerIds = [];
         const id = this.connect(signal, callback);
         this._onHandlerIds.push(id);
         return this;
@@ -372,10 +373,12 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         );
 
         this.connect('destroy', () => {
-            for (const id of this._onHandlerIds) {
-                this.disconnect(id);
+            if (this._onHandlerIds) {
+                for (const id of this._onHandlerIds) {
+                    this.disconnect(id);
+                }
+                this._onHandlerIds = [];
             }
-            this._onHandlerIds = [];
             this._set('is-destroyed', true);
         });
 
@@ -585,6 +588,7 @@ export function register<T extends { new (...args: any[]): Gtk.Widget }>(
             Object.getOwnPropertyDescriptor(AgsWidget.prototype, name) || Object.create(null),
         );
     });
+
     return registerGObject(klass, {
         cssName: config?.cssName,
         typename: config?.typename || `Ags_${klass.name}`,
