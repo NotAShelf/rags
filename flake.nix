@@ -36,6 +36,7 @@
       default = pkgs.mkShell {
         name = "ags";
         inputsFrom = [self.packages.${system}.agsNoTypes];
+        packages = [pkgs.nodejs-slim];
       };
     });
 
