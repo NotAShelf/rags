@@ -21,7 +21,9 @@ export class ListBox<Attr> extends Gtk.ListBox {
     }
 
     constructor(props: ListBoxProps<Attr> = {} as ListBoxProps<Attr>) {
-        super(props as Gtk.ListBox.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.ListBox.ConstructorProps);
+        if (typeof setup === 'function') setup(this);
     }
 }
 

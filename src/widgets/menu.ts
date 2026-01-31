@@ -52,10 +52,12 @@ export class Menu<MenuItem extends Gtk.MenuItem, Attr> extends Gtk.Menu {
     ) {
         if (children.length > 0) props.children = children as MenuItem[];
 
-        super(props as Gtk.Menu.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.Menu.ConstructorProps);
 
         this.connect('popped-up', (_, ...args) => this.on_popup?.(this, ...args));
         this.connect('move-scroll', (_, ...args) => this.on_move_scroll?.(this, ...args));
+        if (typeof setup === 'function') setup(this);
     }
 
     /** Callback invoked when the menu is popped up. */

@@ -135,6 +135,7 @@ export class Applications extends Service {
 
     private _list!: Application[];
     private _frequents: { [app: string]: number };
+    private _frequencyBindings: Array<{ app: Application; id: number }> = [];
 
     /**
      * Filters and sorts applications by a search term, ordered by launch frequency.
@@ -143,11 +144,7 @@ export class Applications extends Service {
      * @returns Matching applications sorted by frequency (most used first)
      */
     readonly query = (term: string) => {
-        return this._list
-            .filter(app => app.match(term))
-            .sort((a, b) => {
-                return a.frequency < b.frequency ? 1 : 0;
-            });
+        return this._list.filter(app => app.match(term)).sort((a, b) => b.frequency - a.frequency);
     };
 
     constructor() {
@@ -188,17 +185,23 @@ export class Applications extends Service {
 
     /** Reloads the application list from the system and restores frequency data. */
     readonly reload = () => {
+        for (const { app, id } of this._frequencyBindings) {
+            app.disconnect(id);
+        }
+        this._frequencyBindings = [];
+
         this._list = Gio.AppInfo.get_all()
             .filter(app => app.should_show())
             .map(app => Gio.DesktopAppInfo.new(app.get_id() || ''))
             .filter(app => app)
             .map(app => new Application(app, this.frequents[app.get_id() || '']));
 
-        this._list.forEach(app =>
-            app.connect('notify::frequency', () => {
+        this._list.forEach(app => {
+            const id = app.connect('notify::frequency', () => {
                 this._launched(app.desktop);
-            }),
-        );
+            });
+            this._frequencyBindings.push({ app, id });
+        });
 
         this.changed('list');
     };

@@ -53,12 +53,14 @@ export class Label<Attr> extends Gtk.Label {
     }
 
     constructor(props: LabelProps<Attr> | string = {} as LabelProps<Attr>) {
-        const { label, ...config } = props as Gtk.Label.ConstructorProps;
+        const { label, setup, ...config } = props as any;
         const text = typeof props === 'string' ? props : label;
         super(typeof props === 'string' ? {} : config);
         this._handleParamProp('label', text || '');
         this.connect('notify::justify', () => this.notify('justification'));
         this.connect('notify::ellipsize', () => this.notify('truncate'));
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The displayed text. Invalid markup is escaped automatically when use_markup is enabled. */

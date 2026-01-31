@@ -8,8 +8,6 @@ import { Binding, Connectable } from '../service.js';
 import { Variable } from '../variable.js';
 import { kebabify } from './gobject.js';
 
-// TODO: consider adding a guard for disposed Variables
-
 type Dep<T> = Binding<any, any, T>;
 
 /**
@@ -39,8 +37,21 @@ export function merge<
 >(deps: Deps, fn: (...args: Args) => V) {
     const update = () => fn(...(deps.map(d => d.transformFn(d.emitter[d.prop])) as Args));
     const watcher = new Variable(update());
-    for (const dep of deps)
-        dep.emitter.connect(`notify::${kebabify(dep.prop)}`, () => (watcher.value = update()));
+    const connectionIds: Array<{ emitter: Connectable; id: number }> = [];
+
+    for (const dep of deps) {
+        const id = dep.emitter.connect(
+            `notify::${kebabify(dep.prop)}`,
+            () => (watcher.value = update()),
+        );
+        connectionIds.push({ emitter: dep.emitter, id });
+    }
+
+    watcher.connect('dispose', () => {
+        for (const { emitter, id } of connectionIds) {
+            emitter.disconnect(id);
+        }
+    });
 
     return watcher.bind();
 }
@@ -62,7 +73,18 @@ export function derive<
 >(deps: Deps, fn: (...args: Args) => V) {
     const update = () => fn(...(deps.map(d => d.value) as Args));
     const watcher = new Variable(update());
-    for (const dep of deps) dep.connect('changed', () => (watcher.value = update()));
+    const connectionIds: Array<{ emitter: Connectable; id: number }> = [];
+
+    for (const dep of deps) {
+        const id = dep.connect('changed', () => (watcher.value = update()));
+        connectionIds.push({ emitter: dep, id });
+    }
+
+    watcher.connect('dispose', () => {
+        for (const { emitter, id } of connectionIds) {
+            emitter.disconnect(id);
+        }
+    });
 
     return watcher;
 }
@@ -104,6 +126,7 @@ export function watch<T>(
     const v = new Variable(init);
     const f = typeof sigOrFn === 'function' ? sigOrFn : (callback ?? (() => v.value));
     const set = () => (v.value = f());
+    const connectionIds: Array<{ emitter: Connectable; id: number }> = [];
 
     if (Array.isArray(objs)) {
         // multiple objects
@@ -111,17 +134,26 @@ export function watch<T>(
             if (Array.isArray(obj)) {
                 // obj signal pair
                 const [o, s = 'changed'] = obj;
-                o.connect(s, set);
+                const id = o.connect(s, set);
+                connectionIds.push({ emitter: o, id });
             } else {
                 // obj on changed
-                obj.connect('changed', set);
+                const id = obj.connect('changed', set);
+                connectionIds.push({ emitter: obj, id });
             }
         }
     } else {
         // watch single object
         const signal = typeof sigOrFn === 'string' ? sigOrFn : 'changed';
-        objs.connect(signal, set);
+        const id = objs.connect(signal, set);
+        connectionIds.push({ emitter: objs, id });
     }
+
+    v.connect('dispose', () => {
+        for (const { emitter, id } of connectionIds) {
+            emitter.disconnect(id);
+        }
+    });
 
     return v.bind();
 }

@@ -8,6 +8,7 @@ import Gio from 'gi://Gio';
  * to make libsoup an optional dependency we do this
  */
 let init = false;
+let _session: any = null;
 async function libnotify() {
     try {
         import('gi://Soup?version=3.0');
@@ -21,7 +22,9 @@ async function libnotify() {
     if (init) return Soup;
 
     init = true;
+    _session = new Soup.Session();
     Gio._promisify(Soup.Session.prototype, 'send_async');
+    Gio._promisify(Soup.Session.prototype, 'send_and_read_async');
     Gio._promisify(Gio.MemoryOutputStream.prototype, 'splice_async');
     return Soup;
 }
@@ -133,7 +136,7 @@ export async function fetch(url: string, options: FetchOptions = {}) {
         return new Response(400, 'can not fetch: missing dependency: libsoup3', false, null);
     }
 
-    const session = new Soup.Session();
+    const session = _session!;
 
     if (options.params) {
         url +=
@@ -172,14 +175,11 @@ export async function fetch(url: string, options: FetchOptions = {}) {
         );
     }
 
-    const inputStream = await session.send_and_read_async(message, 0, null);
+    const gbytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+    const memoryInputStream = new Gio.MemoryInputStream();
+    memoryInputStream.add_bytes(gbytes);
     const { status_code, reason_phrase } = message;
     const ok = status_code >= 200 && status_code < 300;
 
-    return new Response(
-        status_code,
-        reason_phrase,
-        ok,
-        (inputStream as unknown as Gio.InputStream) || null,
-    );
+    return new Response(status_code, reason_phrase, ok, memoryInputStream);
 }

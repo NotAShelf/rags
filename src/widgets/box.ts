@@ -45,12 +45,28 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
         ...children: Gtk.Widget[]
     ) {
         const props: any = Array.isArray(propsOrChildren) ? {} : propsOrChildren;
+        const { setup, ...rest } = props;
 
-        if (Array.isArray(propsOrChildren)) props.children = propsOrChildren;
-        else if (children.length > 0) props.children = children as Child[];
+        if (Array.isArray(propsOrChildren)) rest.children = propsOrChildren;
+        else if (children.length > 0) rest.children = children as Child[];
 
-        super(props as Gtk.Box.ConstructorProps);
+        super(rest as Gtk.Box.ConstructorProps);
+
+        const self = this as any;
+        self._onHandlerIds = [];
+        this.connect('destroy', () => {
+            if (self._onHandlerIds) {
+                for (const id of self._onHandlerIds) {
+                    this.disconnect(id);
+                }
+                self._onHandlerIds = [];
+            }
+            self._set('is-destroyed', true);
+        });
+
         this.connect('notify::orientation', () => this.notify('vertical'));
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The first child widget. */
@@ -69,18 +85,22 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
 
     set children(children: Child[]) {
         const newChildren = children || [];
+        const newSet = new Set(newChildren);
+        const oldChildren = this.get_children();
 
-        this.get_children()
-            .filter(ch => !newChildren?.includes(ch as Child))
-            .forEach(ch => ch.destroy());
-
-        // remove any children that weren't destroyed so
-        // we can re-add everything in the correct new order
-        this.get_children().forEach(ch => this.remove(ch));
+        for (const ch of oldChildren) {
+            if (!newSet.has(ch as Child)) {
+                ch.destroy();
+            } else {
+                this.remove(ch);
+            }
+        }
 
         if (!children) return;
 
-        children.forEach(w => w && this.add(w));
+        for (const w of newChildren) {
+            if (w) this.add(w);
+        }
         this.notify('children');
         this.show_all();
     }

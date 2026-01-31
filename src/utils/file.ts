@@ -132,15 +132,6 @@ export function monitorFile(
         recursive: true,
     },
 ) {
-    // FIXME: remove the checking in the next release
-    if (typeof options === 'number') {
-        console.warn(
-            `${options}` +
-                ' passed as a parameter in `options`.\n' +
-                'options parameter should be {flags: Gio.FileMonitorFlags, recursive: boolean}.',
-        );
-    }
-
     try {
         const file = Gio.File.new_for_path(path);
         const mon = file.monitor(options.flags, null);

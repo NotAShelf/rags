@@ -194,6 +194,7 @@ export class MprisPlayer extends Service {
     private _binding = { mpris: [0, 0], player: 0 };
     private _mprisProxy: MprisProxy;
     private _playerProxy: PlayerProxy;
+    private _rawPlayerProxy: Gio.DBusProxy;
 
     constructor(busName: string) {
         super();
@@ -204,6 +205,16 @@ export class MprisPlayer extends Service {
         this._mprisProxy = new MprisProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
 
         this._playerProxy = new PlayerProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
+
+        this._rawPlayerProxy = Gio.DBusProxy.new_for_bus_sync(
+            Gio.BusType.SESSION,
+            Gio.DBusProxyFlags.NONE,
+            null,
+            busName,
+            '/org/mpris/MediaPlayer2',
+            'org.mpris.MediaPlayer2.Player',
+            null,
+        );
 
         this._onPlayerProxyReady();
         this._onMprisProxyReady();
@@ -326,17 +337,7 @@ export class MprisPlayer extends Service {
 
     /** Current playback position in seconds (-1 if unavailable). */
     get position() {
-        const proxy = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SESSION,
-            Gio.DBusProxyFlags.NONE,
-            null,
-            this._busName,
-            '/org/mpris/MediaPlayer2',
-            'org.mpris.MediaPlayer2.Player',
-            null,
-        );
-
-        const pos = proxy.get_cached_property('Position')?.unpack() as number;
+        const pos = this._rawPlayerProxy.get_cached_property('Position')?.unpack() as number;
         return pos ? pos / 1_000_000 : -1;
     }
 

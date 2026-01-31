@@ -29,8 +29,10 @@ export class Separator<Attr> extends Gtk.Separator {
     }
 
     constructor(props: SeparatorProps<Attr> = {} as SeparatorProps<Attr>) {
-        super(props as Gtk.Separator.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.Separator.ConstructorProps);
         this.connect('notify::orientation', () => this.notify('vertical'));
+        if (typeof setup === 'function') setup(this);
     }
 
     /** Whether the separator is oriented vertically. */

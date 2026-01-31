@@ -23,7 +23,9 @@ export class Fixed<Attr> extends Gtk.Fixed {
     }
 
     constructor(props: FixedProps<Attr> = {} as FixedProps<Attr>) {
-        super(props as Gtk.Fixed.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.Fixed.ConstructorProps);
+        if (typeof setup === 'function') setup(this);
     }
 }
 

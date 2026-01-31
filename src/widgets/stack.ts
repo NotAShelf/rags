@@ -70,10 +70,13 @@ export class Stack<Children extends { [name: string]: Gtk.Widget }, Attr> extend
         props: StackProps<Children, Attr> = {} as StackProps<Children, Attr>,
         children?: Children,
     ) {
-        if (children) props.children = children;
+        const { setup, ...rest } = props as any;
+        if (children) rest.children = children;
 
-        super(props as Gtk.Stack.ConstructorProps);
+        super(rest as Gtk.Stack.ConstructorProps);
         this.connect('notify::visible-child-name', () => this.notify('shown'));
+
+        if (typeof setup === 'function') setup(this);
     }
 
     add_named(child: Gtk.Widget, name: string): void {

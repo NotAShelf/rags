@@ -41,8 +41,10 @@ export class FontButton<Child extends Gtk.Widget, Attr> extends Gtk.FontButton {
     ) {
         if (child) props.child = child;
 
-        super(props as Gtk.FontButton.ConstructorProps);
+        const { setup, ...rest } = props as any;
+        super(rest as Gtk.FontButton.ConstructorProps);
         this.connect('font-set', this.on_font_set.bind(this));
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The child widget inside the button. */

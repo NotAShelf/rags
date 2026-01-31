@@ -57,10 +57,11 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
         props: ScrollableProps<Child, Attr> = {} as ScrollableProps<Child, Attr>,
         child?: Child,
     ) {
-        if (child) props.child = child;
+        const { setup, ...rest } = props as any;
+        if (child) rest.child = child;
 
         super({
-            ...(props as Gtk.ScrolledWindow.ConstructorProps),
+            ...(rest as Gtk.ScrolledWindow.ConstructorProps),
             hadjustment: new Gtk.Adjustment(),
             vadjustment: new Gtk.Adjustment(),
         });
@@ -68,6 +69,8 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
         this.connect('destroy', () => {
             if (this.child instanceof Gtk.Viewport) this.child.child.destroy();
         });
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The scrollable content child widget. */

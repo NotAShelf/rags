@@ -69,9 +69,10 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     constructor(props: ButtonProps<Child, Attr> = {} as ButtonProps<Child, Attr>, child?: Child) {
-        if (child) props.child = child;
+        const { setup, ...rest } = props as any;
+        if (child) rest.child = child;
 
-        super(props as Gtk.Button.ConstructorProps);
+        super(rest as Gtk.Button.ConstructorProps);
         this.add_events(Gdk.EventMask.SCROLL_MASK);
         this.add_events(Gdk.EventMask.SMOOTH_SCROLL_MASK);
 
@@ -107,6 +108,8 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
             if (event.get_scroll_deltas()[2] < 0) return this.on_scroll_up?.(this, event);
             else if (event.get_scroll_deltas()[2] > 0) return this.on_scroll_down?.(this, event);
         });
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** The child widget inside the button. */

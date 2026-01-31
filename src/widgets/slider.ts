@@ -69,6 +69,7 @@ export class Slider<Attr> extends Gtk.Scale {
             max = 1,
             step = 0.01,
             marks = [],
+            setup,
             ...rest
         }: SliderProps<Attr> = {} as SliderProps<Attr>,
     ) {
@@ -88,6 +89,8 @@ export class Slider<Attr> extends Gtk.Scale {
 
             this.on_change?.(this, event);
         });
+
+        if (typeof setup === 'function') setup(this);
     }
 
     /** Callback invoked when the slider value changes during user interaction. */
@@ -200,12 +203,11 @@ export class Slider<Attr> extends Gtk.Scale {
     }
 
     vfunc_scroll_event(event: Gdk.EventScroll): boolean {
-        this.dragging = true;
+        this._set('dragging', true, false);
         event.delta_y > 0
             ? (this.adjustment.value -= this.step)
             : (this.adjustment.value += this.step);
-
-        this.dragging = false;
+        this._set('dragging', false, false);
         return super.vfunc_scroll_event(event);
     }
 }

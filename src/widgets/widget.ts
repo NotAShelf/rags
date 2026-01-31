@@ -7,19 +7,6 @@ import { Props, BindableProps, Binding, Connectable } from '../service.js';
 import { registerGObject, kebabify, type CtorProps } from '../utils/gobject.js';
 import { interval, idle } from '../utils.js';
 
-let warned = false;
-function deprecated() {
-    if (warned) return;
-
-    console.warn(
-        Error(
-            'Using "connections" and "binds" props are DEPRECATED\n' +
-                'Use .hook() .bind() .poll() .on() instead, refer to the wiki to see examples',
-        ),
-    );
-    warned = true;
-}
-
 /** @internal Map of alignment string names to GTK Align enum values. */
 const ALIGN = {
     fill: Gtk.Align.FILL,
@@ -28,6 +15,8 @@ const ALIGN = {
     center: Gtk.Align.CENTER,
     baseline: Gtk.Align.BASELINE,
 } as const;
+
+const ALIGN_KEYS = new Set(Object.keys(ALIGN));
 
 /** String alignment values: `'fill'`, `'start'`, `'end'`, `'center'`, `'baseline'`. */
 type Align = keyof typeof ALIGN;
@@ -78,15 +67,6 @@ type Cursor =
     | 'nwse-resize'
     | 'zoom-in'
     | 'zoom-out';
-
-type Property = [prop: string, value: unknown];
-
-type Connection<Self> =
-    | [GObject.Object, (self: Self, ...args: unknown[]) => unknown, string?]
-    | [string, (self: Self, ...args: unknown[]) => unknown]
-    | [number, (self: Self, ...args: unknown[]) => unknown];
-
-type Bind = [prop: string, obj: GObject.Object, objProp?: string, transform?: (value: any) => any];
 
 /**
  * Common properties available on all AGS widgets.
@@ -263,6 +243,9 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         return this._get('attribute');
     }
 
+    _onHandlerIds: number[] = [];
+    _cursorHandlersConnected = false;
+
     hook(
         gobject: Connectable,
         callback: (self: this, ...args: any[]) => void,
@@ -323,7 +306,9 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     }
 
     on(signal: string, callback: (self: this, ...args: any[]) => void): this {
-        this.connect(signal, callback);
+        if (!this._onHandlerIds) this._onHandlerIds = [];
+        const id = this.connect(signal, callback);
+        this._onHandlerIds.push(id);
         return this;
     }
 
@@ -362,6 +347,7 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         > = {} as any,
         child?: Gtk.Widget,
     ) {
+        this._onHandlerIds = [];
         const { setup, attribute, ...props } = config || {};
 
         const binds = (Object.keys(props) as Array<keyof typeof props>)
@@ -386,12 +372,15 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
             },
         );
 
-        this.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK);
-        this.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK);
-
-        this.connect('enter-notify-event', this._updateCursor.bind(this));
-        this.connect('leave-notify-event', this._updateCursor.bind(this));
-        this.connect('destroy', () => this._set('is-destroyed', true));
+        this.connect('destroy', () => {
+            if (this._onHandlerIds) {
+                for (const id of this._onHandlerIds) {
+                    this.disconnect(id);
+                }
+                this._onHandlerIds = [];
+            }
+            this._set('is-destroyed', true);
+        });
 
         idle(() => {
             if (this.click_through && !this.is_destroyed)
@@ -429,57 +418,10 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         if (notify) this.notify(field);
     }
 
-    /** @deprecated Use `.hook()`, `.bind()`, `.poll()`, `.on()` instead. */
-    set connections(connections: Connection<this>[]) {
-        if (!connections) return;
-
-        deprecated();
-        connections.forEach(([s, callback, event]) => {
-            if (s === undefined || callback === undefined)
-                return console.error(Error('missing arguments to connections'));
-
-            if (typeof s === 'string') this.connect(s, callback);
-            else if (typeof s === 'number') interval(s, () => callback(this), this);
-            else if (s instanceof GObject.Object) this.hook(s, callback, event);
-            else console.error(Error(`${s} is not a GObject | string | number`));
-        });
-    }
-
-    /** @deprecated Use `.bind()` method instead. */
-    set binds(binds: Bind[]) {
-        if (!binds) return;
-
-        deprecated();
-        binds.forEach(([prop, obj, objProp = 'value', transform = out => out]) => {
-            // @ts-expect-error
-            this.bind(prop, obj, objProp, transform);
-        });
-    }
-
-    /** @deprecated Use `attribute` instead. */
-    set properties(properties: Property[]) {
-        if (!properties) return;
-
-        console.warn(Error('"properties" is deprecated use "attribute" instead'));
-        properties.forEach(([key, value]) => {
-            (this as unknown as { [key: string]: unknown })[`_${key}`] = value;
-        });
-    }
-
-    /** @deprecated Renamed to {@link hook}. */
-    connectTo<GObject extends GObject.Object>(
-        gobject: GObject,
-        callback: (self: this, ...args: any[]) => void,
-        signal?: string,
-    ) {
-        console.warn(Error('connectTo was renamed to hook'));
-        return this.hook(gobject, callback, signal);
-    }
-
     _setPack(orientation: 'h' | 'v', align: Align) {
         if (!align) return;
 
-        if (!Object.keys(ALIGN).includes(align)) {
+        if (!ALIGN_KEYS.has(align)) {
             return console.error(
                 Error(
                     `${orientation}pack has to be on of ${Object.keys(ALIGN)}, but it is ${align}`,
@@ -514,12 +456,14 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         this._setPack('v', align);
     }
 
-    toggleClassName(className: string, condition = true) {
+    toggleClassName(className: string, condition = true, notify = true) {
         const c = this.get_style_context();
         condition ? c.add_class(className) : c.remove_class(className);
 
-        this.notify('class-names');
-        this.notify('class-name');
+        if (notify) {
+            this.notify('class-names');
+            this.notify('class-name');
+        }
     }
 
     /** Space-separated CSS class names. */
@@ -537,8 +481,10 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     }
 
     set class_names(names: string[]) {
-        this.class_names.forEach((cn: string) => this.toggleClassName(cn, false));
-        names.forEach(cn => this.toggleClassName(cn));
+        this.class_names.forEach((cn: string) => this.toggleClassName(cn, false, false));
+        names.forEach(cn => this.toggleClassName(cn, true, false));
+        this.notify('class-names');
+        this.notify('class-name');
     }
 
     _cssProvider!: Gtk.CssProvider;
@@ -586,6 +532,15 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
 
     set cursor(cursor: Cursor) {
         this._set('cursor', cursor);
+
+        if (cursor && !this._cursorHandlersConnected) {
+            this._cursorHandlersConnected = true;
+            this.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK);
+            this.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK);
+            this.connect('enter-notify-event', this._updateCursor.bind(this));
+            this.connect('leave-notify-event', this._updateCursor.bind(this));
+        }
+
         this._updateCursor();
     }
 
@@ -633,6 +588,7 @@ export function register<T extends { new (...args: any[]): Gtk.Widget }>(
             Object.getOwnPropertyDescriptor(AgsWidget.prototype, name) || Object.create(null),
         );
     });
+
     return registerGObject(klass, {
         cssName: config?.cssName,
         typename: config?.typename || `Ags_${klass.name}`,
@@ -648,17 +604,6 @@ export function register<T extends { new (...args: any[]): Gtk.Widget }>(
             'is-destroyed': ['boolean', 'r'],
             attribute: ['jsobject', 'rw'],
             'click-through': ['boolean', 'rw'],
-
-            // FIXME: deprecated
-            properties: ['jsobject', 'w'],
-            connections: ['jsobject', 'w'],
-            binds: ['jsobject', 'w'],
         },
     });
 }
-
-/** @deprecated Backwards compatibility export. Use {@link register} instead. */
-export default function W(klass: any) {
-    return klass;
-}
-W.register = register;
