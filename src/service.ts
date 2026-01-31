@@ -1,4 +1,5 @@
 import GObject from 'gi://GObject';
+import Gtk from 'gi://Gtk?version=3.0';
 import { pspec, registerGObject, PspecFlag, PspecType } from './utils/gobject.js';
 
 function shallowEqual(a: unknown, b: unknown): boolean {
@@ -235,6 +236,36 @@ export default class Service extends GObject.Object {
     }
 
     /**
+     * Emits a signal, warning if the signal was not registered via
+     * {@link Service.register}.
+     *
+     * The warning is cheap (a Set lookup per emit) and helps catch typos
+     * and missing signal declarations that silently break `.bind()`.
+     */
+    emit(signal: string, ...args: any[]) {
+        // Walk prototype chain to check for registered signals
+        let found = false;
+        let proto: any = this.constructor;
+        while (proto) {
+            if (proto._registeredSignals?.has(signal)) {
+                found = true;
+                break;
+            }
+            proto = Object.getPrototypeOf(proto);
+        }
+
+        if (!found && signal !== 'destroy' && signal !== 'notify') {
+            console.warn(
+                `${this.constructor.name}.emit("${signal}"): ` +
+                    `signal not registered via Service.register(). ` +
+                    `Widgets cannot .bind() to unregistered signals.`,
+            );
+        }
+
+        super.emit(signal, ...args);
+    }
+
+    /**
      * Updates a property value and emits a `notify` signal if the value changed.
      *
      * Performs a deep equality check via JSON serialization to avoid
@@ -278,5 +309,60 @@ export default class Service extends GObject.Object {
      */
     bind<Prop extends keyof Props<this>>(prop: Prop) {
         return new Binding(this, prop);
+    }
+
+    /**
+     * Creates an incremental list binding that reuses existing widgets.
+     *
+     * Instead of recreating all widgets on every update, this method caches
+     * widgets by a key function and only creates new widgets for new items,
+     * destroying widgets for removed items.
+     *
+     * @param prop - The property containing the item array
+     * @param opts - Key extractor, widget factory, and optional update callback
+     * @returns A Binding that produces an array of widgets
+     *
+     * @example
+     * ```typescript
+     * const children = audio.diffBind('speakers', {
+     *     key: (s) => s.name,
+     *     create: (s) => Widget.Label({ label: s.description }),
+     *     update: (w, s) => { w.label = s.description; },
+     * });
+     * ```
+     */
+    diffBind<Item, Prop extends keyof Props<this>>(
+        prop: Prop,
+        opts: {
+            key: (item: Item) => string | number;
+            create: (item: Item) => Gtk.Widget;
+            update?: (widget: Gtk.Widget, item: Item) => void;
+        },
+    ) {
+        const cache = new Map<string | number, Gtk.Widget>();
+
+        // @ts-expect-error Item[] is not statically assignable from this[Prop]
+        return this.bind(prop).as((items: Item[]) => {
+            const newKeys = new Set(items.map(opts.key));
+
+            for (const [k, widget] of cache) {
+                if (!newKeys.has(k)) {
+                    widget.destroy();
+                    cache.delete(k);
+                }
+            }
+
+            return items.map(item => {
+                const k = opts.key(item);
+                const existing = cache.get(k);
+                if (existing) {
+                    opts.update?.(existing, item);
+                    return existing;
+                }
+                const widget = opts.create(item);
+                cache.set(k, widget);
+                return widget;
+            });
+        });
     }
 }

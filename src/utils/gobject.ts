@@ -161,7 +161,7 @@ export function registerGObject<
         );
     }
 
-    return GObject.registerClass(
+    const registered = GObject.registerClass(
         Object.assign(
             {
                 GTypeName: config?.typename || `Ags_${object.name}`,
@@ -172,4 +172,9 @@ export function registerGObject<
         ),
         object,
     );
+
+    // Store registered signal names for dev-time validation
+    (registered as any)._registeredSignals = new Set(Object.keys(Signals));
+
+    return registered;
 }
