@@ -4,33 +4,37 @@ description: The Gtk.Application Instance
 category: Guides
 group: Configuration
 ---
+
 This is the main `Gtk.Application` instance that is running.
 
 ## signals
 
-* `window-toggled`: `(windowName: string, visible: boolean)`
-* `config-parsed`: emitted on startup
+- `window-toggled`: `(windowName: string, visible: boolean)`
+- `config-parsed`: emitted on startup
 
 ## properties
 
-* `windows`: `Gtk.Window[]`
-* `configDir`: `string` path to the config directory
-* `iconTheme`: `string`
-* `cursorTheme`: `string`
-* `gtkTheme`: `string`
+- `windows`: `Gtk.Window[]`
+- `configDir`: `string` path to the config directory
+- `iconTheme`: `string`
+- `cursorTheme`: `string`
+- `gtkTheme`: `string`
 
 ## methods
 
-* `addWindow`: `(window: Gtk.Window) => void`
-* `removeWindow`: `(window: Gtk.Window) => void`
-* `getWindow`: `(name: string) => Gtk.Window`
-* `closeWindow`: `(name: string) => void`
-* `openWindow`: `(name: string) => void`
-* `toggleWindow`: `(name: string) => void`
-* `quit`: `() => void`
-* `resetCss`: `() => void`
-* `applyCss`: `(path: string) => void`
-* `addIcons`: `(path: string) => void`
+- `addWindow`: `(window: Gtk.Window) => void`
+- `removeWindow`: `(window: Gtk.Window) => void`
+- `getWindow`: `(name: string) => Gtk.Window`
+- `closeWindow`: `(name: string) => void`
+- `openWindow`: `(name: string) => void`
+- `toggleWindow`: `(name: string) => void`
+- `quit`: `() => void`
+- `resetCss`: `() => void`
+- `applyCss`: `(path: string) => void`
+- `addIcons`: `(path: string) => void`
+- `registerTheme`: `(name: string, pathOrCss: string) => void`
+- `setTheme`: `(name: string) => void`
+- `activeTheme`: `string | null` (read-only)
 
 ## Window toggled signal
 
@@ -51,7 +55,7 @@ If you want to change the style sheet on runtime
 specifying a css file
 
 ```js
-App.applyCss('/path/to/file.css');
+App.applyCss("/path/to/file.css");
 ```
 
 applying a stylesheet
@@ -61,7 +65,7 @@ App.applyCss(`
 window {
     background-color: transparent;
 }
-`)
+`);
 ```
 
 to reset applied stylesheets
