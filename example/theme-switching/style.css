@@ -1,0 +1,32 @@
+window {
+    background-color: transparent;
+}
+
+.bar {
+    background-color: @surface;
+    color: @on_surface;
+    padding: 4px 8px;
+}
+
+.bar .clock {
+    font-weight: bold;
+    color: @primary;
+}
+
+.bar .battery,
+.bar .volume {
+    color: @on_surface;
+}
+
+.bar .theme-switcher {
+    background-color: @primary;
+    color: @surface;
+    border-radius: 4px;
+    padding: 4px 12px;
+    border: none;
+    font-weight: bold;
+}
+
+.bar .theme-switcher:hover {
+    background-color: @accent;
+}
