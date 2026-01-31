@@ -1,8 +1,9 @@
-# RAGS (raf's AGS)
+# RAGS - raf's (fork of) AGS
 
 ## Synopsis
 
 [Aylur's GTK Shell]: https://github.com/aylur/ags
+[issues tab]: https://github.com/NotAShelf/rags/issues
 
 RAGS is a fork of [Aylur's GTK Shell] (AGS), based on the last available v1 tag.
 This project exists primarily due to the fact that I _simply do not care about
@@ -14,6 +15,11 @@ performance and security, as well as packaging. The goal is to avoid bitrot with
 as few feature additions as possible. That said, I _am_ open to feature requests
 or even pull requests if you wish to stick to v1, but have certain (minor)
 gripes that are annoying you.
+
+> [!NOTE]
+> If you intend to use this repository, or maybe even contribute, I encourage
+> you to keep on reading. If you have questions or any points that you would
+> like to discuss, please head to the [issues tab] and let us discuss.
 
 ### What is AGS?
 
@@ -28,24 +34,59 @@ libraries, the same runtime [GNOME Shell] runs on.
 
 ### Why Fork?
 
-I simply do not wish to switch to AGS v2. The documentation is still subpar, and
-the now scattered documentation for AGS and Astal started getting on my nerves
-while trying to migrate. As such I want to continue using v1, but also ensure
-that it remains usable for the duration I continue using it. Maybe you are in a
-similar position, and could benefit from a public fork.
+The most burning question of them all. The short answer is that I simply do not
+wish to switch to AGS v2, due to a few reasons. The primary reason is that the
+documentation is still subpar, and the return for my investment will simply not
+be worth it. I have to migrate to Astal, and that means I have to rewrite most
+of my configuration. The now scattered documentation of AGS and Astal got on my
+nerves, and I imagine it has only gotten worse with v3.
+
+As such I want to continue using v1, but also ensure that it remains usable for
+the duration I continue using it. Maybe you are in a similar position, and could
+benefit from a public fork. RAGS is that public fork. Packagers may be inclined,
+but not particularly encouraged to update their packages.
+
+## What has been done?
+
+Most of the time was spent modernizing the codebase. The Nix packages were
+simplified, and dependency resolution is now done with PNPM. While I was working
+with PNPM, I have went ahead and updateed some of the tooling (mainly ESLint and
+Typescript) to their latest versions to maybe leave more room for better
+linting, CI and automation in the future.
+
+> [!TIP]
+> Some types have changed, and the codebase has been updated to reflect this. If
+> you relied on AGS GIR types, it is likely that you will need to update your
+> setup.
 
 ## Documentation
 
 API reference and usage guides are available at the generated documentation
-site. Build it locally with `pnpm docs`, or see the `docs/` directory for
-source files.
+site. Build it locally with `pnpm docs`, or see the `docs/` directory for source
+files.
 
 ## Future Plans
 
-My main plans for RAGS is to focus solely on performance and security. I will
-add no new widgets, as I have no need for them. What I really want to do is to
-make sure that the codebase ages well, and maybe even add a dash of Rust (likely
-via WASM) wherever it may provide performance or maintainability benefits.
+My main plan for RAGS, from the point of forking, has been to focus _mostly_ but
+not exclusively to focus on performance and security. This is rather a side
+effect of keeping dependencies up to date, but I'll make a focucsed effort on
+optimizing this program since it is a critical component of my desktop systems.
+
+I quite frankly do not intend, nor care, to add any new widgets or services as I
+do not have any need for them, however, I am ammendable to _critical_ additions
+that make the RAGS experience better without degrading maintainability.
+
+What I _really_ want to achieve with this repository is to have the codebse age
+well, without bitrotting over time and avoiding conflicts due to changing
+toolchain and dependencies. This usually has good security implications, and I
+care deeply about the security of a program that can run arbitrary Javascript on
+my system.
+
+As a final note, I would like to add a dash of Rust or Zig to this codebase to
+perhaps modernize the primary interface a little. Since we interact mainly with
+GTK and use bindings, this could also make RAGS evolve into its own thing over
+time and reduce some of the maintenance burden due to the removal of a layer of
+abstraction.
 
 ## Building
 
@@ -100,5 +141,5 @@ I extend my thanks to EWW as well.
 
 ## License
 
-RAGS is released under [GPL v3](./LICENSE) following upstream license. Please
+RAGS is released under [GPL v3.0](./LICENSE), following upstream license. Please
 respect the original author if forking this repository.
