@@ -369,6 +369,11 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         (binds as unknown as Array<[keyof Props<this>, Binding<any, any, any>]>).forEach(
             ([selfProp, { emitter, prop, transformFn }]) => {
                 this.bind(selfProp, emitter, prop, transformFn);
+
+                if (emitter._autoSuspend) {
+                    emitter._addVisibleConsumer();
+                    this.connect('destroy', () => emitter._removeVisibleConsumer());
+                }
             },
         );
 

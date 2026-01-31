@@ -39,6 +39,8 @@ export interface Options<T> {
     poll?: Poll<T>;
     /** Listen to a subprocess's stdout for continuous updates. */
     listen?: Listen<T>;
+    /** When true, polling is suspended until at least one widget consumer exists. */
+    autoSuspend?: boolean;
 }
 
 /**
@@ -88,18 +90,22 @@ export class Variable<T> extends GObject.Object {
     protected _listen?: Listen<T>;
     protected _interval?: number;
     protected _subprocess?: Gio.Subprocess | null;
+    protected _autoSuspend = false;
+    protected _visibleConsumers = 0;
 
     /**
      * @param value - The initial value
      * @param options - Optional polling or listening configuration
      */
-    constructor(value: T, { poll, listen }: Options<T> = {}) {
+    constructor(value: T, { poll, listen, autoSuspend }: Options<T> = {}) {
         super();
         this.value = value;
 
+        if (autoSuspend) this._autoSuspend = true;
+
         if (poll) {
             this._poll = poll;
-            this.startPoll();
+            if (!this._autoSuspend) this.startPoll();
         }
 
         if (listen) {
@@ -142,6 +148,18 @@ export class Variable<T> extends GObject.Object {
             console.error(Error(`${this} has no poll running`));
         }
         this.notify('is-polling');
+    }
+
+    /** @internal Registers a visible consumer. Starts polling if autoSuspend is enabled. */
+    _addVisibleConsumer() {
+        this._visibleConsumers++;
+        if (this._autoSuspend && this._visibleConsumers === 1 && !this.is_polling) this.startPoll();
+    }
+
+    /** @internal Unregisters a visible consumer. Stops polling when none remain. */
+    _removeVisibleConsumer() {
+        this._visibleConsumers = Math.max(0, this._visibleConsumers - 1);
+        if (this._autoSuspend && this._visibleConsumers === 0 && this.is_polling) this.stopPoll();
     }
 
     /** Starts listening to a subprocess if a listen configuration was provided. */
