@@ -16,6 +16,7 @@ import * as Notify from './utils/notify.js';
 import * as Pam from './utils/pam.js';
 import * as Gobject from './utils/gobject.js';
 import * as Binding from './utils/binding.js';
+import * as System from './utils/system.js';
 
 /** The current system user's login name. */
 export const USER = GLib.get_user_name();
@@ -28,7 +29,7 @@ export const { exec, execAsync, subprocess } = Exec;
 
 export const { readFile, readFileAsync, writeFile, writeFileSync, monitorFile } = File;
 
-export const { timeout, interval, idle } = Timeout;
+export const { timeout, interval, idle, onFrame } = Timeout;
 
 export const { loadInterfaceXML, bulkConnect, bulkDisconnect, ensureDirectory, lookUpIcon } = Etc;
 
@@ -40,6 +41,8 @@ export const { notify } = Notify;
 export const { kebabify, pspec, registerGObject } = Gobject;
 
 export const { merge, derive, watch } = Binding;
+
+export const { cpuUsage, memUsage, temperature, uptime, networkRates, diskUsage } = System;
 
 export default {
     USER,
@@ -59,6 +62,7 @@ export default {
     timeout,
     interval,
     idle,
+    onFrame,
 
     loadInterfaceXML,
     bulkConnect,
@@ -79,4 +83,11 @@ export default {
     merge,
     derive,
     watch,
+
+    cpuUsage,
+    memUsage,
+    temperature,
+    uptime,
+    networkRates,
+    diskUsage,
 };
