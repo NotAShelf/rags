@@ -134,6 +134,9 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
         LayerShell.init_for_window(this);
         LayerShell.set_namespace(this, this.name);
 
+        // Add window name as a CSS class for scoping (e.g. `.my-bar .toggle {}`)
+        if (this.name) this.get_style_context().add_class(this.name);
+
         this._handleParamProp('anchor', anchor);
         this._handleParamProp('exclusive', exclusive);
         this._handleParamProp('exclusivity', exclusivity);
