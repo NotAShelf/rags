@@ -56,6 +56,10 @@ export interface Config {
     cursorTheme?: string;
     /** Map of window names to close delay in milliseconds. */
     closeWindowDelay?: { [key: string]: number };
+    /** Map of window names to factory functions for lazy construction. */
+    lazyWindows?: Record<string, () => Gtk.Window>;
+    /** Map of theme names to CSS file paths or inline CSS strings. */
+    themes?: Record<string, string>;
 
     /** Callback invoked whenever a window is toggled. */
     onWindowToggled?: (windowName: string, visible: boolean) => void;
@@ -104,6 +108,9 @@ export class App extends Gtk.Application {
     private _configPath!: string;
     private _configDir!: string;
 
+    private _windowFactories: Map<string, () => Gtk.Window> = new Map();
+    private _themes: Map<string, string> = new Map();
+    private _activeTheme: string | null = null;
     private _closeWindowDelay: Config['closeWindowDelay'] = {};
     /** Map of window names to close delays in milliseconds. */
     get closeWindowDelay() {
@@ -219,6 +226,39 @@ export class App extends Gtk.Application {
         Gtk.IconTheme.get_default().prepend_search_path(path);
     };
 
+    /**
+     * Registers a named theme (CSS file path or inline CSS string).
+     *
+     * @param name - A unique theme name
+     * @param pathOrCss - Path to a CSS file or inline CSS string
+     */
+    readonly registerTheme = (name: string, pathOrCss: string) => {
+        this._themes.set(name, pathOrCss);
+    };
+
+    /**
+     * Switches to a registered theme by name.
+     *
+     * Resets all current CSS and applies the theme CSS. Use
+     * `@define-color` in theme CSS files for GTK3-compatible theming.
+     *
+     * @param name - The theme name previously registered via {@link registerTheme}
+     */
+    readonly setTheme = (name: string) => {
+        const theme = this._themes.get(name);
+        if (!theme) {
+            console.error(Error(`No theme registered as "${name}"`));
+            return;
+        }
+        this.applyCss(theme, true);
+        this._activeTheme = name;
+    };
+
+    /** The name of the currently active theme, or `null` if none has been set. */
+    get activeTheme() {
+        return this._activeTheme;
+    }
+
     /** @internal Configures the app's bus name, object path, and config paths. */
     setup(bus: string, path: string, configDir: string, entry: string) {
         this.application_id = bus;
@@ -261,6 +301,10 @@ export class App extends Gtk.Application {
      * @param name - The window name
      */
     readonly toggleWindow = (name: string) => {
+        if (this._windowFactories.has(name)) {
+            this.openWindow(name);
+            return;
+        }
         const w = this.getWindow(name);
         if (w) w.visible ? this.closeWindow(name) : this.openWindow(name);
         else return 'There is no window named ' + name;
@@ -272,6 +316,11 @@ export class App extends Gtk.Application {
      * @param name - The window name
      */
     readonly openWindow = (name: string) => {
+        if (this._windowFactories.has(name)) {
+            const factory = this._windowFactories.get(name)!;
+            this._windowFactories.delete(name);
+            this.addWindow(factory());
+        }
         this.getWindow(name)?.show();
     };
 
@@ -301,7 +350,8 @@ export class App extends Gtk.Application {
      */
     readonly getWindow = (name: string) => {
         const w = this._windows.get(name);
-        if (!w) console.error(Error(`There is no window named ${name}`));
+        if (!w && !this._windowFactories.has(name))
+            console.error(Error(`There is no window named ${name}`));
 
         return w;
     };
@@ -363,12 +413,14 @@ export class App extends Gtk.Application {
     readonly config = (config: Config) => {
         const {
             windows,
+            lazyWindows,
             closeWindowDelay,
             style,
             icons,
             gtkTheme,
             iconTheme,
             cursorTheme,
+            themes,
             onConfigParsed,
             onWindowToggled,
         } = config;
@@ -397,6 +449,26 @@ export class App extends Gtk.Application {
         if (typeof windows === 'function') windows().forEach(this.addWindow);
 
         if (Array.isArray(windows)) windows.forEach(this.addWindow);
+
+        if (lazyWindows) {
+            for (const [name, factory] of Object.entries(lazyWindows)) {
+                if (this._windows.has(name)) {
+                    console.error(
+                        Error(
+                            `Cannot register lazy window "${name}": a window with that name already exists`,
+                        ),
+                    );
+                    continue;
+                }
+                this._windowFactories.set(name, factory);
+            }
+        }
+
+        if (themes) {
+            for (const [name, pathOrCss] of Object.entries(themes)) {
+                this.registerTheme(name, pathOrCss);
+            }
+        }
     };
 
     private async _load() {
