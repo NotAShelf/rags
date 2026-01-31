@@ -1,0 +1,49 @@
+window {
+    background-color: transparent;
+}
+
+.bar {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    padding: 4px 8px;
+}
+
+.bar button {
+    background-color: #313244;
+    color: #cdd6f4;
+    border-radius: 4px;
+    padding: 4px 12px;
+    border: none;
+}
+
+.bar button:hover {
+    background-color: #45475a;
+}
+
+.dashboard {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 8px;
+}
+
+.dashboard .title {
+    margin-bottom: 8px;
+}
+
+.powermenu {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 8px;
+}
+
+.powermenu button {
+    background-color: #313244;
+    color: #cdd6f4;
+    border-radius: 4px;
+    padding: 8px 16px;
+    border: none;
+}
+
+.powermenu button:hover {
+    background-color: #45475a;
+}
