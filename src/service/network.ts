@@ -171,7 +171,6 @@ export class Wifi extends Service {
         this._ap = this._device.get_active_access_point();
         if (!this._ap) return;
 
-        // TODO make signals actually signal when they should
         this._apBind = this._ap.connect('notify::strength', () => {
             this.emit('changed');
             const props = [
@@ -184,7 +183,7 @@ export class Wifi extends Service {
                 'state',
                 'icon-name',
             ];
-            props.map(prop => this.notify(prop));
+            props.forEach(prop => this.notify(prop));
         });
     }
 
@@ -231,10 +230,10 @@ export class Wifi extends Service {
     /** SSID of the active access point (empty string if none). */
     get ssid() {
         if (!this._ap) return '';
-
-        const ssid = this._ap.get_ssid().get_data();
+        const ssidData = this._ap.get_ssid();
+        if (!ssidData) return 'Unknown';
+        const ssid = ssidData.get_data();
         if (!ssid) return 'Unknown';
-
         return NM.utils_ssid_to_utf8(ssid);
     }
 
@@ -290,10 +289,9 @@ export class Wired extends Service {
         super();
         this._device = device;
 
-        // TODO make signals actually signal when they should
         this._device?.connect('notify::speed', () => {
             this.emit('changed');
-            ['speed', 'internet', 'state', 'icon-name'].map(prop => this.notify(prop));
+            ['speed', 'internet', 'state', 'icon-name'].forEach(prop => this.notify(prop));
         });
     }
 
