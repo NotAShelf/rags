@@ -30,7 +30,7 @@ function deprecated(config: Config) {
 
     if (config.cacheCoverArt !== undefined) warning('cacheCoverArt', 'Mpris.cacheCoverArt');
 
-    if (config.maxStreamVolume !== undefined) warning('cacheCoverArt', 'Audio.maxStreamVolume');
+    if (config.maxStreamVolume !== undefined) warning('maxStreamVolume', 'Audio.maxStreamVolume');
 }
 
 const AgsIFace = (bus: string) => loadInterfaceXML('com.github.Aylur.ags')?.replace('@BUS@', bus);
