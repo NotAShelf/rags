@@ -8,8 +8,10 @@ function shallowEqual(a: unknown, b: unknown): boolean {
     const keysA = Object.keys(a as Record<string, unknown>);
     const keysB = Object.keys(b as Record<string, unknown>);
     if (keysA.length !== keysB.length) return false;
+    const aRecord = a as Record<string, unknown>;
+    const bRecord = b as Record<string, unknown>;
     for (const key of keysA) {
-        if ((a as any)[key] !== (b as any)[key]) return false;
+        if (aRecord[key] !== bRecord[key]) return false;
     }
     return true;
 }
