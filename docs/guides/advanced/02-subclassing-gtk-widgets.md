@@ -4,46 +4,47 @@ description: Using GTK widgets not builtin
 category: Guides
 group: Advanced
 ---
+
 ## Using Gtk.Widgets not builtin
 
 Use them like regular GTK widgets
 
 ```js
-import Gtk from 'gi://Gtk'
+import Gtk from "gi://Gtk";
 
 const calendar = new Gtk.Calendar({
-    showDayNames: false,
-    showHeading: true,
-})
+  showDayNames: false,
+  showHeading: true,
+});
 ```
 
 You can subclass Gtk.Widget not builtin to behave like RAGS widgets.
 
 ```js
-const Calendar = Widget.subclass(Gtk.Calendar)
+const Calendar = Widget.subclass(Gtk.Calendar);
 
 const myCalendar = Calendar({
-    showDayNames: false,
-    showHeading: true,
+  showDayNames: false,
+  showHeading: true,
 
-    // now you can set AGS props
-    className: 'my-calendar',
-    setup(self) {
-        self.bind()
-    }
-})
+  // now you can set AGS props
+  className: "my-calendar",
+  setup(self) {
+    self.bind();
+  },
+});
 ```
 
 > [!TIP]
-> Calendar is available on `Widget`
-> [!NOTE]
-> Open up an issue/PR if you want to see a widget to be available on `Widget` by default.
+> Calendar is available on `Widget` [!NOTE]
+> Open up an issue/PR if you want to see a widget to be available on `Widget` by
+> default.
 
 ## Custom Subclassing
 
-Usually in GTK custom widgets are achieved by subclassing.
-The idea behind RAGS is to use functions that create widgets
-and utilize [closures](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Closures).
+Usually in GTK custom widgets are achieved by subclassing. The idea behind RAGS
+is to use functions that create widgets and utilize
+[closures](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Closures).
 
 ```js
 function CounterButton(({ color = 'aqua', ...rest })) {
@@ -69,45 +70,45 @@ const button = CounterButton({
 ```
 
 This approach comes with the limitation that parameters passed to these
-functions are that, just parameters and not `GObject` properties.
-If you still want to subclass, you can do so by subclassing
-a Gtk.WIdget and registering it `Widget.register`.
+functions are that, just parameters and not `GObject` properties. If you still
+want to subclass, you can do so by subclassing a Gtk.WIdget and registering it
+`Widget.register`.
 
 ```js
 class CounterButton extends Gtk.Button {
-    static {
-        Widget.register(this, {
-            properties: {
-                'count': ['int', 'rw']
-            }
-        })
-    }
+  static {
+    Widget.register(this, {
+      properties: {
+        "count": ["int", "rw"],
+      },
+    });
+  }
 
-    // the super constructor will take care of setting the count prop
-    // so you don't have to explicitly set count in the constructor
-    constructor(props) {
-        super(props)
+  // the super constructor will take care of setting the count prop
+  // so you don't have to explicitly set count in the constructor
+  constructor(props) {
+    super(props);
 
-        const label = new Gtk.Label({
-            label: `${this.count}`,
-        })
+    const label = new Gtk.Label({
+      label: `${this.count}`,
+    });
 
-        this.add(label)
+    this.add(label);
 
-        this.connect('clicked', () => {
-            this.count++
-            label.label = `${this.count}`
-        })
-    }
+    this.connect("clicked", () => {
+      this.count++;
+      label.label = `${this.count}`;
+    });
+  }
 
-    get count() {
-        return this._count || 0
-    }
+  get count() {
+    return this._count || 0;
+  }
 
-    set count(num) {
-        this._count = num
-        this.notify('count')
-    }
+  set count(num) {
+    this._count = num;
+    this.notify("count");
+  }
 }
 ```
 
@@ -115,47 +116,47 @@ You can now construct it like any other Gtk.Widget with the `new` keyword.
 
 ```js
 const counterButton = new CounterButton({
-    count: 0,
+  count: 0,
 
-    // you can set AGS widget props on it
-    className: '',
-})
+  // you can set AGS widget props on it
+  className: "",
+});
 
-counterButton.connect('notify::count', ({ count }) => {
-    print(count);
-})
+counterButton.connect("notify::count", ({ count }) => {
+  print(count);
+});
 
-counterButton.count += 1
+counterButton.count += 1;
 ```
 
 > [!TIP]
-> You will never actually need to subclass, you can *fake* gobject props using Variables
+> You will never actually need to subclass, you can _fake_ gobject props using
+> Variables
 >
 > ```js
 > function CounterButton({ count, ...props }) {
->     const counter = Variable(count)
+>   const counter = Variable(count);
 >
->     const button = Widget.Button({
->         on_clicked: () => counter.value += 1,
->         child: Widget.Label({
->             label: counter.bind().as(c => `${c}`),
->         }),
->         ...props,
->     })
+>   const button = Widget.Button({
+>     on_clicked: () => counter.value += 1,
+>     child: Widget.Label({
+>       label: counter.bind().as((c) => `${c}`),
+>     }),
+>     ...props,
+>   });
 >
->     return Object.assign(button, {
->         count: counter,
->     })
+>   return Object.assign(button, {
+>     count: counter,
+>   });
 > }
 >
 > const counterButton = CounterButton({
->     count: 0,
-> })
+>   count: 0,
+> });
 >
 > counterButton.count.connect("changed", ({ value }) => {
->     print(value)
-> })
+>   print(value);
+> });
 >
-> counterButton.count.value += 1
+> counterButton.count.value += 1;
 > ```
->

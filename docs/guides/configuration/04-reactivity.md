@@ -3,206 +3,205 @@ title: Reactivity
 category: Guides
 group: Configuration
 ---
-In order for widgets to have dynamic content we pass `Binding`s as properties
-or setup a `hook`.
-A `Binding` is just an object that holds information for widget constructors
-to setup a listener.
+
+In order for widgets to have dynamic content we pass `Binding`s as properties or
+setup a `hook`. A `Binding` is just an object that holds information for widget
+constructors to setup a listener.
 
 > [!CAUTION]
-> `Binding` is a regular JavaScript object,
-> it cannot be used in template strings
+> `Binding` is a regular JavaScript object, it cannot be used in template
+> strings
 >
 > ```js
-> const label = Variable("hello")
+> const label = Variable("hello");
 >
 > Label({
->     // [Object object] world
->     label: `${label.bind()} world`,
+>   // [Object object] world
+>   label: `${label.bind()} world`,
 >
->     // hello world
->     label: label.bind().as(hello => `${hello} world`)
-> })
+>   // hello world
+>   label: label.bind().as((hello) => `${hello} world`),
+> });
 > ```
->
 
 ## Property Bindings
 
 We can make a `Binding` from a Variable
 
 ```js
-const percent = Variable(0.5)
+const percent = Variable(0.5);
 const slider = Widget.Slider({
-    value: percent.bind(),
-    onChange: ({ value }) => percent.value = value,
-})
+  value: percent.bind(),
+  onChange: ({ value }) => percent.value = value,
+});
 ```
 
 From a `Service`
 
 ```js
-const { speaker } = await Service.import("audio")
+const { speaker } = await Service.import("audio");
 const slider = Widget.Slider({
-    value: speaker.bind("volume"),
-    onChange: ({ value }) => speaker.volume = value,
-})
+  value: speaker.bind("volume"),
+  onChange: ({ value }) => speaker.volume = value,
+});
 ```
 
 Merge any number of `Binding`s into another `Binding`
 
 ```js
-const a = Variable(0.3)
-const b = Variable(0.7)
+const a = Variable(0.3);
+const b = Variable(0.7);
 const merged = Utils.merge([a.bind(), b.bind()], (a, b) => {
-    return a * b
-})
+  return a * b;
+});
 
 const level = Widget.LevelBar({
-    value: merged
-})
+  value: merged,
+});
 ```
 
 Turn one or multiple Service signals into a `Binding`
 
 ```js
-const mpris = await Service.import("mpris")
+const mpris = await Service.import("mpris");
 
 const label = Widget.Label({
-    label: Utils.watch("initial-label", mpris, "player-added", (busName) => {
-        return `player ${busName} was added`
-    })
-})
+  label: Utils.watch("initial-label", mpris, "player-added", (busName) => {
+    return `player ${busName} was added`;
+  }),
+});
 
 const label = Widget.Label({
-    label: Utils.watch("initial-label", [
-        [mpris, "player-added"],
-        [mpris, "player-removed"],
-    ], (busName) => {
-        return `player ${busName} was added or removed`
-    })
-})
+  label: Utils.watch("initial-label", [
+    [mpris, "player-added"],
+    [mpris, "player-removed"],
+  ], (busName) => {
+    return `player ${busName} was added or removed`;
+  }),
+});
 ```
 
 A `Binding` can be transformed according to need
 
 ```js
-const num = Variable(0)
+const num = Variable(0);
 
 const label = Widget.Label({
-    // will throw an error, because number is not assignable to string
-    label: num.bind(),
+  // will throw an error, because number is not assignable to string
+  label: num.bind(),
 
-    // will have to be transformed
-    label: num.bind().as(n => n.toString()),
-    label: num.bind().as(String)
-})
+  // will have to be transformed
+  label: num.bind().as((n) => n.toString()),
+  label: num.bind().as(String),
+});
 ```
 
 ## Hooks
 
-You can call these on any Widget that you have a reference on.
-They will return `this` reference, meaning you
-can chain them up in any order in any number.
+You can call these on any Widget that you have a reference on. They will return
+`this` reference, meaning you can chain them up in any order in any number.
 
 ```js
-const widget = Widget()
-widget.hook()
-widget.on()
-widget.poll()
-widget.keybind()
+const widget = Widget();
+widget.hook();
+widget.on();
+widget.poll();
+widget.keybind();
 ```
 
 ```js
 const widget = Widget()
-    .hook()
-    .on()
+  .hook()
+  .on();
 ```
 
 ```js
 const widget = Widget({
-    setup: self => {
-        self.hook()
-        self.on()
-    }
-})
+  setup: (self) => {
+    self.hook();
+    self.on();
+  },
+});
 ```
 
 ```js
 const widget = Widget({
-    setup: self => self
-        .hook()
-        .on()
-})
+  setup: (self) =>
+    self
+      .hook()
+      .on(),
+});
 ```
 
 ### Hook
 
-`hook` will setup a listener to a `GObject` and will handle disconnection
-when the widget is destroyed. It will connect
-to the `changed` signal by default when not specified otherwise.
+`hook` will setup a listener to a `GObject` and will handle disconnection when
+the widget is destroyed. It will connect to the `changed` signal by default when
+not specified otherwise.
 
 ```js
-const battery = await Service.import("battery")
+const battery = await Service.import("battery");
 
 // .hook(GObject, callback, signal?)
-const BatteryPercent = () => Label()
-    .hook(battery, self => {
-        self.label = `${battery.percent}%`
-        self.visible = battery.available
-    }, "changed")
+const BatteryPercent = () =>
+  Label()
+    .hook(battery, (self) => {
+      self.label = `${battery.percent}%`;
+      self.visible = battery.available;
+    }, "changed");
 ```
 
 > [!CAUTION]
-> A `hook` callback will be executed on startup.
-> If you are connecting to a signal that has an argument
-> you will need to check if its defined first
+> A `hook` callback will be executed on startup. If you are connecting to a
+> signal that has an argument you will need to check if its defined first
 >
 > ```js
-> const mpris = await Service.import("mpris")
+> const mpris = await Service.import("mpris");
 > const label = Widget.Label().hook(mpris, (self, busName) => {
->     if (!busName)
->         return // skip startup execution
+>   if (!busName) {
+>     return; // skip startup execution
+>   }
 >
->     self.label = busName
-> }, "player-added")
+>   self.label = busName;
+> }, "player-added");
 > ```
->
 
 ### On
 
-`on` is the same as `connect` but instead of the signal handler id,
-it returns a reference to the widget. `on` will setup a callback on a widget signal.
+`on` is the same as `connect` but instead of the signal handler id, it returns a
+reference to the widget. `on` will setup a callback on a widget signal.
 
 These two are equivalent
 
 ```js
 function MyButton() {
-    const self = Widget.Button()
+  const self = Widget.Button();
 
-    self.connect("clicked", () => {
-        print(self, "is clicked")
-    })
+  self.connect("clicked", () => {
+    print(self, "is clicked");
+  });
 
-    return self
+  return self;
 }
 ```
 
 ```js
-const MyButton = () => Widget.Button()
-    .on("clicked", self => {
-        print(self, "is clicked")
-    })
+const MyButton = () =>
+  Widget.Button()
+    .on("clicked", (self) => {
+      print(self, "is clicked");
+    });
 ```
 
 > [!NOTE]
-> Most signals like `clicked` are available as a property on the widget.
-> So its rare that `.on` or `.connect` will be needed.
+> Most signals like `clicked` are available as a property on the widget. So its
+> rare that `.on` or `.connect` will be needed.
 >
 > ```js
 > Widget.Button({
->     on_clicked: self => print(self, "was clicked")
-> })
+>   on_clicked: (self) => print(self, "was clicked"),
+> });
 > ```
->
 
 ### Poll
 
@@ -212,21 +211,22 @@ These two are equivalent
 
 ```js
 function MyLabel() {
-    const self = Widget.Label()
+  const self = Widget.Label();
 
-    Utils.interval(1000, () => {
-        self.label = Utils.exec('date')
-    }, self)
+  Utils.interval(1000, () => {
+    self.label = Utils.exec("date");
+  }, self);
 
-    return self
+  return self;
 }
 ```
 
 ```js
-const MyLabel = () => Widget.Label()
-    .poll(1000, self => {
-        self.label = Utils.exec('date')
-    })
+const MyLabel = () =>
+  Widget.Label()
+    .poll(1000, (self) => {
+      self.label = Utils.exec("date");
+    });
 ```
 
 ### Keybind
@@ -236,11 +236,11 @@ It is possible to setup keybindings on focused widgets
 ```js
 // usually this way
 Widget.Button().on("key-press-event", (self, event) => {
-    // check event for keys
-})
+  // check event for keys
+});
 
 // with .keybind()
 Widget.Button().keybind(["MOD1", "CONTROL"], "a", (self, event) => {
-    print("alt+control+a was pressed")
-})
+  print("alt+control+a was pressed");
+});
 ```

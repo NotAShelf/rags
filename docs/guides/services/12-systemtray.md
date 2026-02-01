@@ -3,6 +3,7 @@ title: System Tray
 category: Guides
 group: Services
 ---
+
 > [!NOTE]
 > package dependency: `libdbusmenu-gtk3`
 
@@ -28,8 +29,10 @@ group: Services
 
 ### properties
 
-- `menu`: [Gtk.Menu](https://gjs-docs.gnome.org/gtk30~3.0/gtk.menu) | `undefined`
-- `category`: `string` possible values: `ApplicationStatus`, `Communications`, `SystemServices`, `Hardware`
+- `menu`: [Gtk.Menu](https://gjs-docs.gnome.org/gtk30~3.0/gtk.menu) |
+  `undefined`
+- `category`: `string` possible values: `ApplicationStatus`, `Communications`,
+  `SystemServices`, `Hardware`
 - `id`: `string`
 - `title`: `string`
 - `status`: `string` possible values: `Passive`, `Active`, `NeedsAttention`
@@ -48,17 +51,18 @@ group: Services
 ## Example Widget
 
 ```js
-const systemtray = await Service.import('systemtray')
+const systemtray = await Service.import("systemtray");
 
 /** @param {import('types/service/systemtray').TrayItem} item */
-const SysTrayItem = item => Widget.Button({
-    child: Widget.Icon().bind('icon', item, 'icon'),
-    tooltipMarkup: item.bind('tooltip_markup'),
+const SysTrayItem = (item) =>
+  Widget.Button({
+    child: Widget.Icon().bind("icon", item, "icon"),
+    tooltipMarkup: item.bind("tooltip_markup"),
     onPrimaryClick: (_, event) => item.activate(event),
     onSecondaryClick: (_, event) => item.openMenu(event),
-});
+  });
 
 const sysTray = Widget.Box({
-    children: systemtray.bind('items').as(i => i.map(SysTrayItem))
-})
+  children: systemtray.bind("items").as((i) => i.map(SysTrayItem)),
+});
 ```

@@ -4,6 +4,7 @@ description: Command Line Interface and running files
 category: Guides
 group: Configuration
 ---
+
 ```sh
 $ ags --help
 
@@ -22,14 +23,13 @@ OPTIONS:
     -f, --run-file          Execute file as an async function
     --init                  Initialize the configuration directory
     --clear-cache           Remove $HOME/.cache/ags
-
 ```
 
 ## Bus Name
 
-It is possible to run multiple instances with `--bus-name`. It defaults to `"ags"`.
-When an instance is running, executing `ags` is actually a client process that
-will try to connect to the instance with the specified bus name.
+It is possible to run multiple instances with `--bus-name`. It defaults to
+`"ags"`. When an instance is running, executing `ags` is actually a client
+process that will try to connect to the instance with the specified bus name.
 
 ```bash
 ags # starts an instance with bus name "ags" 
@@ -43,8 +43,8 @@ ags -b test --quit
 ```
 
 > [!TIP]
-> The dbus name is `com.github.Aylur.ags.<bus-name>`,
-> so the default one is `com.github.Aylur.ags.ags`
+> The dbus name is `com.github.Aylur.ags.<bus-name>`, so the default one is
+> `com.github.Aylur.ags.ags`
 
 ## Config file
 
@@ -57,8 +57,8 @@ ags --config $HOME/.config/some-dir/main.js
 
 ## Toggle Window
 
-`--toggle-window` is just there for the sake of it,
-if you want to have more control use `--run-js`
+`--toggle-window` is just there for the sake of it, if you want to have more
+control use `--run-js`
 
 ```bash
 # example
@@ -67,13 +67,13 @@ ags --toggle-window "bar"
 
 ## Running arbitrary JavaScript code on runtime
 
-With `--run-js` it is possible to execute code when `ags` is already running.
-It is useful for: calling Service methods, updating Variable values,
-debugging or anything else.
-`--run-js` expects a string which will be the body of an *async function*
-executed relative to `app.ts`.
+With `--run-js` it is possible to execute code when `ags` is already running. It
+is useful for: calling Service methods, updating Variable values, debugging or
+anything else. `--run-js` expects a string which will be the body of an _async
+function_ executed relative to `app.ts`.
 
-If there is no `;` character in the string, `return` keyword will be inserted automatically
+If there is no `;` character in the string, `return` keyword will be inserted
+automatically
 
 ```bash
 ags -r "'hello'" # prints hello
@@ -81,8 +81,8 @@ ags -r "'hello';" # prints undefined
 ags -r "return 'hello';" # prints hello
 ```
 
-`print` will print on the client side, `console.log` and other
-console methods will log on the main process's stdout
+`print` will print on the client side, `console.log` and other console methods
+will log on the main process's stdout
 
 ```bash
 ags -r "print('hello')" # prints "hello undefined"
@@ -101,34 +101,35 @@ It is useful for shebangs
 
 ```js
 #!/usr/bin/env -S ags --run-file
-return 'hello from a file'
+return "hello from a file";
 ```
 
 > [!NOTE]
-> Since `--run-js` is the body of a function, you can't use top level static imports
+> Since `--run-js` is the body of a function, you can't use top level static
+> imports
 
 > [!IMPORTANT]
-> The function gets executed relative to `app.ts`, which means
-> importing a module from your config needs a full path.
+> The function gets executed relative to `app.ts`, which means importing a
+> module from your config needs a full path.
 
 this throws
 
 ```js
 #!/usr/bin/env -S ags --run-file
-import Module from 'file:///path/to/file.js' // throws
+import Module from "file:///path/to/file.js"; // throws
 ```
 
 You can use `import` as an **async** method
 
 ```js
 #!/usr/bin/env -S ags --run-file
-const Module = (await import('file:///path/to/file.js')).default;
+const Module = (await import("file:///path/to/file.js")).default;
 ```
 
 ## Examples
 
-Let's say you have a `Variable` in `$HOME/.config/ags/vars.js`
-that you want set from cli.
+Let's say you have a `Variable` in `$HOME/.config/ags/vars.js` that you want set
+from cli.
 
 ```js
 // vars.js

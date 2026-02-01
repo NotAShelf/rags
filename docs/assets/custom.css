@@ -1,0 +1,35 @@
+:root {
+  --font-family-text: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-family-code: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+* {
+  font-weight: 400 !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500 !important;
+  line-height: 1.3;
+}
+
+code, pre {
+  font-weight: 400 !important;
+}
+
+.tsd-accordion-details a,
+.tsd-accordion a {
+  font-weight: 400 !important;
+}
+
+.tsd-breadcrumb,
+.tsd-page-navigation {
+  font-weight: 400 !important;
+}
+
+table {
+  font-weight: 400 !important;
+}
+
+button {
+  font-weight: 500 !important;
+}
