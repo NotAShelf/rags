@@ -447,6 +447,7 @@ export class Notifications extends Service {
     private _dnd = false;
     private _idCount = 1;
     private _cacheTimeoutId = 0;
+    private _timeoutIds: Map<number, number> = new Map();
 
     constructor() {
         super();
@@ -515,12 +516,17 @@ export class Notifications extends Service {
         const id = this._notifications.has(replacesId) ? replacesId : this._idCount++;
         const n = new Notification(appName, id, appIcon, summary, body, acts, hints, !this.dnd);
 
+        let timeoutId: number | undefined;
         if (this.forceTimeout || expiration === -1) {
             n.updateProperty('timeout', this.popupTimeout);
-            timeout(this.popupTimeout, () => this.DismissNotification(id));
+            timeoutId = timeout(this.popupTimeout, () => this.DismissNotification(id));
         } else {
             n.updateProperty('timeout', expiration);
-            if (expiration > 0) timeout(expiration, () => this.DismissNotification(id));
+            if (expiration > 0) timeoutId = timeout(expiration, () => this.DismissNotification(id));
+        }
+
+        if (timeoutId !== undefined) {
+            this._timeoutIds.set(id, timeoutId);
         }
 
         this._addNotification(n);
@@ -608,6 +614,12 @@ export class Notifications extends Service {
     }
 
     private _onClosed(n: Notification) {
+        const timeoutId = this._timeoutIds.get(n.id);
+        if (timeoutId !== undefined) {
+            GLib.source_remove(timeoutId);
+            this._timeoutIds.delete(n.id);
+        }
+
         this._dbus.emit_signal('NotificationClosed', new GLib.Variant('(uu)', [n.id, 3]));
 
         this._notifications.delete(n.id);
