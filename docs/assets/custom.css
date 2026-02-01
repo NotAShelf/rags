@@ -33,3 +33,23 @@ table {
 button {
   font-weight: 500 !important;
 }
+
+/*
+* Mute text colors a little bit, using Tailwind colors
+* Looks much better. Tailwind devs know their colors.
+* */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-text: #334155;
+    --color-text-aside: #64748b;
+    --color-link: #3b82f6;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text: #cbd5e1;
+    --color-text-aside: #94a3b8;
+    --color-link: #7dd3fc;
+  }
+}
