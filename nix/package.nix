@@ -122,7 +122,7 @@ in
       homepage = "https://github.com/notashelf/rags";
       changelog = "https://github.com/notashelf/rags/blob/${version}/CHANGELOG.md";
       platforms = ["x86_64-linux" "aarch64-linux"];
-      license = lib.licenses.gpl3;
+      license = lib.licenses.gpl3Plus;
       mainProgram = "ags";
       maintainers = [lib.maintainers.NotAShelf];
     };
