@@ -50,7 +50,7 @@ but not particularly encouraged to update their packages.
 
 Most of the time was spent modernizing the codebase. The Nix packages were
 simplified, and dependency resolution is now done with PNPM. While I was working
-with PNPM, I have went ahead and updateed some of the tooling (mainly ESLint and
+with PNPM, I have went ahead and updated some of the tooling (mainly ESLint and
 Typescript) to their latest versions to maybe leave more room for better
 linting, CI and automation in the future.
 
@@ -58,6 +58,16 @@ linting, CI and automation in the future.
 > Some types have changed, and the codebase has been updated to reflect this. If
 > you relied on AGS GIR types, it is likely that you will need to update your
 > setup.
+
+### New Releases
+
+RAGS 1.10.0 has been mostly a maintenance release, with the repository
+re-adjusted for long-term maintenance and various dependencies updated to their
+latest versions. 1.10.0+ brings new additions such as better null checks,
+expanded widgets in the place of plain or bare-bones ones and exciting new
+features such as lazy-loaded windows and dynamic theme switching.
+
+The future of RAGS is bright, and you are invited to be a part of it.
 
 ## Documentation
 

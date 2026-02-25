@@ -13,7 +13,6 @@
     systems,
     self,
   }: let
-    version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./version);
     genSystems = nixpkgs.lib.genAttrs (import systems);
     pkgsForEach = nixpkgs.legacyPackages;
   in {
@@ -24,6 +23,11 @@
 
     packages = genSystems (system: let
       inherit (pkgsForEach.${system}) callPackage;
+
+      # Version + short revision from the flake to identify exact revision
+      # RAGS was built from.
+      rev = self.shortRev or self.dirtyShortRev or "dirty";
+      version = (builtins.replaceStrings ["\n"] [""] (builtins.readFile ./version)) + "-${rev}";
     in {
       ags = callPackage ./nix/package.nix {inherit version;};
       default = self.packages.${system}.ags;

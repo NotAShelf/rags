@@ -10,7 +10,7 @@ RAGS is a library built for [GJS](https://gitlab.gnome.org/GNOME/gjs) that lets
 you define GTK 3 widgets declaratively with reactive property binding. It also
 provides services and utilities for interacting with the system so your widgets
 can respond to real-time state changes. GJS is the JavaScript runtime built on
-SpiderMonkey and GNOME platform libraries --- the same runtime
+SpiderMonkey and GNOME platform libraries, the same runtime
 [GNOME Shell](https://gitlab.gnome.org/GNOME/gnome-shell) uses.
 
 ## Navigating the Documentation
