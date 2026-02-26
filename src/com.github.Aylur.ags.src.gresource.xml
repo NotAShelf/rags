@@ -69,14 +69,17 @@
     <file>dbus/org.kde.StatusNotifierItem.xml</file>
 
     <file>utils/binding.js</file>
+    <file>utils/errors.js</file>
     <file>utils/etc.js</file>
     <file>utils/exec.js</file>
     <file>utils/fetch.js</file>
     <file>utils/file.js</file>
     <file>utils/gobject.js</file>
+    <file>utils/gobject-types.js</file>
     <file>utils/init.js</file>
     <file>utils/notify.js</file>
     <file>utils/pam.js</file>
+    <file>utils/signal-registry.js</file>
     <file>utils/system.js</file>
     <file>utils/timeout.js</file>
   </gresource>
