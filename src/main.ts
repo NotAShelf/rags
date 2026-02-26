@@ -5,8 +5,15 @@ import * as Utils from './utils.js';
 import app from './app.js';
 import client from './client.js';
 import { isRunning, parsePath, init } from './utils/init.js';
+import { AgsConfigError } from './utils/errors.js';
 
-const BIN_NAME = pkg.name.split('.').pop()!;
+const parts = pkg.name.split('.');
+const BIN_NAME = parts[parts.length - 1];
+if (!BIN_NAME) {
+    throw new AgsConfigError('Invalid package name format', {
+        packageName: pkg.name,
+    });
+}
 const APP_BUS = (name: string) => `${pkg.name}.${name}`;
 const APP_PATH = (name: string) => `/${pkg.name.split('.').join('/')}/${name}`;
 const DEFAULT_CONF = `${GLib.get_user_config_dir()}/${BIN_NAME}/config.js`;
@@ -77,8 +84,8 @@ export async function main(args: string[]) {
             case '--clear-cache':
                 try {
                     Gio.File.new_for_path(Utils.CACHE_DIR).trash(null);
-                } catch {
-                    /**/
+                } catch (error) {
+                    console.error('Failed to clear cache:', error);
                 }
                 app.quit();
                 break;
