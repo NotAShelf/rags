@@ -1,5 +1,6 @@
 import App from '../app.js';
 import Service from '../service.js';
+import type { Disposable } from '../service.js';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
@@ -37,8 +38,21 @@ type Response =
           auth_message: string;
       };
 
-/** Service for communicating with the greetd login daemon over its Unix socket. */
-export class Greetd extends Service {
+/**
+ * Greetd Service
+ *
+ * Service for communicating with the greetd login daemon over its Unix socket.
+ *
+ * Lifecycle:
+ * 1. Ready - Send authentication requests via Unix socket
+ * 2. Disposal - Cleanup resources (minimal - no persistent connections)
+ *
+ * Each method creates a new socket connection for the request and closes it
+ * after receiving the response.
+ *
+ * @fires changed - Emitted when service state changes
+ */
+export class Greetd extends Service implements Disposable {
     static {
         Service.register(this);
     }
@@ -143,6 +157,12 @@ export class Greetd extends Service {
         } finally {
             connection.close(null);
         }
+    }
+
+    dispose(): void {
+        super.dispose();
+        // No persistent connections to cleanup
+        // Socket connections are created and closed per request in _send()
     }
 }
 

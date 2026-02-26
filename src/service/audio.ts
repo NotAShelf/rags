@@ -1,7 +1,9 @@
 import Service from '../service.js';
+import type { Disposable } from '../service.js';
 import GObject from 'gi://GObject';
 import Gvc from 'gi://Gvc';
-import { bulkConnect, bulkDisconnect } from '../utils.js';
+import { bulkConnect, bulkDisconnect, globalSignalRegistry } from '../utils.js';
+import { AgsServiceError } from '../utils/errors.js';
 
 const _MIXER_CONTROL_STATE = {
     [Gvc.MixerControlState.CLOSED]: 'closed',
@@ -10,8 +12,18 @@ const _MIXER_CONTROL_STATE = {
     [Gvc.MixerControlState.FAILED]: 'failed',
 };
 
-/** Represents a single audio stream (sink, source, application, or recorder). */
-export class Stream extends Service {
+/**
+ * Audio Stream
+ *
+ * Represents a single audio stream (sink, source, application, or recorder).
+ *
+ * @property {string} application_id - PulseAudio/PipeWire application ID
+ * @property {string} description - Human-readable stream description
+ * @property {boolean} is_muted - Whether stream is muted
+ * @property {number} volume - Volume level (0.0-1.0+)
+ * @property {string} icon_name - Icon name for the stream
+ */
+export class Stream extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -56,13 +68,25 @@ export class Stream extends Service {
             'state',
         ].map(prop => {
             this.notify(prop);
-            return stream.connect(`notify::${prop}`, () => {
+            const id = stream.connect(`notify::${prop}`, () => {
                 this.changed(prop);
             });
+            this.trackConnection(id);
+            globalSignalRegistry.register(stream, id);
+            return id;
         });
 
         this.changed('stream');
     };
+
+    dispose(): void {
+        if (this._stream && this._ids) {
+            bulkDisconnect(this._stream as unknown as GObject.Object, this._ids);
+            this._ids = undefined;
+        }
+        this._stream = undefined;
+        super.dispose();
+    }
 
     constructor(stream?: Gvc.MixerStream) {
         super();
@@ -141,8 +165,30 @@ export class Stream extends Service {
     };
 }
 
-/** Service for managing PulseAudio/PipeWire audio streams, speakers, and microphones via Gvc. */
-export class Audio extends Service {
+/**
+ * Audio Service
+ *
+ * Manages PulseAudio/PipeWire audio streams, speakers, and microphones via Gvc.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to GvcMixerControl
+ * 2. Initialization - Enumerate streams, devices
+ * 3. Ready - Emit signals on stream/device changes
+ * 4. Disposal - Cleanup all stream connections
+ *
+ * @property {Stream} speaker - Default output device
+ * @property {Stream} microphone - Default input device
+ * @property {Stream[]} speakers - All output devices
+ * @property {Stream[]} microphones - All input devices
+ * @property {Stream[]} apps - Application playback streams
+ * @property {Stream[]} recorders - Recording streams
+ *
+ * @fires speaker-changed - Default speaker changed
+ * @fires microphone-changed - Default microphone changed
+ * @fires stream-added - New stream added
+ * @fires stream-removed - Stream removed
+ */
+export class Audio extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -167,6 +213,7 @@ export class Audio extends Service {
     public maxStreamVolume = 1.5;
 
     private _control: Gvc.MixerControl;
+    private _controlIds: number[] = [];
     private _streams: Map<number, Stream>;
     private _streamBindings: Map<number, number>;
     private _speaker!: Stream;
@@ -189,7 +236,7 @@ export class Audio extends Service {
             });
         }
 
-        bulkConnect(this._control as unknown as GObject.Object, [
+        this._controlIds = bulkConnect(this._control as unknown as GObject.Object, [
             ['default-sink-changed', (_c, id: number) => this._defaultChanged(id, 'speaker')],
             ['default-source-changed', (_c, id: number) => this._defaultChanged(id, 'microphone')],
             ['stream-added', this._streamAdded.bind(this)],
@@ -211,7 +258,12 @@ export class Audio extends Service {
 
     /** Sets the default audio output device. */
     set speaker(stream: Stream) {
-        this._control.set_default_sink(stream.stream!);
+        if (!stream.stream) {
+            throw new AgsServiceError('Stream has no underlying stream object', {
+                streamId: stream.id,
+            });
+        }
+        this._control.set_default_sink(stream.stream);
     }
 
     /** The default audio input (source) stream. */
@@ -221,7 +273,12 @@ export class Audio extends Service {
 
     /** Sets the default audio input device. */
     set microphone(stream: Stream) {
-        this._control.set_default_source(stream.stream!);
+        if (!stream.stream) {
+            throw new AgsServiceError('Stream has no underlying stream object', {
+                streamId: stream.id,
+            });
+        }
+        this._control.set_default_source(stream.stream);
     }
 
     /** All available microphone (source) streams. */
@@ -309,6 +366,23 @@ export class Audio extends Service {
         if (stream.stream instanceof Gvc.MixerSinkInput) this.notify('apps');
 
         if (stream.stream instanceof Gvc.MixerSourceOutput) this.notify('recorders');
+    }
+
+    dispose(): void {
+        // Cleanup all streams
+        for (const stream of this._streams.values()) {
+            stream.dispose();
+        }
+        this._streams.clear();
+        this._streamBindings.clear();
+
+        // Cleanup control connections
+        if (this._control && this._controlIds.length > 0) {
+            bulkDisconnect(this._control as unknown as GObject.Object, this._controlIds);
+            this._control.close();
+        }
+
+        super.dispose();
     }
 }
 

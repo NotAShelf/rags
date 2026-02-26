@@ -1,7 +1,9 @@
 import Gio from 'gi://Gio';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import Service from '../service.js';
+import type { Disposable } from '../service.js';
 import {
     CACHE_DIR,
     ensureDirectory,
@@ -9,6 +11,7 @@ import {
     readFileAsync,
     timeout,
     writeFile,
+    globalSignalRegistry,
 } from '../utils.js';
 import { daemon } from '../utils/notify.js';
 
@@ -76,8 +79,32 @@ const _URGENCY = (urgency?: number): Urgency => {
     }
 };
 
-/** Represents a single desktop notification with its metadata, actions, and lifecycle. */
-export class Notification extends Service {
+/**
+ * Notification
+ *
+ * Represents a single desktop notification with its metadata, actions, and lifecycle.
+ *
+ * Lifecycle:
+ * 1. Construction - Parse notification data and hints
+ * 2. Active - Handle dismiss, close, and action invocation
+ * 3. Disposal - Cleanup resources
+ *
+ * @property {number} id - Unique notification ID
+ * @property {string} app_name - Name of the sending application
+ * @property {string} app_icon - Icon name or path
+ * @property {string} summary - Notification title
+ * @property {string} body - Notification body text
+ * @property {Action[]} actions - Available actions
+ * @property {boolean} popup - Whether shown as popup
+ * @property {Urgency} urgency - Urgency level
+ * @property {number} time - Unix timestamp when received
+ * @property {number} timeout - Popup timeout in milliseconds
+ *
+ * @fires dismissed - Emitted when popup is dismissed
+ * @fires closed - Emitted when notification is closed
+ * @fires invoked - Emitted when action is invoked
+ */
+export class Notification extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -356,7 +383,7 @@ export class Notification extends Service {
 
         const n = new Notification(appName, id, appIcon, summary, body, [], {}, false);
         for (const key of Object.keys(j))
-            // @ts-expect-error too lazy to type
+            // @ts-expect-error Dynamic property assignment from JSON, static typing not possible
             n[`_${key}`] = j[key];
 
         return n;
@@ -410,13 +437,38 @@ export class Notification extends Service {
 
         return fileName;
     }
+
+    dispose(): void {
+        super.dispose();
+        // Notification doesn't have signal connections to clean up
+        // All cleanup is handled by the parent Notifications service
+    }
 }
 
 /**
- * Freedesktop Notifications daemon service that receives,
- * stores, and manages desktop notifications.
+ * Notifications Service
+ *
+ * Freedesktop Notifications daemon service that receives, stores, and manages desktop notifications.
+ *
+ * Lifecycle:
+ * 1. Construction - Register D-Bus service, restore cached notifications
+ * 2. Ready - Receive and manage notifications
+ * 3. Disposal - Cleanup all notifications, timeouts, and D-Bus registration
+ *
+ * @property {Notification[]} notifications - All stored notifications
+ * @property {Notification[]} popups - Notifications currently shown as popups
+ * @property {boolean} dnd - Do Not Disturb mode (suppresses popups)
+ * @property {number} popupTimeout - Default popup timeout in milliseconds (default: 3000)
+ * @property {boolean} forceTimeout - Override application timeout (default: false)
+ * @property {boolean} cacheActions - Persist actions in cache (default: false)
+ * @property {number} clearDelay - Delay between closing notifications (default: 100ms)
+ *
+ * @fires notified - Emitted when new notification is received (id: number)
+ * @fires dismissed - Emitted when notification popup is dismissed (id: number)
+ * @fires closed - Emitted when notification is closed (id: number)
+ * @fires changed - Emitted when notification state changes
  */
-export class Notifications extends Service {
+export class Notifications extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -602,9 +654,24 @@ export class Notifications extends Service {
     };
 
     private _addNotification(n: Notification) {
-        n.connect('dismissed', this._onDismissed.bind(this));
-        n.connect('closed', this._onClosed.bind(this));
-        n.connect('invoked', this._onInvoked.bind(this));
+        // Cleanup existing notification if replacing
+        const existing = this._notifications.get(n.id);
+        if (existing) {
+            globalSignalRegistry.disconnect(existing as unknown as GObject.Object);
+        }
+
+        const dismissedId = n.connect('dismissed', this._onDismissed.bind(this));
+        this.trackConnection(dismissedId);
+        globalSignalRegistry.register(n as unknown as GObject.Object, dismissedId);
+
+        const closedId = n.connect('closed', this._onClosed.bind(this));
+        this.trackConnection(closedId);
+        globalSignalRegistry.register(n as unknown as GObject.Object, closedId);
+
+        const invokedId = n.connect('invoked', this._onInvoked.bind(this));
+        this.trackConnection(invokedId);
+        globalSignalRegistry.register(n as unknown as GObject.Object, invokedId);
+
         this._notifications.set(n.id, n);
     }
 
@@ -694,6 +761,34 @@ export class Notifications extends Service {
             writeFile(JSON.stringify(arr, null, 2), CACHE_FILE).catch(err => console.error(err));
             return GLib.SOURCE_REMOVE;
         });
+    }
+
+    dispose(): void {
+        super.dispose();
+
+        // Clear all popup timeouts
+        for (const timeoutId of this._timeoutIds.values()) {
+            GLib.source_remove(timeoutId);
+        }
+        this._timeoutIds.clear();
+
+        // Clear cache timeout
+        if (this._cacheTimeoutId) {
+            GLib.source_remove(this._cacheTimeoutId);
+            this._cacheTimeoutId = 0;
+        }
+
+        // Cleanup all notifications
+        for (const notification of this._notifications.values()) {
+            globalSignalRegistry.disconnect(notification as unknown as GObject.Object);
+            notification.dispose();
+        }
+        this._notifications.clear();
+
+        // Unexport D-Bus object
+        if (this._dbus) {
+            this._dbus.unexport();
+        }
     }
 }
 

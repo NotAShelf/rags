@@ -1,12 +1,34 @@
 import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
 import Service from '../service.js';
-import { CACHE_DIR, ensureDirectory, readFile, writeFile } from '../utils.js';
+import type { Disposable } from '../service.js';
+import { CACHE_DIR, ensureDirectory, readFile, writeFile, globalSignalRegistry } from '../utils.js';
+
+// Use GioUnix.DesktopAppInfo to avoid deprecation warning
+// @ts-expect-error GioUnix types not available in @girs yet
+const GioUnix = (await import('gi://GioUnix?version=2.0')).default;
+type DesktopAppInfo = Gio.DesktopAppInfo; // Use Gio types for TypeScript
 
 const APPS_CACHE_DIR = `${CACHE_DIR}/apps`;
 const CACHE_FILE = APPS_CACHE_DIR + '/apps_frequency.json';
 
-/** Represents a single desktop application entry with launch frequency tracking. */
-export class Application extends Service {
+/**
+ * Application
+ *
+ * Represents a single desktop application entry with launch frequency tracking.
+ *
+ * @property {DesktopAppInfo} app - Underlying desktop app info
+ * @property {number} frequency - Launch count
+ * @property {string} name - Display name
+ * @property {string} desktop - Desktop file ID
+ * @property {string} description - Application description
+ * @property {string} wm_class - WM_CLASS hint
+ * @property {string} executable - Executable command
+ * @property {string} icon_name - Icon name
+ *
+ * @fires changed - Emitted when application properties change
+ */
+export class Application extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -24,10 +46,10 @@ export class Application extends Service {
         );
     }
 
-    private _app: Gio.DesktopAppInfo;
+    private _app: DesktopAppInfo;
     private _frequency: number;
 
-    /** The underlying Gio.DesktopAppInfo instance. */
+    /** The underlying DesktopAppInfo instance. */
     get app() {
         return this._app;
     }
@@ -72,7 +94,7 @@ export class Application extends Service {
         return this._app.get_string('Icon');
     }
 
-    constructor(app: Gio.DesktopAppInfo, frequency?: number) {
+    constructor(app: DesktopAppInfo, frequency?: number) {
         super();
         this._app = app;
         this._frequency = frequency || 0;
@@ -118,10 +140,29 @@ export class Application extends Service {
         this.app.launch([], null);
         this.frequency++;
     };
+
+    dispose(): void {
+        super.dispose();
+        // No signal connections to clean up
+    }
 }
 
-/** Service that manages all visible desktop applications and tracks launch frequency. */
-export class Applications extends Service {
+/**
+ * Applications Service
+ *
+ * Service that manages all visible desktop applications and tracks launch frequency.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to AppInfoMonitor, load frequency cache
+ * 2. Ready - Monitor application additions, removals, changes
+ * 3. Disposal - Cleanup all application bindings and monitor connection
+ *
+ * @property {Application[]} list - All visible desktop applications
+ * @property {{[app: string]: number}} frequents - Map of desktop IDs to launch counts
+ *
+ * @fires changed - Emitted when application list or frequency changes
+ */
+export class Applications extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -136,6 +177,7 @@ export class Applications extends Service {
     private _list!: Application[];
     private _frequents: { [app: string]: number };
     private _frequencyBindings: Array<{ app: Application; id: number }> = [];
+    private _monitor: Gio.AppInfoMonitor;
 
     /**
      * Filters and sorts applications by a search term, ordered by launch frequency.
@@ -149,7 +191,9 @@ export class Applications extends Service {
 
     constructor() {
         super();
-        Gio.AppInfoMonitor.get().connect('changed', this.reload.bind(this));
+        this._monitor = Gio.AppInfoMonitor.get();
+        const monitorId = this._monitor.connect('changed', this.reload.bind(this));
+        globalSignalRegistry.register(this._monitor as unknown as GObject.Object, monitorId);
 
         try {
             this._frequents = JSON.parse(readFile(CACHE_FILE)) as { [app: string]: number };
@@ -185,14 +229,16 @@ export class Applications extends Service {
 
     /** Reloads the application list from the system and restores frequency data. */
     readonly reload = () => {
+        // Disconnect old app bindings
         for (const { app, id } of this._frequencyBindings) {
             app.disconnect(id);
+            globalSignalRegistry.disconnect(app as unknown as GObject.Object);
         }
         this._frequencyBindings = [];
 
         this._list = Gio.AppInfo.get_all()
             .filter(app => app.should_show())
-            .map(app => Gio.DesktopAppInfo.new(app.get_id() || ''))
+            .map(app => GioUnix.DesktopAppInfo.new(app.get_id() || ''))
             .filter(app => app)
             .map(app => new Application(app, this.frequents[app.get_id() || '']));
 
@@ -200,11 +246,29 @@ export class Applications extends Service {
             const id = app.connect('notify::frequency', () => {
                 this._launched(app.desktop);
             });
+            globalSignalRegistry.register(app as unknown as GObject.Object, id);
             this._frequencyBindings.push({ app, id });
         });
 
         this.changed('list');
     };
+
+    dispose(): void {
+        // Cleanup app frequency bindings
+        for (const { app, id } of this._frequencyBindings) {
+            app.disconnect(id);
+            globalSignalRegistry.disconnect(app as unknown as GObject.Object);
+            app.dispose();
+        }
+        this._frequencyBindings = [];
+
+        // Cleanup monitor connection
+        if (this._monitor) {
+            globalSignalRegistry.disconnect(this._monitor as unknown as GObject.Object);
+        }
+
+        super.dispose();
+    }
 }
 
 export const applications = new Applications();

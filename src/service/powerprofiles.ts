@@ -1,7 +1,9 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
 import Service from '../service.js';
-import { loadInterfaceXML } from '../utils.js';
+import type { Disposable } from '../service.js';
+import { loadInterfaceXML, globalSignalRegistry } from '../utils.js';
 import { PowerProfilesProxy, connectSignal } from '../dbus/types.js';
 import { kebabify } from '../utils/gobject.js';
 import { isRunning } from '../utils/init.js';
@@ -23,8 +25,28 @@ const DummyProxy = {
     ReleaseProfile: () => null,
 } as unknown as PowerProfilesProxy;
 
-/** Service for managing system power profiles via the net.hadess.PowerProfiles D-Bus interface. */
-class PowerProfiles extends Service {
+/**
+ * Power Profiles Service
+ *
+ * Service for managing system power profiles via the net.hadess.PowerProfiles D-Bus interface.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to PowerProfiles D-Bus service
+ * 2. Ready - Monitor active profile and performance state
+ * 3. Disposal - Disconnect proxy and cleanup
+ *
+ * @property {string} active_profile - Currently active profile
+ * @property {string} performance_inhibited - Reason performance is inhibited
+ * @property {string} performance_degraded - Reason performance is degraded
+ * @property {object[]} profiles - Available power profiles
+ * @property {string[]} actions - Available actions
+ * @property {object[]} active_profile_holds - Currently held profile holds
+ * @property {string} icon_name - Icon name for current profile
+ *
+ * @fires profile-released - Emitted when profile hold is released (cookie: number)
+ * @fires changed - Emitted when power profile state changes
+ */
+class PowerProfiles extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -61,7 +83,7 @@ class PowerProfiles extends Service {
                 '/net/hadess/PowerProfiles',
             );
 
-            this._proxy.connect('g-properties-changed', (_, changed) => {
+            const propertiesId = this._proxy.connect('g-properties-changed', (_, changed) => {
                 for (const prop of Object.keys(changed.deepUnpack() as {})) {
                     this.notify(kebabify(prop));
                     if (prop === 'ActiveProfile') this.notify('icon-name');
@@ -69,10 +91,18 @@ class PowerProfiles extends Service {
 
                 this.emit('changed');
             });
+            this.trackConnection(propertiesId);
+            globalSignalRegistry.register(this._proxy as unknown as GObject.Object, propertiesId);
 
-            connectSignal(this._proxy, 'ProfileReleased', (_p: any, _n: any, [cookie]: any) => {
-                this.emit('profile-released', cookie);
-            });
+            const signalId = connectSignal(
+                this._proxy,
+                'ProfileReleased',
+                (_p: any, _n: any, [cookie]: any) => {
+                    this.emit('profile-released', cookie);
+                },
+            );
+            this.trackConnection(signalId);
+            globalSignalRegistry.register(this._proxy as unknown as GObject.Object, signalId);
         } else {
             console.error(`${BUSNAME} is not available`);
         }
@@ -116,6 +146,15 @@ class PowerProfiles extends Service {
     /** Symbolic icon name for the current power profile. */
     get icon_name() {
         return `power-profile-${this.active_profile}-symbolic`;
+    }
+
+    dispose(): void {
+        super.dispose();
+
+        // Cleanup proxy connections
+        if (this._proxy && this._proxy !== DummyProxy) {
+            globalSignalRegistry.disconnect(this._proxy as unknown as GObject.Object);
+        }
     }
 }
 

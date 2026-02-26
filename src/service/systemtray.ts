@@ -4,9 +4,11 @@ import Gdk from 'gi://Gdk?version=3.0';
 import Gtk from 'gi://Gtk?version=3.0';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import DbusmenuGtk3 from 'gi://DbusmenuGtk3';
+import GObject from 'gi://GObject';
 import Service from '../service.js';
+import type { Disposable } from '../service.js';
 import { StatusNotifierItemProxy, connectSignal } from '../dbus/types.js';
-import { bulkConnect, loadInterfaceXML } from '../utils.js';
+import { bulkConnect, loadInterfaceXML, globalSignalRegistry } from '../utils.js';
 import Widget from '../widget.js';
 
 const StatusNotifierWatcherIFace = loadInterfaceXML('org.kde.StatusNotifierWatcher')!;
@@ -19,8 +21,31 @@ const DbusmenuGtk3Menu = Widget<typeof DbusmenuGtk3.Menu, DbusmenuGtk3.Menu.Cons
     DbusmenuGtk3.Menu,
 );
 
-/** Represents a single StatusNotifierItem (system tray icon) with its properties and actions. */
-export class TrayItem extends Service {
+/**
+ * Tray Item
+ *
+ * Represents a single StatusNotifierItem (system tray icon) with its properties and actions.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to StatusNotifierItem D-Bus proxy
+ * 2. Ready - Monitor item properties and icon changes
+ * 3. Disposal - Disconnect proxy and cleanup menu
+ *
+ * @property {DbusmenuGtk3.Menu} menu - DBusMenu if available
+ * @property {string} category - Item category
+ * @property {string} id - Application identifier
+ * @property {string} title - Display title
+ * @property {string} status - Status ("Passive", "Active", "NeedsAttention")
+ * @property {number} window_id - X11 window ID or 0
+ * @property {boolean} is_menu - Whether item only supports menu
+ * @property {string} tooltip_markup - Tooltip markup string
+ * @property {string|GdkPixbuf.Pixbuf} icon - Icon name, pixbuf, or "image-missing"
+ *
+ * @fires removed - Emitted when item disappears from bus (busName: string)
+ * @fires ready - Emitted when item proxy is ready
+ * @fires changed - Emitted when item properties change
+ */
+export class TrayItem extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -47,6 +72,7 @@ export class TrayItem extends Service {
 
     private _iconTheme?: Gtk.IconTheme;
     menu?: DbusmenuGtk3.Menu;
+    private _proxySignalIds: number[] = [];
 
     constructor(busName: string, objectPath: string) {
         super();
@@ -185,22 +211,30 @@ export class TrayItem extends Service {
             this._iconTheme?.set_search_path([this._proxy.IconThemePath]);
         }
 
-        bulkConnect(proxy, [
-            [
-                'notify::g-name-owner',
-                () => {
-                    if (!proxy.g_name_owner) this.emit('removed', this._busName);
-                },
-            ],
-            ['g-signal', this._refreshAllProperties.bind(this)],
-            ['g-properties-changed', () => this.emit('changed')],
-        ]);
-
-        ['Title', 'Icon', 'AttentionIcon', 'OverlayIcon', 'ToolTip', 'Status'].forEach(prop =>
-            connectSignal(proxy, `New${prop}`, () => {
-                this._notify();
+        // Track bulkConnect signals
+        const bulkIds = [
+            proxy.connect('notify::g-name-owner', () => {
+                if (!proxy.g_name_owner) this.emit('removed', this._busName);
             }),
-        );
+            proxy.connect('g-signal', this._refreshAllProperties.bind(this)),
+            proxy.connect('g-properties-changed', () => this.emit('changed')),
+        ];
+
+        bulkIds.forEach(id => {
+            this._proxySignalIds.push(id);
+            this.trackConnection(id);
+            globalSignalRegistry.register(proxy as unknown as GObject.Object, id);
+        });
+
+        // Track connectSignal calls
+        ['Title', 'Icon', 'AttentionIcon', 'OverlayIcon', 'ToolTip', 'Status'].forEach(prop => {
+            const id = connectSignal(proxy, `New${prop}`, () => {
+                this._notify();
+            });
+            this._proxySignalIds.push(id);
+            this.trackConnection(id);
+            globalSignalRegistry.register(proxy as unknown as GObject.Object, id);
+        });
 
         this.emit('ready');
     }
@@ -274,13 +308,52 @@ export class TrayItem extends Service {
             pixMap[0] * 4,
         );
     }
+
+    dispose(): void {
+        super.dispose();
+
+        // Disconnect proxy signals
+        if (this._proxy && this._proxySignalIds.length > 0) {
+            this._proxySignalIds.forEach(id => {
+                try {
+                    this._proxy.disconnect(id);
+                } catch (error) {
+                    // Signal may already be disconnected
+                }
+            });
+            globalSignalRegistry.disconnect(this._proxy as unknown as GObject.Object);
+        }
+
+        // Cleanup menu
+        if (this.menu) {
+            this.menu.destroy();
+            this.menu = undefined;
+        }
+    }
 }
 
 /**
+ * System Tray Service
+ *
  * Service that implements the StatusNotifierWatcher D-Bus interface,
  * managing all system tray items on the session bus.
+ *
+ * Lifecycle:
+ * 1. Construction - Register StatusNotifierWatcher on D-Bus
+ * 2. Ready - Accept StatusNotifierItem registrations
+ * 3. Active - Monitor item additions, removals, property changes
+ * 4. Disposal - Cleanup all items and unexport D-Bus service
+ *
+ * @property {TrayItem[]} items - All currently registered tray items
+ * @property {boolean} IsStatusNotifierHostRegistered - Always true
+ * @property {number} ProtocolVersion - Protocol version (0)
+ * @property {string[]} RegisteredStatusNotifierItems - Bus names of registered items
+ *
+ * @fires added - Emitted when item is registered (busName: string)
+ * @fires removed - Emitted when item is unregistered (busName: string)
+ * @fires changed - Emitted when tray state changes
  */
-export class SystemTray extends Service {
+export class SystemTray extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -364,7 +437,8 @@ export class SystemTray extends Service {
         invocation.return_value(null);
 
         const item = new TrayItem(busName, objectPath);
-        item.connect('ready', () => {
+
+        const readyId = item.connect('ready', () => {
             this._items.set(busName, item);
             this.emit('added', busName);
             this.notify('items');
@@ -374,7 +448,12 @@ export class SystemTray extends Service {
                 new GLib.Variant('(s)', [busName + objectPath]),
             );
         });
-        item.connect('removed', () => {
+        globalSignalRegistry.register(item as unknown as GObject.Object, readyId);
+
+        const removedId = item.connect('removed', () => {
+            // Cleanup item
+            globalSignalRegistry.disconnect(item as unknown as GObject.Object);
+            item.dispose();
             this._items.delete(busName);
             this.emit('removed', busName);
             this.notify('items');
@@ -384,6 +463,23 @@ export class SystemTray extends Service {
                 new GLib.Variant('(s)', [busName]),
             );
         });
+        globalSignalRegistry.register(item as unknown as GObject.Object, removedId);
+    }
+
+    dispose(): void {
+        super.dispose();
+
+        // Cleanup all tray items
+        for (const item of this._items.values()) {
+            globalSignalRegistry.disconnect(item as unknown as GObject.Object);
+            item.dispose();
+        }
+        this._items.clear();
+
+        // Unexport D-Bus object
+        if (this._dbus) {
+            this._dbus.unexport();
+        }
     }
 }
 

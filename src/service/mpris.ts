@@ -1,7 +1,9 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
 import Service from '../service.js';
-import { ensureDirectory, idle } from '../utils.js';
+import type { Disposable } from '../service.js';
+import { ensureDirectory, idle, globalSignalRegistry } from '../utils.js';
 import { CACHE_DIR } from '../utils.js';
 import { loadInterfaceXML } from '../utils.js';
 import { DBusProxy, PlayerProxy, MprisProxy, connectSignal } from '../dbus/types.js';
@@ -47,8 +49,42 @@ type MprisMetadata = {
     [key: string]: unknown;
 };
 
-/** Represents a single MPRIS-compatible media player on the session bus. */
-export class MprisPlayer extends Service {
+/**
+ * MPRIS Player
+ *
+ * Represents a single MPRIS-compatible media player on the session bus.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to D-Bus player proxies
+ * 2. Ready - Monitor playback state and metadata changes
+ * 3. Disposal - Disconnect proxies and cleanup cover art cache
+ *
+ * @property {string} bus_name - Full D-Bus bus name
+ * @property {string} name - Short player name
+ * @property {string} entry - Desktop entry identifier
+ * @property {string} identity - Human-readable player identity
+ * @property {MprisMetadata} metadata - Raw MPRIS metadata
+ * @property {string} trackid - MPRIS track ID
+ * @property {string[]} track_artists - List of artist names
+ * @property {string} track_title - Track title
+ * @property {string} track_album - Album name
+ * @property {string} track_cover_url - Cover art URL
+ * @property {string} cover_path - Local cached cover art path
+ * @property {PlaybackStatus} play_back_status - Playback status
+ * @property {boolean} can_go_next - Whether player can go to next track
+ * @property {boolean} can_go_prev - Whether player can go to previous track
+ * @property {boolean} can_play - Whether player can play
+ * @property {boolean|null} shuffle_status - Shuffle status
+ * @property {LoopStatus|null} loop_status - Loop/repeat status
+ * @property {number} length - Track length in seconds
+ * @property {number} volume - Volume level (0.0-1.0)
+ * @property {number} position - Playback position in seconds
+ *
+ * @fires closed - Emitted when player disappears from bus
+ * @fires position - Emitted when position is set
+ * @fires changed - Emitted when player state changes
+ */
+export class MprisPlayer extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -223,9 +259,6 @@ export class MprisPlayer extends Service {
     }
 
     close() {
-        this._mprisProxy?.disconnect(this._binding.mpris[0]);
-        this._mprisProxy?.disconnect(this._binding.mpris[1]);
-        this._playerProxy?.disconnect(this._binding.player);
         this.emit('closed');
     }
 
@@ -233,8 +266,17 @@ export class MprisPlayer extends Service {
         this._binding.mpris[0] = this._mprisProxy.connect('notify::g-name-owner', () => {
             if (!this._mprisProxy.g_name_owner) this.close();
         });
+        globalSignalRegistry.register(
+            this._mprisProxy as unknown as GObject.Object,
+            this._binding.mpris[0],
+        );
+
         this._binding.mpris[1] = this._mprisProxy.connect('g-properties-changed', () =>
             this._updateState(),
+        );
+        globalSignalRegistry.register(
+            this._mprisProxy as unknown as GObject.Object,
+            this._binding.mpris[1],
         );
 
         this._identity = this._mprisProxy.Identity;
@@ -245,6 +287,10 @@ export class MprisPlayer extends Service {
     private _onPlayerProxyReady() {
         this._binding.player = this._playerProxy.connect('g-properties-changed', () =>
             this._updateState(),
+        );
+        globalSignalRegistry.register(
+            this._playerProxy as unknown as GObject.Object,
+            this._binding.player,
         );
     }
 
@@ -379,10 +425,41 @@ export class MprisPlayer extends Service {
                 break;
         }
     };
+
+    dispose(): void {
+        // Disconnect proxies via registry only
+        if (this._mprisProxy) {
+            globalSignalRegistry.disconnect(this._mprisProxy as unknown as GObject.Object);
+        }
+
+        if (this._playerProxy) {
+            globalSignalRegistry.disconnect(this._playerProxy as unknown as GObject.Object);
+        }
+
+        super.dispose();
+    }
 }
 
-/** Service that discovers and manages MPRIS media players on the D-Bus session bus. */
-export class Mpris extends Service {
+/**
+ * MPRIS Service
+ *
+ * Service that discovers and manages MPRIS media players on the D-Bus session bus.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to D-Bus daemon
+ * 2. Ready - Discover and monitor MPRIS players
+ * 3. Active - Track player additions, removals, state changes
+ * 4. Disposal - Cleanup all players and D-Bus connections
+ *
+ * @property {MprisPlayer[]} players - All currently active MPRIS players
+ * @property {boolean} cacheCoverArt - Whether to cache cover art locally (default: true)
+ *
+ * @fires player-added - Emitted when player appears (busName: string)
+ * @fires player-closed - Emitted when player disappears (busName: string)
+ * @fires player-changed - Emitted when player state changes (busName: string)
+ * @fires changed - Emitted when any player state changes
+ */
+export class Mpris extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -426,16 +503,21 @@ export class Mpris extends Service {
 
         const player = new MprisPlayer(busName);
 
-        player.connect('closed', () => {
+        const closedId = player.connect('closed', () => {
+            // Cleanup player
+            globalSignalRegistry.disconnect(player as unknown as GObject.Object);
+            player.dispose();
             this._players.delete(busName);
             this.emit('player-closed', busName);
             this.changed('players');
         });
+        globalSignalRegistry.register(player as unknown as GObject.Object, closedId);
 
-        player.connect('changed', () => {
+        const changedId = player.connect('changed', () => {
             this.emit('player-changed', busName);
             this.emit('changed');
         });
+        globalSignalRegistry.register(player as unknown as GObject.Object, changedId);
 
         this._players.set(busName, player);
         this.emit('player-added', busName);
@@ -450,7 +532,12 @@ export class Mpris extends Service {
             if (name.startsWith(DBUS_PREFIX)) this._addPlayer(name);
         }
 
-        connectSignal(this._proxy, 'NameOwnerChanged', this._onNameOwnerChanged.bind(this));
+        const signalId = connectSignal(
+            this._proxy,
+            'NameOwnerChanged',
+            this._onNameOwnerChanged.bind(this),
+        );
+        globalSignalRegistry.register(this._proxy as unknown as GObject.Object, signalId);
     }
 
     private _onNameOwnerChanged(
@@ -475,6 +562,22 @@ export class Mpris extends Service {
         }
         return null;
     };
+
+    dispose(): void {
+        // Cleanup all players (use snapshot to avoid mutation during iteration)
+        for (const player of Array.from(this._players.values())) {
+            globalSignalRegistry.disconnect(player as unknown as GObject.Object);
+            player.dispose();
+        }
+        this._players.clear();
+
+        // Cleanup D-Bus proxy
+        if (this._proxy) {
+            globalSignalRegistry.disconnect(this._proxy as unknown as GObject.Object);
+        }
+
+        super.dispose();
+    }
 }
 
 export const mpris = new Mpris();
