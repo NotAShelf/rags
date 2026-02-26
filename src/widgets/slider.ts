@@ -94,7 +94,7 @@ export class Slider<Attr> extends Gtk.Scale {
     }
 
     /** Callback invoked when the slider value changes during user interaction. */
-    get on_change() {
+    get on_change(): EventHandler<this> | undefined {
         return this._get('on-change');
     }
 
@@ -166,7 +166,7 @@ export class Slider<Attr> extends Gtk.Scale {
 
     /** Whether the slider is currently being dragged by the user. */
     get dragging() {
-        return this._get('dragging');
+        return this._get('dragging') || false;
     }
 
     set dragging(dragging: boolean) {

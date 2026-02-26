@@ -62,13 +62,12 @@ export class Overlay<Child extends Gtk.Widget, OverlayChild extends Gtk.Widget, 
     }
 
     private _updatePassThrough() {
-        this.get_children().forEach(ch =>
-            this.set_overlay_pass_through(ch, this._get('pass-through')),
-        );
+        const passThrough = this._get<boolean>('pass-through') || false;
+        this.overlays.forEach(ch => this.set_overlay_pass_through(ch, passThrough));
     }
 
     /** Whether input events pass through overlay children. */
-    get pass_through() {
+    get pass_through(): boolean | undefined {
         return this._get('pass-through');
     }
 

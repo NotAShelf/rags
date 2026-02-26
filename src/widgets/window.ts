@@ -183,7 +183,7 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
 
     /** The monitor index this window is displayed on. */
     get monitor(): number {
-        return this._get('monitor');
+        return this._get('monitor') || -1;
     }
 
     set monitor(monitor: number) {
@@ -363,9 +363,12 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
         );
 
         if (this.popup) {
-            const [esc, click] = this._get<[number, number]>('popup');
-            this.disconnect(esc);
-            this.disconnect(click);
+            const handlers = this._get<[number, number]>('popup');
+            if (handlers) {
+                const [esc, click] = handlers;
+                this.disconnect(esc);
+                this.disconnect(click);
+            }
         }
 
         if (popup) {

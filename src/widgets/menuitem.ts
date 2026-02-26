@@ -64,7 +64,7 @@ export class MenuItem<Child extends Gtk.Widget, Attr> extends Gtk.MenuItem {
     }
 
     /** Callback invoked when the menu item is activated. */
-    get on_activate() {
+    get on_activate(): Event<this> | undefined {
         return this._get('on-activate');
     }
 
@@ -73,7 +73,7 @@ export class MenuItem<Child extends Gtk.Widget, Attr> extends Gtk.MenuItem {
     }
 
     /** Callback invoked when the menu item is selected (hovered). */
-    get on_select() {
+    get on_select(): Event<this> | undefined {
         return this._get('on-select');
     }
 
@@ -82,7 +82,7 @@ export class MenuItem<Child extends Gtk.Widget, Attr> extends Gtk.MenuItem {
     }
 
     /** Callback invoked when the menu item is deselected. */
-    get on_deselect() {
+    get on_deselect(): Event<this> | undefined {
         return this._get('on-deselect');
     }
 

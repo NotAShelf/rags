@@ -99,7 +99,7 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
     }
 
     /** Horizontal scroll policy: 'automatic', 'always', 'never', or 'external'. */
-    get hscroll() {
+    get hscroll(): 'always' | 'automatic' | 'never' | 'external' | undefined {
         return this._get('hscroll');
     }
 
@@ -108,7 +108,7 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
     }
 
     /** Vertical scroll policy: 'automatic', 'always', 'never', or 'external'. */
-    get vscroll() {
+    get vscroll(): 'always' | 'automatic' | 'never' | 'external' | undefined {
         return this._get('vscroll');
     }
 
@@ -117,11 +117,11 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
     }
 
     private _policy() {
-        const hscroll = POLICY[this.hscroll];
-        const vscroll = POLICY[this.vscroll];
+        const hscroll = this.hscroll ? POLICY[this.hscroll] : undefined;
+        const vscroll = this.vscroll ? POLICY[this.vscroll] : undefined;
         this.set_policy(
-            hscroll === -1 ? Gtk.PolicyType.AUTOMATIC : hscroll,
-            vscroll === -1 ? Gtk.PolicyType.AUTOMATIC : vscroll,
+            hscroll === undefined || hscroll === -1 ? Gtk.PolicyType.AUTOMATIC : hscroll,
+            vscroll === undefined || vscroll === -1 ? Gtk.PolicyType.AUTOMATIC : vscroll,
         );
     }
 }

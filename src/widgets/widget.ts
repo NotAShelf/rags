@@ -110,7 +110,8 @@ type Required<T> = { [K in keyof T]-?: T[K] };
  *
  * @typeParam Attr - The custom attribute type
  */
-export interface Widget<Attr> extends Required<CommonProps<Attr>> {
+export interface Widget<Attr> extends Required<Omit<CommonProps<Attr>, 'cursor'>> {
+    cursor?: Cursor;
     /**
      * Connects to a GObject signal and automatically disconnects on widget destroy.
      *
@@ -197,7 +198,7 @@ export interface Widget<Attr> extends Required<CommonProps<Attr>> {
     /** @internal */
     _handleParamProp(prop: keyof this, value: any): void;
     /** @internal */
-    _get<T>(field: string): T;
+    _get<T>(field: string): T | undefined;
     /** @internal */
     _set<T>(field: string, value: T, notify?: boolean): void;
 
@@ -233,14 +234,17 @@ export interface Widget<Attr> extends Required<CommonProps<Attr>> {
  *
  * @typeParam Attr - The type of the custom `attribute` field
  */
-export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
+export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget>
+    extends Gtk.Widget
+    implements Widget<Attr>
+{
     /** Custom user data attached to this widget. */
     set attribute(attr: Attr) {
         this._set('attribute', attr);
     }
 
     get attribute(): Attr {
-        return this._get('attribute');
+        return this._get<Attr>('attribute')!;
     }
 
     _onHandlerIds: number[] = [];
@@ -293,11 +297,11 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
         const targetProp = objProp || 'value';
         const callback = transform
             ? () => {
-                  // @ts-expect-error too lazy to type
+                  // @ts-expect-error Dynamic property assignment, TypeScript can't verify type safety here
                   this[prop] = transform(gobject[targetProp]);
               }
             : () => {
-                  // @ts-expect-error too lazy to type
+                  // @ts-expect-error Dynamic property assignment, TypeScript can't verify type safety here
                   this[prop] = gobject[targetProp];
               };
 
@@ -411,14 +415,15 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     // defining private fields for typescript causes
     // gobject constructor field setters to be overridden
     // so we use this _get and _set to avoid @ts-expect-error everywhere
-    _get<T>(field: string) {
-        return (this as unknown as { [key: string]: unknown })[`__${field}`] as T;
+
+    _get<T>(field: string): T | undefined {
+        return (this as unknown as { [key: string]: unknown })[`__${field}`] as T | undefined;
     }
 
-    _set<T>(field: string, value: T, notify = true) {
+    _set<T>(field: string, value: T, notify = true): void {
         if (this._get(field) === value) return;
 
-        (this as unknown as { [key: string]: T })[`__${field}`] = value;
+        (this as unknown as { [key: string]: unknown })[`__${field}`] = value;
 
         if (notify) this.notify(field);
     }
@@ -531,8 +536,8 @@ export class AgsWidget<Attr> extends Gtk.Widget implements Widget<Attr> {
     }
 
     /** CSS cursor name displayed when the pointer hovers this widget. */
-    get cursor() {
-        return this._get('cursor');
+    get cursor(): Cursor | undefined {
+        return this._get<Cursor>('cursor');
     }
 
     set cursor(cursor: Cursor) {
