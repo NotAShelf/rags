@@ -118,6 +118,12 @@ export class Variable<T> extends GObject.Object implements Disposable {
 
     /** Starts the poll loop if a poll configuration was provided. */
     startPoll() {
+        if (this._isDisposed) {
+            throw new AgsRuntimeError(`${this} has been disposed`, {
+                variable: this.toString(),
+            });
+        }
+
         if (!this._poll) {
             throw new AgsRuntimeError(`${this} has no poll defined`, {
                 variable: this.toString(),
@@ -176,6 +182,12 @@ export class Variable<T> extends GObject.Object implements Disposable {
 
     /** Starts listening to a subprocess if a listen configuration was provided. */
     startListen() {
+        if (this._isDisposed) {
+            throw new AgsRuntimeError(`${this} has been disposed`, {
+                variable: this.toString(),
+            });
+        }
+
         if (!this._listen) {
             throw new AgsRuntimeError(`${this} has no listen defined`, {
                 variable: this.toString(),
@@ -249,8 +261,8 @@ export class Variable<T> extends GObject.Object implements Disposable {
         this._isDisposed = true;
     }
 
-    /** Check if variable has been disposed */
-    get isDisposed(): boolean {
+    /** Whether the variable has been disposed. */
+    get is_disposed(): boolean {
         return this._isDisposed;
     }
 

@@ -369,12 +369,20 @@ export class Audio extends Service implements Disposable {
     }
 
     dispose(): void {
-        // Cleanup all streams
+        // Disconnect external bindings first to prevent signals on disposed objects
+        for (const [id, binding] of this._streamBindings) {
+            const stream = this._streams.get(id);
+            if (stream) {
+                stream.disconnect(binding);
+            }
+        }
+        this._streamBindings.clear();
+
+        // Now safely dispose all streams
         for (const stream of this._streams.values()) {
             stream.dispose();
         }
         this._streams.clear();
-        this._streamBindings.clear();
 
         // Cleanup control connections
         if (this._control && this._controlIds.length > 0) {

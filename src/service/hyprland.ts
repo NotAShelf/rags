@@ -331,7 +331,7 @@ export class Hyprland extends Service implements Disposable {
         // Setup socket watching
         this._eventConnection = this._connection('socket2');
         this._eventStream = new Gio.DataInputStream({
-            close_base_stream: true,
+            close_base_stream: false, // Let _eventConnection.close() handle stream cleanup
             base_stream: this._eventConnection.get_input_stream(),
         });
         this._watchSocket(this._eventStream);

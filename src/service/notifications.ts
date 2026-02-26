@@ -440,8 +440,8 @@ export class Notification extends Service implements Disposable {
 
     dispose(): void {
         super.dispose();
-        // Notification doesn't have signal connections to clean up
-        // All cleanup is handled by the parent Notifications service
+        // Signal connections on this instance are managed and cleaned up
+        // by the parent Notifications service via globalSignalRegistry
     }
 }
 
@@ -658,6 +658,7 @@ export class Notifications extends Service implements Disposable {
         const existing = this._notifications.get(n.id);
         if (existing) {
             globalSignalRegistry.disconnect(existing as unknown as GObject.Object);
+            existing.dispose();
         }
 
         const dismissedId = n.connect('dismissed', this._onDismissed.bind(this));

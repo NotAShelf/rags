@@ -363,7 +363,10 @@ export default class Service extends GObject.Object {
             this._connections.push({ emitter: this, id: emitterOrId });
         } else {
             // Called with emitter and ID
-            this._connections.push({ emitter: emitterOrId, id: id! });
+            if (typeof id !== 'number') {
+                throw new Error('trackConnection requires id when emitter is provided');
+            }
+            this._connections.push({ emitter: emitterOrId, id });
         }
     }
 

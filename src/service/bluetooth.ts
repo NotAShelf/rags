@@ -222,11 +222,13 @@ export class Bluetooth extends Service implements Disposable {
 
     private _client: GnomeBluetooth.Client;
     private _devices: Map<string, BluetoothDevice>;
+    private _deviceSignals: Map<string, number[]>;
 
     constructor() {
         super();
 
         this._devices = new Map();
+        this._deviceSignals = new Map();
         this._client = new GnomeBluetooth.Client();
         bulkConnect(this._client, [
             ['device-added', this._deviceAdded.bind(this)],
@@ -262,12 +264,13 @@ export class Bluetooth extends Service implements Disposable {
         const d = new BluetoothDevice(device);
 
         const changedId = d.connect('changed', () => this.emit('changed'));
-        this.trackConnection(changedId);
         globalSignalRegistry.register(d as unknown as GObject.Object, changedId);
 
         const connectedId = d.connect('notify::connected', () => this.notify('connected-devices'));
-        this.trackConnection(connectedId);
         globalSignalRegistry.register(d as unknown as GObject.Object, connectedId);
+
+        // Store signal IDs for proper cleanup on device removal
+        this._deviceSignals.set(device.address, [changedId, connectedId]);
 
         this._devices.set(device.address, d);
         this.changed('devices');
@@ -277,6 +280,14 @@ export class Bluetooth extends Service implements Disposable {
     private _deviceRemoved(_: GnomeBluetooth.Client, path: string) {
         const device = this.devices.find(d => d.device.get_object_path() === path);
         if (!device || !this._devices.has(device.address)) return;
+
+        // Disconnect device signals before closing
+        const signals = this._deviceSignals.get(device.address);
+        if (signals) {
+            bulkDisconnect(device as unknown as GObject.Object, signals);
+            globalSignalRegistry.disconnect(device as unknown as GObject.Object);
+            this._deviceSignals.delete(device.address);
+        }
 
         this._devices.get(device.address)?.close();
         this._devices.delete(device.address);

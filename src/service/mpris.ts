@@ -436,6 +436,11 @@ export class MprisPlayer extends Service implements Disposable {
             globalSignalRegistry.disconnect(this._playerProxy as unknown as GObject.Object);
         }
 
+        // Cleanup raw player proxy
+        if (this._rawPlayerProxy) {
+            this._rawPlayerProxy.run_dispose();
+        }
+
         super.dispose();
     }
 }

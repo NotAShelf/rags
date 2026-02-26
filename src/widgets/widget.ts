@@ -110,8 +110,9 @@ type Required<T> = { [K in keyof T]-?: T[K] };
  *
  * @typeParam Attr - The custom attribute type
  */
-export interface Widget<Attr> extends Required<Omit<CommonProps<Attr>, 'cursor'>> {
+export interface Widget<Attr> extends Required<Omit<CommonProps<Attr>, 'cursor' | 'attribute'>> {
     cursor?: Cursor;
+    attribute?: Attr;
     /**
      * Connects to a GObject signal and automatically disconnects on widget destroy.
      *
@@ -238,13 +239,13 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
     extends Gtk.Widget
     implements Widget<Attr>
 {
-    /** Custom user data attached to this widget. */
+    /** Custom user data attached to this widget. May be undefined if not set. */
     set attribute(attr: Attr) {
         this._set('attribute', attr);
     }
 
-    get attribute(): Attr {
-        return this._get<Attr>('attribute')!;
+    get attribute(): Attr | undefined {
+        return this._get<Attr>('attribute');
     }
 
     _onHandlerIds: number[] = [];
