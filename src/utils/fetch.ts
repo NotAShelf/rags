@@ -2,6 +2,7 @@
 
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import { AgsServiceError } from './errors.js';
 
 /*
  * this module gets loaded on startup, so in order
@@ -13,8 +14,11 @@ async function libnotify() {
     try {
         import('gi://Soup?version=3.0');
     } catch (error) {
-        console.error(Error('Missing dependency: libsoup3'));
-        return null;
+        const err = new AgsServiceError('Missing dependency: libsoup3', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        console.error(err.toString());
+        throw err;
     }
 
     const Soup = (await import('gi://Soup?version=3.0')).default;
