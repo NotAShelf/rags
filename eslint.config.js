@@ -11,6 +11,7 @@ export default [
             'gi-types/**',
             '_build/**',
             'build/**',
+            'builddir/',
             'docs/**',
             'result/**',
             'node_modules/**',
