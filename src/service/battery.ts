@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio';
 import Service from '../service.js';
-import { idle, loadInterfaceXML } from '../utils.js';
+import type { Disposable } from '../service.js';
+import { idle, loadInterfaceXML, globalSignalRegistry } from '../utils.js';
 import { type BatteryProxy } from '../dbus/types.js';
 
 const BatteryIFace = loadInterfaceXML('org.freedesktop.UPower.Device')!;
@@ -11,8 +12,24 @@ const DeviceState = {
     FULLY_CHARGED: 4,
 };
 
-/** Service that monitors battery state via the UPower D-Bus interface. */
-export class Battery extends Service {
+/**
+ * Battery Service
+ *
+ * Provides battery status information via UPower DBus interface.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to UPower device
+ * 2. Ready - Monitor battery state changes
+ * 3. Disposal - Cleanup signal connections
+ *
+ * @property percent - Battery percentage (0-100)
+ * @property charging - Whether battery is charging
+ * @property charged - Whether battery is fully charged
+ * @property icon_name - Icon name based on charge level
+ *
+ * @fires changed - Emitted when any battery property changes
+ */
+export class Battery extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -65,9 +82,22 @@ export class Battery extends Service {
         return this._charged;
     }
 
+    #cachedIconName: string | null = null;
+    #iconDirty = true;
+
     /** Symbolic icon name reflecting current battery level and charge state. */
     get icon_name() {
-        return this._iconName;
+        if (this.#iconDirty) {
+            const percent = Math.max(0, Math.min(100, this._percent));
+            const level = Math.floor(percent / 10) * 10;
+            const charging = this._charging ? '-charging' : '';
+            const charged = this._charged;
+            this.#cachedIconName = charged
+                ? 'battery-level-100-charged-symbolic'
+                : `battery-level-${level}${charging}-symbolic`;
+            this.#iconDirty = false;
+        }
+        return this.#cachedIconName || this._iconName;
     }
 
     /** Estimated seconds remaining until full or empty. */
@@ -99,7 +129,9 @@ export class Battery extends Service {
             '/org/freedesktop/UPower/devices/DisplayDevice',
         );
 
-        this._proxy.connect('g-properties-changed', () => this._sync());
+        const id = this._proxy.connect('g-properties-changed', () => this._sync());
+        this.trackConnection(id);
+        globalSignalRegistry.register(this._proxy, id);
         idle(this._sync.bind(this));
     }
 
@@ -128,6 +160,11 @@ export class Battery extends Service {
         const energyRate = this._proxy.EnergyRate;
 
         this.updateProperty('available', true);
+        // Invalidate icon cache when relevant properties change
+        if (this._percent !== percent || this._charging !== charging || this._charged !== charged) {
+            this.#iconDirty = true;
+        }
+
         this.updateProperty('icon-name', iconName);
         this.updateProperty('percent', percent);
         this.updateProperty('charging', charging);
@@ -137,6 +174,13 @@ export class Battery extends Service {
         this.updateProperty('energy-full', energyFull);
         this.updateProperty('energy-rate', energyRate);
         this.emit('changed');
+    }
+
+    dispose(): void {
+        super.dispose();
+        if (this._proxy) {
+            globalSignalRegistry.disconnect(this._proxy);
+        }
     }
 }
 

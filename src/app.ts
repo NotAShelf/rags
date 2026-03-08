@@ -8,6 +8,7 @@ import Widget from './widget.js';
 import Utils from './utils.js';
 import { timeout, readFileAsync } from './utils.js';
 import { loadInterfaceXML } from './utils.js';
+import { AgsConfigError } from './utils/errors.js';
 
 /** @internal */
 function deprecated(config: Config) {
@@ -201,11 +202,17 @@ export class App extends Gtk.Application {
         });
 
         try {
-            if (GLib.file_test(pathOrStyle, GLib.FileTest.EXISTS))
+            if (GLib.file_test(pathOrStyle, GLib.FileTest.EXISTS)) {
                 cssProvider.load_from_path(pathOrStyle);
-            else cssProvider.load_from_data(new TextEncoder().encode(pathOrStyle));
-        } finally {
-            // log on parsing-error
+            } else {
+                cssProvider.load_from_data(new TextEncoder().encode(pathOrStyle));
+            }
+        } catch (error) {
+            console.error('CSS loading error:', error);
+            throw new AgsConfigError('Failed to load CSS', {
+                path: pathOrStyle,
+                error: error instanceof Error ? error.message : String(error),
+            });
         }
 
         Gtk.StyleContext.add_provider_for_screen(

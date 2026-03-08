@@ -48,7 +48,7 @@ export class Entry<Attr> extends Gtk.Entry {
     }
 
     /** Callback invoked when Enter is pressed. */
-    get on_accept() {
+    get on_accept(): EventHandler<this> | undefined {
         return this._get('on-accept');
     }
 
@@ -57,7 +57,7 @@ export class Entry<Attr> extends Gtk.Entry {
     }
 
     /** Callback invoked when the text content changes. */
-    get on_change() {
+    get on_change(): EventHandler<this> | undefined {
         return this._get('on-change');
     }
 

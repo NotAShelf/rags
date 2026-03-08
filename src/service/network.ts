@@ -1,7 +1,9 @@
 import NM from 'gi://NM';
 import GObject from 'gi://GObject';
 import Service from '../service.js';
-import { bulkConnect } from '../utils.js';
+import type { Disposable } from '../service.js';
+import { bulkConnect, globalSignalRegistry } from '../utils.js';
+import { AgsServiceError } from '../utils/errors.js';
 
 const _INTERNET = (device: NM.Device) => {
     switch (device?.active_connection?.state) {
@@ -117,8 +119,31 @@ const DEVICE = (device: string) => {
     }
 };
 
+interface AccessPointInfo {
+    bssid: string | null;
+    address: string | null;
+    lastSeen: number;
+    ssid: string;
+    active: boolean;
+    strength: number;
+    frequency: number;
+    iconName: string | undefined;
+}
+
 /** Service representing a Wi-Fi device, its access points, and connection state. */
-export class Wifi extends Service {
+/**
+ * WiFi Service
+ *
+ * Manages WiFi device state and access points.
+ *
+ * @property {boolean} enabled - Whether WiFi is enabled
+ * @property {string} internet - Connection state
+ * @property {string} ssid - Currently connected SSID
+ * @property {number} strength - Signal strength (0-100)
+ *
+ * @fires changed - Emitted when WiFi state changes
+ */
+export class Wifi extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -141,18 +166,36 @@ export class Wifi extends Service {
     private _ap!: NM.AccessPoint;
     private _apBind!: number;
 
+    #cachedAccessPoints: AccessPointInfo[] = [];
+    #apCacheDirty = true;
+
     constructor(client: NM.Client, device: NM.DeviceWifi) {
         super();
         this._client = client;
         this._device = device;
 
-        this._client.connect('notify::wireless-enabled', () => this.changed('enabled'));
+        const clientId = this._client.connect('notify::wireless-enabled', () =>
+            this.changed('enabled'),
+        );
+        this.trackConnection(clientId);
+        globalSignalRegistry.register(this._client, clientId);
+
         if (this._device) {
-            bulkConnect(this._device as unknown as Service, [
-                ['notify::active-access-point', this._activeAp.bind(this)],
-                ['access-point-added', () => this.emit('changed')],
-                ['access-point-removed', () => this.emit('changed')],
-            ]);
+            const deviceIds = [
+                this._device.connect('notify::active-access-point', this._activeAp.bind(this)),
+                this._device.connect('access-point-added', () => {
+                    this.#apCacheDirty = true;
+                    this.emit('changed');
+                }),
+                this._device.connect('access-point-removed', () => {
+                    this.#apCacheDirty = true;
+                    this.emit('changed');
+                }),
+            ];
+            deviceIds.forEach(id => {
+                this.trackConnection(id);
+                globalSignalRegistry.register(this._device, id);
+            });
             this._activeAp();
         }
     }
@@ -166,12 +209,16 @@ export class Wifi extends Service {
     };
 
     private _activeAp() {
-        if (this._ap) this._ap.disconnect(this._apBind);
+        if (this._ap && this._apBind) {
+            this._ap.disconnect(this._apBind);
+            globalSignalRegistry.disconnect(this._ap);
+        }
 
         this._ap = this._device.get_active_access_point();
         if (!this._ap) return;
 
         this._apBind = this._ap.connect('notify::strength', () => {
+            this.#apCacheDirty = true;
             this.emit('changed');
             const props = [
                 'enabled',
@@ -185,22 +232,28 @@ export class Wifi extends Service {
             ];
             props.forEach(prop => this.notify(prop));
         });
+        this.trackConnection(this._apBind);
+        globalSignalRegistry.register(this._ap, this._apBind);
     }
 
     /** List of visible access points with their SSID, strength, frequency, and status. */
     get access_points() {
-        return this._device.get_access_points().map(ap => ({
-            bssid: ap.bssid,
-            address: ap.hw_address,
-            lastSeen: ap.last_seen,
-            ssid: ap.ssid
-                ? NM.utils_ssid_to_utf8(ap.ssid.get_data() || new Uint8Array())
-                : 'Unknown',
-            active: ap === this._ap,
-            strength: ap.strength,
-            frequency: ap.frequency,
-            iconName: _STRENGTH_ICONS.find(({ value }) => value <= ap.strength)?.icon,
-        }));
+        if (this.#apCacheDirty) {
+            this.#cachedAccessPoints = this._device.get_access_points().map(ap => ({
+                bssid: ap.bssid,
+                address: ap.hw_address,
+                lastSeen: ap.last_seen,
+                ssid: ap.ssid
+                    ? NM.utils_ssid_to_utf8(ap.ssid.get_data() || new Uint8Array())
+                    : 'Unknown',
+                active: ap === this._ap,
+                strength: ap.strength,
+                frequency: ap.frequency,
+                iconName: _STRENGTH_ICONS.find(({ value }) => value <= ap.strength)?.icon,
+            }));
+            this.#apCacheDirty = false;
+        }
+        return this.#cachedAccessPoints;
     }
 
     /** Whether Wi-Fi is enabled on the adapter. */
@@ -266,10 +319,40 @@ export class Wifi extends Service {
 
         return 'network-wireless-disabled-symbolic';
     }
+
+    dispose(): void {
+        super.dispose();
+        if (this._client) {
+            globalSignalRegistry.disconnect(this._client);
+        }
+        if (this._device) {
+            globalSignalRegistry.disconnect(this._device);
+        }
+        if (this._ap && this._apBind) {
+            this._ap.disconnect(this._apBind);
+            globalSignalRegistry.disconnect(this._ap);
+        }
+    }
 }
 
-/** Service representing an Ethernet wired network device. */
-export class Wired extends Service {
+/**
+ * Wired Ethernet Service
+ *
+ * Manages wired Ethernet device state and connectivity.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to NetworkManager device
+ * 2. Ready - Monitor link speed and state changes
+ * 3. Disposal - Cleanup signal connections
+ *
+ * @property {number} speed - Link speed in Mbit/s
+ * @property {string} internet - Connection state
+ * @property {string} state - Device state
+ * @property {string} icon_name - Icon name based on state
+ *
+ * @fires changed - Emitted when device state changes
+ */
+export class Wired extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -289,10 +372,14 @@ export class Wired extends Service {
         super();
         this._device = device;
 
-        this._device?.connect('notify::speed', () => {
-            this.emit('changed');
-            ['speed', 'internet', 'state', 'icon-name'].forEach(prop => this.notify(prop));
-        });
+        if (this._device) {
+            const id = this._device.connect('notify::speed', () => {
+                this.emit('changed');
+                ['speed', 'internet', 'state', 'icon-name'].forEach(prop => this.notify(prop));
+            });
+            this.trackConnection(id);
+            globalSignalRegistry.register(this._device, id);
+        }
     }
 
     /** Current link speed in Mbit/s. */
@@ -320,13 +407,36 @@ export class Wired extends Service {
 
         return 'network-wired-disconnected-symbolic';
     }
+
+    dispose(): void {
+        super.dispose();
+        if (this._device) {
+            globalSignalRegistry.disconnect(this._device);
+        }
+    }
 }
 
 /** A nullable NM.VpnConnection alias. */
 export type ActiveVpnConnection = null | NM.VpnConnection;
 
-/** Represents a single VPN connection profile and its active connection state. */
-export class VpnConnection extends Service {
+/**
+ * VPN Connection Service
+ *
+ * Represents a single VPN connection profile and its active connection state.
+ *
+ * Lifecycle:
+ * 1. Construction - Bind to NM.Connection profile
+ * 2. Active - Monitor connection and VPN state changes
+ * 3. Disposal - Cleanup signal connections
+ *
+ * @property {string} id - Display name of the VPN connection
+ * @property {string} state - Connection state
+ * @property {string} vpn_state - VPN-specific state
+ * @property {string} icon_name - Icon name based on state
+ *
+ * @fires changed - Emitted when VPN state changes
+ */
+export class VpnConnection extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -401,7 +511,9 @@ export class VpnConnection extends Service {
         this._connection = connection;
 
         this._id = this._connection.get_id() || '';
-        this._connection.connect('changed', () => this._updateId());
+        const id = this._connection.connect('changed', () => this._updateId());
+        this.trackConnection(id);
+        globalSignalRegistry.register(this._connection, id);
     }
 
     private _updateId() {
@@ -437,18 +549,29 @@ export class VpnConnection extends Service {
      */
     readonly updateActiveConnection = (activeConnection: ActiveVpnConnection) => {
         if (this._activeConnection) {
-            if (this._stateBind) this._activeConnection.disconnect(this._stateBind);
-
-            if (this._vpnStateBind) this._activeConnection.disconnect(this._vpnStateBind);
+            if (this._stateBind) {
+                this._activeConnection.disconnect(this._stateBind);
+            }
+            if (this._vpnStateBind) {
+                this._activeConnection.disconnect(this._vpnStateBind);
+            }
+            globalSignalRegistry.disconnect(this._activeConnection);
         }
 
         this._activeConnection = activeConnection;
-        this._stateBind = this._activeConnection?.connect('notify::state', () =>
-            this._updateState(),
-        );
-        this._vpnStateBind = this._activeConnection?.connect('notify::vpn-state', () =>
-            this._updateVpnState(),
-        );
+        if (this._activeConnection) {
+            this._stateBind = this._activeConnection.connect('notify::state', () =>
+                this._updateState(),
+            );
+            this.trackConnection(this._stateBind);
+            globalSignalRegistry.register(this._activeConnection, this._stateBind);
+
+            this._vpnStateBind = this._activeConnection.connect('notify::vpn-state', () =>
+                this._updateVpnState(),
+            );
+            this.trackConnection(this._vpnStateBind);
+            globalSignalRegistry.register(this._activeConnection, this._vpnStateBind);
+        }
 
         this._updateState();
         this._updateVpnState();
@@ -466,10 +589,43 @@ export class VpnConnection extends Service {
             if (this._state === 'connected') this._vpn.deactivateVpnConnection(this);
         }
     };
+
+    dispose(): void {
+        super.dispose();
+        if (this._connection) {
+            globalSignalRegistry.disconnect(this._connection);
+        }
+        if (this._activeConnection) {
+            if (this._stateBind) {
+                this._activeConnection.disconnect(this._stateBind);
+            }
+            if (this._vpnStateBind) {
+                this._activeConnection.disconnect(this._vpnStateBind);
+            }
+            globalSignalRegistry.disconnect(this._activeConnection);
+        }
+    }
 }
 
-/** Service that manages all VPN connection profiles and their active states. */
-export class Vpn extends Service {
+/**
+ * VPN Manager Service
+ *
+ * Manages all VPN connection profiles and their active states.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to NetworkManager client
+ * 2. Initialization - Enumerate VPN connections
+ * 3. Ready - Monitor VPN additions, removals, state changes
+ * 4. Disposal - Cleanup all VPN connections and signals
+ *
+ * @property {VpnConnection[]} connections - All VPN connection profiles
+ * @property {VpnConnection[]} activated_vpnConnections - Currently active VPNs
+ *
+ * @fires connection-added - Emitted when VPN connection added
+ * @fires connection-removed - Emitted when VPN connection removed
+ * @fires changed - Emitted when VPN state changes
+ */
+export class Vpn extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -485,13 +641,13 @@ export class Vpn extends Service {
     }
 
     private _client: NM.Client;
-    private _connections: Map<string, VpnConnection>;
+    private _vpnConnections: Map<string, VpnConnection>;
 
     constructor(client: NM.Client) {
         super();
 
         this._client = client;
-        this._connections = new Map();
+        this._vpnConnections = new Map();
 
         bulkConnect(this._client as unknown as GObject.Object, [
             ['connection-added', this._connectionAdded.bind(this)],
@@ -504,20 +660,29 @@ export class Vpn extends Service {
                 this._connectionAdded(this._client, connection),
             );
 
-        this._client.connect('active-connection-added', (_: NM.Client, ac: NM.ActiveConnection) => {
-            const uuid = ac.get_uuid();
-            if (uuid && this._connections.has(uuid))
-                this._connections.get(uuid)?.updateActiveConnection(ac as ActiveVpnConnection);
-        });
+        const activeAddedId = this._client.connect(
+            'active-connection-added',
+            (_: NM.Client, ac: NM.ActiveConnection) => {
+                const uuid = ac.get_uuid();
+                if (uuid && this._vpnConnections.has(uuid))
+                    this._vpnConnections
+                        .get(uuid)
+                        ?.updateActiveConnection(ac as ActiveVpnConnection);
+            },
+        );
+        this.trackConnection(activeAddedId);
+        globalSignalRegistry.register(this._client, activeAddedId);
 
-        this._client.connect(
+        const activeRemovedId = this._client.connect(
             'active-connection-removed',
             (_: NM.Client, ac: NM.ActiveConnection) => {
                 const uuid = ac.get_uuid();
-                if (uuid && this._connections.has(uuid))
-                    this._connections.get(uuid)?.updateActiveConnection(null);
+                if (uuid && this._vpnConnections.has(uuid))
+                    this._vpnConnections.get(uuid)?.updateActiveConnection(null);
             },
         );
+        this.trackConnection(activeRemovedId);
+        globalSignalRegistry.register(this._client, activeRemovedId);
     }
 
     private _connectionAdded(client: NM.Client, connection: NM.RemoteConnection) {
@@ -526,18 +691,23 @@ export class Vpn extends Service {
         const vpnConnection = new VpnConnection(this, connection);
         const activeConnection = client
             .get_active_connections()
-            .find(ac => ac.get_uuid() === vpnConnection.uuid);
+            .find((ac: NM.ActiveConnection) => ac.get_uuid() === vpnConnection.uuid);
 
         if (activeConnection)
             vpnConnection.updateActiveConnection(activeConnection as NM.VpnConnection);
 
-        vpnConnection.connect('changed', () => this.emit('changed'));
-        vpnConnection.connect('notify::state', (c: VpnConnection) => {
+        const changedId = vpnConnection.connect('changed', () => this.emit('changed'));
+        this.trackConnection(changedId);
+        globalSignalRegistry.register(vpnConnection as unknown as GObject.Object, changedId);
+
+        const stateId = vpnConnection.connect('notify::state', (c: VpnConnection) => {
             if (c.state === 'connected' || c.state === 'disconnected')
                 this.changed('activated-connections');
         });
+        this.trackConnection(stateId);
+        globalSignalRegistry.register(vpnConnection as unknown as GObject.Object, stateId);
 
-        this._connections.set(vpnConnection.uuid, vpnConnection);
+        this._vpnConnections.set(vpnConnection.uuid, vpnConnection);
 
         this.changed('connections');
         this.emit('connection-added', vpnConnection.uuid);
@@ -545,10 +715,10 @@ export class Vpn extends Service {
 
     private _connectionRemoved(_: NM.Client, connection: NM.RemoteConnection) {
         const uuid = connection.get_uuid() || '';
-        if (!uuid || !this._connections.has(uuid)) return;
+        if (!uuid || !this._vpnConnections.has(uuid)) return;
 
-        this._connections.get(uuid)!.updateActiveConnection(null);
-        this._connections.delete(uuid);
+        this._vpnConnections.get(uuid)!.updateActiveConnection(null);
+        this._vpnConnections.delete(uuid);
 
         this.notify('connections');
         this.notify('activated-connections');
@@ -582,25 +752,58 @@ export class Vpn extends Service {
      * @param uuid - The connection UUID
      * @returns The VpnConnection or undefined
      */
-    readonly getConnection = (uuid: string) => this._connections.get(uuid);
+    readonly getConnection = (uuid: string) => this._vpnConnections.get(uuid);
 
     /** All known VPN connection profiles. */
     get connections() {
-        return Array.from(this._connections.values());
+        return Array.from(this._vpnConnections.values());
     }
 
     /** VPN connections that are currently active/connected. */
     get activated_connections() {
         const list: VpnConnection[] = [];
-        for (const [, connection] of this._connections) {
+        for (const [, connection] of this._vpnConnections) {
             if (connection.state === 'connected') list.push(connection);
         }
         return list;
     }
+
+    dispose(): void {
+        super.dispose();
+
+        // Cleanup all VPN connections
+        for (const connection of this._vpnConnections.values()) {
+            connection.dispose();
+        }
+        this._vpnConnections.clear();
+
+        // Cleanup client connections
+        if (this._client) {
+            globalSignalRegistry.disconnect(this._client as unknown as GObject.Object);
+        }
+    }
 }
 
-/** Top-level NetworkManager service providing Wi-Fi, wired, and VPN sub-services. */
-export class Network extends Service {
+/**
+ * Network Manager Service
+ *
+ * Top-level NetworkManager service providing Wi-Fi, wired, and VPN sub-services.
+ *
+ * Lifecycle:
+ * 1. Construction - Initialize NetworkManager client
+ * 2. Client Ready - Create wifi, wired, vpn sub-services
+ * 3. Ready - Monitor connectivity and primary connection changes
+ * 4. Disposal - Cleanup all sub-services and client connections
+ *
+ * @property {Wifi} wifi - Wi-Fi sub-service
+ * @property {Wired} wired - Wired Ethernet sub-service
+ * @property {Vpn} vpn - VPN sub-service
+ * @property {'wifi'|'wired'|null} primary - Primary connection type
+ * @property {string} connectivity - Overall connectivity state
+ *
+ * @fires changed - Emitted when network state changes
+ */
+export class Network extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -666,9 +869,17 @@ export class Network extends Service {
 
         this.vpn = new Vpn(this._client);
 
-        this.wifi.connect('changed', this._sync.bind(this));
-        this.wired.connect('changed', this._sync.bind(this));
-        this.vpn.connect('changed', () => this.emit('changed'));
+        const wifiId = this.wifi.connect('changed', this._sync.bind(this));
+        this.trackConnection(wifiId);
+        globalSignalRegistry.register(this.wifi as unknown as GObject.Object, wifiId);
+
+        const wiredId = this.wired.connect('changed', this._sync.bind(this));
+        this.trackConnection(wiredId);
+        globalSignalRegistry.register(this.wired as unknown as GObject.Object, wiredId);
+
+        const vpnId = this.vpn.connect('changed', () => this.emit('changed'));
+        this.trackConnection(vpnId);
+        globalSignalRegistry.register(this.vpn as unknown as GObject.Object, vpnId);
 
         this._sync();
     }
@@ -683,6 +894,26 @@ export class Network extends Service {
         this.notify('primary');
         this.notify('connectivity');
         this.emit('changed');
+    }
+
+    dispose(): void {
+        super.dispose();
+
+        // Cleanup sub-services
+        if (this.wifi) {
+            this.wifi.dispose();
+        }
+        if (this.wired) {
+            this.wired.dispose();
+        }
+        if (this.vpn) {
+            this.vpn.dispose();
+        }
+
+        // Cleanup client connections
+        if (this._client) {
+            globalSignalRegistry.disconnect(this._client as unknown as GObject.Object);
+        }
     }
 }
 

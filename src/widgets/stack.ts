@@ -86,8 +86,8 @@ export class Stack<Children extends { [name: string]: Gtk.Widget }, Attr> extend
     }
 
     /** Named children mapped by their stack names. */
-    get children() {
-        return this._get('children') || {};
+    get children(): Children {
+        return this._get<Children>('children') || ({} as Children);
     }
 
     set children(children: Children) {
@@ -107,10 +107,10 @@ export class Stack<Children extends { [name: string]: Gtk.Widget }, Attr> extend
     }
 
     /** @deprecated Use `children` instead. */
-    get items() {
+    get items(): [string, Gtk.Widget][] {
         if (!Array.isArray(this._get('items'))) this._set('items', []);
 
-        return this._get('items');
+        return this._get<[string, Gtk.Widget][]>('items') || [];
     }
 
     set items(items: Array<[string, Gtk.Widget]>) {

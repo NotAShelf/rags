@@ -2,7 +2,9 @@ import GObject from 'gi://GObject';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Service, { Binding, Props } from './service.js';
+import type { Disposable } from './service.js';
 import { execAsync, interval, subprocess } from './utils.js';
+import { AgsRuntimeError } from './utils/errors.js';
 
 /**
  * Configuration for listening to a subprocess's stdout.
@@ -69,7 +71,7 @@ export interface Options<T> {
  * });
  * ```
  */
-export class Variable<T> extends GObject.Object {
+export class Variable<T> extends GObject.Object implements Disposable {
     static {
         Service.register(
             this,
@@ -116,9 +118,23 @@ export class Variable<T> extends GObject.Object {
 
     /** Starts the poll loop if a poll configuration was provided. */
     startPoll() {
-        if (!this._poll) return console.error(Error(`${this} has no poll defined`));
+        if (this._isDisposed) {
+            throw new AgsRuntimeError(`${this} has been disposed`, {
+                variable: this.toString(),
+            });
+        }
 
-        if (this._interval) return console.error(Error(`${this} is already polling`));
+        if (!this._poll) {
+            throw new AgsRuntimeError(`${this} has no poll defined`, {
+                variable: this.toString(),
+            });
+        }
+
+        if (this._interval) {
+            throw new AgsRuntimeError(`${this} is already polling`, {
+                variable: this.toString(),
+            });
+        }
 
         const [time, cmd, transform = (out: string) => out as T] = this._poll;
         if (Array.isArray(cmd) || typeof cmd === 'string') {
@@ -145,7 +161,9 @@ export class Variable<T> extends GObject.Object {
             GLib.source_remove(this._interval);
             this._interval = 0;
         } else {
-            console.error(Error(`${this} has no poll running`));
+            throw new AgsRuntimeError(`${this} has no poll running`, {
+                variable: this.toString(),
+            });
         }
         this.notify('is-polling');
     }
@@ -164,9 +182,23 @@ export class Variable<T> extends GObject.Object {
 
     /** Starts listening to a subprocess if a listen configuration was provided. */
     startListen() {
-        if (!this._listen) return console.error(Error(`${this} has no listen defined`));
+        if (this._isDisposed) {
+            throw new AgsRuntimeError(`${this} has been disposed`, {
+                variable: this.toString(),
+            });
+        }
 
-        if (this._subprocess) return console.error(Error(`${this} is already listening`));
+        if (!this._listen) {
+            throw new AgsRuntimeError(`${this} has no listen defined`, {
+                variable: this.toString(),
+            });
+        }
+
+        if (this._subprocess) {
+            throw new AgsRuntimeError(`${this} is already listening`, {
+                variable: this.toString(),
+            });
+        }
 
         let cmd: string | string[];
         const transform =
@@ -183,7 +215,12 @@ export class Variable<T> extends GObject.Object {
         // [string[], fn]
         else if (Array.isArray(this._listen) && Array.isArray(this._listen[0]))
             cmd = this._listen[0];
-        else return console.error(Error(`${this._listen} is not a valid type for Variable.listen`));
+        else {
+            throw new AgsRuntimeError(`${this._listen} is not a valid type for Variable.listen`, {
+                variable: this.toString(),
+                listenType: typeof this._listen,
+            });
+        }
 
         this._subprocess = subprocess(cmd, out => (this.value = transform(out, this)));
         this.notify('is-listening');
@@ -195,7 +232,9 @@ export class Variable<T> extends GObject.Object {
             this._subprocess.force_exit();
             this._subprocess = null;
         } else {
-            console.error(Error(`${this} has no listen running`));
+            throw new AgsRuntimeError(`${this} has no listen running`, {
+                variable: this.toString(),
+            });
         }
         this.notify('is-listening');
     }
@@ -210,14 +249,21 @@ export class Variable<T> extends GObject.Object {
         return !!this._interval;
     }
 
+    private _isDisposed = false;
+
     /** Stops all polling and listening, then disposes the GObject. */
     dispose() {
-        if (this._interval) GLib.source_remove(this._interval);
+        if (this._isDisposed) return;
 
-        if (this._subprocess) this._subprocess.force_exit();
+        if (this.is_polling) this.stopPoll();
+        if (this.is_listening) this.stopListen();
 
-        this.emit('dispose');
-        this.run_dispose();
+        this._isDisposed = true;
+    }
+
+    /** Whether the variable has been disposed. */
+    get is_disposed(): boolean {
+        return this._isDisposed;
     }
 
     /** Returns the current value. */

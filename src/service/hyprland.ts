@@ -1,15 +1,26 @@
 import Gdk from 'gi://Gdk?version=3.0';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
 import Service from '../service.js';
+import type { Disposable } from '../service.js';
+import { globalSignalRegistry } from '../utils.js';
 
 Gio._promisify(Gio.DataInputStream.prototype, 'read_upto_async');
 
 const HIS = GLib.getenv('HYPRLAND_INSTANCE_SIGNATURE');
 const XDG_RUNTIME_DIR = GLib.getenv('XDG_RUNTIME_DIR') || '/';
 
-/** Tracks the currently focused Hyprland window's address, title, and class. */
-export class ActiveClient extends Service {
+/**
+ * Active Client Tracker
+ *
+ * Tracks the currently focused Hyprland window's address, title, and class.
+ *
+ * @property {string} address - Hex address of the active window
+ * @property {string} title - Window title
+ * @property {string} class - Window WM class
+ */
+export class ActiveClient extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -40,10 +51,22 @@ export class ActiveClient extends Service {
     get class() {
         return this._class;
     }
+
+    dispose(): void {
+        super.dispose();
+        // No signal connections to clean up
+    }
 }
 
-/** Tracks an active monitor or workspace by numeric ID and name. */
-export class ActiveID extends Service {
+/**
+ * Active ID Tracker
+ *
+ * Tracks an active monitor or workspace by numeric ID and name.
+ *
+ * @property {number} id - Numeric identifier
+ * @property {string} name - String name
+ */
+export class ActiveID extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -78,10 +101,30 @@ export class ActiveID extends Service {
         super.updateProperty('id', id);
         super.updateProperty('name', name);
     }
+
+    dispose(): void {
+        super.dispose();
+        // No signal connections to clean up
+    }
 }
 
-/** Aggregates the currently active client, monitor, and workspace. */
-export class Actives extends Service {
+/**
+ * Actives Aggregator
+ *
+ * Aggregates the currently active client, monitor, and workspace.
+ *
+ * Lifecycle:
+ * 1. Construction - Create sub-trackers and connect signals
+ * 2. Ready - Track changes from sub-trackers
+ * 3. Disposal - Cleanup sub-trackers and signals
+ *
+ * @property {ActiveClient} client - Currently focused client window
+ * @property {ActiveID} monitor - Currently focused monitor
+ * @property {ActiveID} workspace - Currently active workspace
+ *
+ * @fires changed - Emitted when any active entity changes
+ */
+export class Actives extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -102,10 +145,11 @@ export class Actives extends Service {
         super();
 
         (['client', 'workspace', 'monitor'] as const).forEach(obj => {
-            this[`_${obj}`].connect('changed', () => {
+            const id = this[`_${obj}`].connect('changed', () => {
                 this.notify(obj);
                 this.emit('changed');
             });
+            globalSignalRegistry.register(this[`_${obj}`] as unknown as GObject.Object, id);
         });
     }
 
@@ -123,10 +167,56 @@ export class Actives extends Service {
     get workspace() {
         return this._workspace;
     }
+
+    dispose(): void {
+        super.dispose();
+
+        // Cleanup sub-trackers
+        if (this._client) {
+            globalSignalRegistry.disconnect(this._client as unknown as GObject.Object);
+            this._client.dispose();
+        }
+        if (this._monitor) {
+            globalSignalRegistry.disconnect(this._monitor as unknown as GObject.Object);
+            this._monitor.dispose();
+        }
+        if (this._workspace) {
+            globalSignalRegistry.disconnect(this._workspace as unknown as GObject.Object);
+            this._workspace.dispose();
+        }
+    }
 }
 
-/** Service for interacting with the Hyprland compositor via its IPC socket. */
-export class Hyprland extends Service {
+/**
+ * Hyprland Compositor Service
+ *
+ * Service for interacting with the Hyprland compositor via its IPC socket.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to Hyprland IPC sockets
+ * 2. Initialization - Load initial state (monitors, workspaces, clients)
+ * 3. Ready - Watch socket for events and update state
+ * 4. Disposal - Close sockets and cleanup state
+ *
+ * @property {Actives} active - Currently active client, monitor, and workspace
+ * @property {Monitor[]} monitors - All known monitors
+ * @property {Workspace[]} workspaces - All known workspaces
+ * @property {Client[]} clients - All known clients (windows)
+ *
+ * @fires event - Emitted for every Hyprland event (eventType: string, params: string)
+ * @fires urgent-window - Emitted when window becomes urgent (address: string)
+ * @fires submap - Emitted on submap change (submapName: string)
+ * @fires keyboard-layout - Emitted on layout change (deviceName: string, layoutName: string)
+ * @fires monitor-added - Emitted when monitor is added (monitorName: string)
+ * @fires monitor-removed - Emitted when monitor is removed (monitorName: string)
+ * @fires workspace-added - Emitted when workspace is created (workspaceId: string)
+ * @fires workspace-removed - Emitted when workspace is destroyed (workspaceId: string)
+ * @fires client-added - Emitted when window is opened (address: string)
+ * @fires client-removed - Emitted when window is closed (address: string)
+ * @fires fullscreen - Emitted on fullscreen state change (isFullscreen: boolean)
+ * @fires changed - Emitted when any state changes
+ */
+export class Hyprland extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -158,6 +248,8 @@ export class Hyprland extends Service {
     private _clients: Map<string, Client> = new Map();
     private _decoder = new TextDecoder();
     private _encoder = new TextEncoder();
+    private _eventConnection: Gio.SocketConnection | null = null;
+    private _eventStream: Gio.DataInputStream | null = null;
 
     /** The currently active client, monitor, and workspace. */
     get active() {
@@ -236,14 +328,17 @@ export class Hyprland extends Service {
         for (const c of JSON.parse(this.message('j/clients')) as Client[])
             this._clients.set(c.address, c);
 
-        this._watchSocket(
-            new Gio.DataInputStream({
-                close_base_stream: true,
-                base_stream: this._connection('socket2').get_input_stream(),
-            }),
-        );
+        // Setup socket watching
+        this._eventConnection = this._connection('socket2');
+        this._eventStream = new Gio.DataInputStream({
+            close_base_stream: false, // Let _eventConnection.close() handle stream cleanup
+            base_stream: this._eventConnection.get_input_stream(),
+        });
+        this._watchSocket(this._eventStream);
 
-        this._active.connect('changed', () => this.changed('active'));
+        // Track active changes
+        const activeId = this._active.connect('changed', () => this.changed('active'));
+        globalSignalRegistry.register(this._active as unknown as GObject.Object, activeId);
     }
 
     private _connection(socket: 'socket' | 'socket2') {
@@ -469,6 +564,40 @@ export class Hyprland extends Service {
 
         this.emit('event', e, params);
         this.emit('changed');
+    }
+
+    dispose(): void {
+        super.dispose();
+
+        // Close socket stream and connection
+        if (this._eventStream) {
+            try {
+                this._eventStream.close(null);
+            } catch (error) {
+                console.error('Error closing Hyprland socket stream:', error);
+            }
+            this._eventStream = null;
+        }
+
+        if (this._eventConnection) {
+            try {
+                this._eventConnection.close(null);
+            } catch (error) {
+                console.error('Error closing Hyprland socket connection:', error);
+            }
+            this._eventConnection = null;
+        }
+
+        // Cleanup active tracker
+        if (this._active) {
+            globalSignalRegistry.disconnect(this._active as unknown as GObject.Object);
+            this._active.dispose();
+        }
+
+        // Clear state maps
+        this._monitors.clear();
+        this._workspaces.clear();
+        this._clients.clear();
     }
 }
 

@@ -50,8 +50,8 @@ export class Calendar<Attr> extends Gtk.Calendar {
     }
 
     /** Callback invoked when a day is selected. */
-    get on_day_selected() {
-        return this._get('on-day-selected') || (() => false);
+    get on_day_selected(): Event<this> {
+        return this._get<Event<this>>('on-day-selected') || (() => {});
     }
 
     set on_day_selected(callback: Event<this>) {
@@ -59,8 +59,8 @@ export class Calendar<Attr> extends Gtk.Calendar {
     }
 
     /** Function that returns detail markup for a given date. */
-    get detail() {
-        return this._get('detail-func');
+    get detail(): Detail<this> | undefined {
+        return this._get<Detail<this>>('detail-func');
     }
 
     set detail(func: Detail<this>) {

@@ -66,7 +66,7 @@ in
     pnpmInstallFlags = ["--prod"]; # only install build deps, skip dev tooling
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
-      hash = "sha256-pYC+82WU7FFDFFf8WFryhAHSbgfJijDQ4rt1cotpulU=";
+      hash = "sha256-Ljf8MiT42d5pHbaLFQ800WRE8c9oN30d3reCiAPmpJw=";
       fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
@@ -122,7 +122,7 @@ in
       homepage = "https://github.com/notashelf/rags";
       changelog = "https://github.com/notashelf/rags/blob/${version}/CHANGELOG.md";
       platforms = ["x86_64-linux" "aarch64-linux"];
-      license = lib.licenses.gpl3;
+      license = lib.licenses.gpl3Plus;
       mainProgram = "ags";
       maintainers = [lib.maintainers.NotAShelf];
     };

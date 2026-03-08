@@ -1,6 +1,8 @@
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=3.0';
 import { pspec, registerGObject, PspecFlag, PspecType } from './utils/gobject.js';
+import { globalSignalRegistry } from './utils/signal-registry.js';
+import { AgsServiceError } from './utils/errors.js';
 
 function shallowEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true;
@@ -71,6 +73,24 @@ export type Props<T> = Omit<
 export type BindableProps<T> = {
     [K in keyof T]: Binding<any, any, NonNullable<T[K]>> | T[K];
 };
+
+/**
+ * Type-safe signal definition
+ */
+export type SignalDefinition<TPayload = void> = {
+    payload: TPayload;
+};
+
+/**
+ * Extract signal names from signal definitions
+ */
+export type SignalNames<T> = T extends Record<string, SignalDefinition<unknown>> ? keyof T : never;
+
+/**
+ * Extract payload type from signal definition
+ */
+export type SignalPayload<T, K extends keyof T> =
+    T[K] extends SignalDefinition<infer P> ? P : never;
 
 /**
  * Represents a reactive binding between a GObject property and a consumer.
@@ -172,15 +192,28 @@ interface Services {
  * }
  * ```
  */
+
+/**
+ * Interface for objects that require explicit cleanup
+ */
+export interface Disposable {
+    dispose(): void;
+}
+
 export default class Service extends GObject.Object {
     static {
         GObject.registerClass(
             {
                 GTypeName: 'AgsService',
-                Signals: { changed: {} },
+                Signals: {
+                    changed: {},
+                    error: { param_types: [GObject.TYPE_JSOBJECT] },
+                },
             },
             this,
         );
+        // Store registered signal names for dev-time validation
+        (this as any)._registeredSignals = new Set(['changed', 'error']);
     }
 
     /**
@@ -311,6 +344,106 @@ export default class Service extends GObject.Object {
      */
     bind<Prop extends keyof Props<this>>(prop: Prop) {
         return new Binding(this, prop);
+    }
+
+    // Connection tracking fields
+    private _connections: Array<{ emitter: GObject.Object; id: number }> = [];
+    private _isDisposed = false;
+
+    /**
+     * Track a signal connection for automatic cleanup
+     * @param emitter - The object the signal is connected to (defaults to this)
+     * @param id - The signal connection ID
+     */
+    protected trackConnection(emitter: GObject.Object, id: number): void;
+    protected trackConnection(id: number): void;
+    protected trackConnection(emitterOrId: GObject.Object | number, id?: number): void {
+        if (typeof emitterOrId === 'number') {
+            // Called with just ID - assume signal is on 'this'
+            this._connections.push({ emitter: this, id: emitterOrId });
+        } else {
+            // Called with emitter and ID
+            if (typeof id !== 'number') {
+                throw new Error('trackConnection requires id when emitter is provided');
+            }
+            this._connections.push({ emitter: emitterOrId, id });
+        }
+    }
+
+    /**
+     * Clean up all tracked signal connections
+     * Call this in service-specific dispose implementations
+     */
+    protected disconnectAll(): void {
+        while (this._connections.length > 0) {
+            const { emitter, id } = this._connections.pop()!;
+            try {
+                emitter.disconnect(id);
+            } catch (error) {
+                console.error(
+                    `Failed to disconnect signal ${id} in ${this.constructor.name}:`,
+                    error,
+                );
+            }
+        }
+    }
+
+    /**
+     * Dispose of service resources
+     * Override in subclasses to add specific cleanup
+     */
+    dispose(): void {
+        if (this._isDisposed) {
+            console.warn(`${this.constructor.name} already disposed`);
+            return;
+        }
+
+        this.disconnectAll();
+        this._isDisposed = true;
+    }
+
+    /**
+     * Check if service has been disposed
+     */
+    get isDisposed(): boolean {
+        return this._isDisposed;
+    }
+
+    /**
+     * Retry a DBus operation with exponential backoff
+     */
+    protected async retryWithBackoff<T>(
+        operation: () => Promise<T>,
+        maxRetries = 3,
+        baseDelay = 100,
+    ): Promise<T> {
+        let lastError: Error | undefined;
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                lastError = error as Error;
+
+                if (attempt < maxRetries - 1) {
+                    const delay = baseDelay * Math.pow(2, attempt);
+                    console.warn(
+                        `${this.constructor.name} operation failed (attempt ${attempt + 1}/${maxRetries}), ` +
+                            `retrying in ${delay}ms...`,
+                        error,
+                    );
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        const error = new AgsServiceError(
+            `${this.constructor.name} operation failed after ${maxRetries} attempts`,
+            { originalError: lastError },
+        );
+
+        this.emit('error', error);
+        throw error;
     }
 
     /**

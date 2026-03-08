@@ -1,8 +1,10 @@
 // @ts-expect-error missing types
 import GnomeBluetooth from 'gi://GnomeBluetooth?version=3.0';
+import GObject from 'gi://GObject';
 import Service from '../service.js';
+import type { Disposable } from '../service.js';
 import Gio from 'gi://Gio';
-import { bulkConnect, bulkDisconnect } from '../utils.js';
+import { bulkConnect, bulkDisconnect, globalSignalRegistry } from '../utils.js';
 
 const _ADAPTER_STATE = {
     [GnomeBluetooth.AdapterState.ABSENT]: 'absent',
@@ -12,8 +14,31 @@ const _ADAPTER_STATE = {
     [GnomeBluetooth.AdapterState.OFF]: 'off',
 };
 
-/** Represents a single Bluetooth device with connection state tracking. */
-export class BluetoothDevice extends Service {
+/**
+ * Bluetooth Device
+ *
+ * Represents a single Bluetooth device with connection state tracking.
+ *
+ * Lifecycle:
+ * 1. Construction - Bind to GnomeBluetooth.Device
+ * 2. Active - Monitor device properties and connection state
+ * 3. Disposal - Disconnect property signals
+ *
+ * @property {string} address - Bluetooth hardware address (MAC)
+ * @property {string} alias - User-facing device alias
+ * @property {number} battery_level - Coarse battery level (0-100 or -1)
+ * @property {number} battery_percentage - Battery percentage (0-100 or -1)
+ * @property {boolean} connected - Whether device is connected
+ * @property {string} icon_name - Icon name for device type
+ * @property {string} name - Device name
+ * @property {boolean} paired - Whether device is paired
+ * @property {boolean} trusted - Whether device is trusted
+ * @property {string} type - Human-readable device type
+ * @property {boolean} connecting - Whether connection attempt is in progress
+ *
+ * @fires changed - Emitted when device state changes
+ */
+export class BluetoothDevice extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -56,21 +81,26 @@ export class BluetoothDevice extends Service {
             'name',
             'paired',
             'trusted',
-        ].map(prop =>
-            device.connect(`notify::${prop}`, () => {
+        ].map(prop => {
+            const id = device.connect(`notify::${prop}`, () => {
                 this.changed(prop);
-            }),
-        );
+            });
+            this.trackConnection(id);
+            globalSignalRegistry.register(device, id);
+            return id;
+        });
 
-        this._ids.push(
-            device.connect('notify::icon', () => {
-                this.changed('icon-name');
-            }),
-        );
+        const iconId = device.connect('notify::icon', () => {
+            this.changed('icon-name');
+        });
+        this._ids.push(iconId);
+        this.trackConnection(iconId);
+        globalSignalRegistry.register(device, iconId);
     }
 
     close() {
-        bulkDisconnect(this._device, this._ids);
+        // Call dispose to cleanup
+        this.dispose();
     }
 
     /** The Bluetooth hardware address (MAC). */
@@ -141,10 +171,39 @@ export class BluetoothDevice extends Service {
         });
         this.changed('connecting');
     };
+
+    dispose(): void {
+        super.dispose();
+
+        // Disconnect device property signals
+        if (this._device && this._ids) {
+            bulkDisconnect(this._device, this._ids);
+            globalSignalRegistry.disconnect(this._device);
+        }
+    }
 }
 
-/** Service for managing Bluetooth adapter state and paired devices via GnomeBluetooth. */
-export class Bluetooth extends Service {
+/**
+ * Bluetooth Service
+ *
+ * Service for managing Bluetooth adapter state and paired devices via GnomeBluetooth.
+ *
+ * Lifecycle:
+ * 1. Construction - Connect to GnomeBluetooth client
+ * 2. Initialization - Enumerate existing devices
+ * 3. Ready - Monitor device additions, removals, adapter state
+ * 4. Disposal - Cleanup all devices and client connections
+ *
+ * @property {BluetoothDevice[]} devices - All paired or trusted devices
+ * @property {BluetoothDevice[]} connected_devices - Currently connected devices
+ * @property {boolean} enabled - Whether Bluetooth adapter is powered on
+ * @property {string} state - Adapter state
+ *
+ * @fires device-added - Emitted when device is added (address: string)
+ * @fires device-removed - Emitted when device is removed (address: string)
+ * @fires changed - Emitted when Bluetooth state changes
+ */
+export class Bluetooth extends Service implements Disposable {
     static {
         Service.register(
             this,
@@ -163,11 +222,13 @@ export class Bluetooth extends Service {
 
     private _client: GnomeBluetooth.Client;
     private _devices: Map<string, BluetoothDevice>;
+    private _deviceSignals: Map<string, number[]>;
 
     constructor() {
         super();
 
         this._devices = new Map();
+        this._deviceSignals = new Map();
         this._client = new GnomeBluetooth.Client();
         bulkConnect(this._client, [
             ['device-added', this._deviceAdded.bind(this)],
@@ -201,8 +262,16 @@ export class Bluetooth extends Service {
         if (this._devices.has(device.address)) return;
 
         const d = new BluetoothDevice(device);
-        d.connect('changed', () => this.emit('changed'));
-        d.connect('notify::connected', () => this.notify('connected-devices'));
+
+        const changedId = d.connect('changed', () => this.emit('changed'));
+        globalSignalRegistry.register(d as unknown as GObject.Object, changedId);
+
+        const connectedId = d.connect('notify::connected', () => this.notify('connected-devices'));
+        globalSignalRegistry.register(d as unknown as GObject.Object, connectedId);
+
+        // Store signal IDs for proper cleanup on device removal
+        this._deviceSignals.set(device.address, [changedId, connectedId]);
+
         this._devices.set(device.address, d);
         this.changed('devices');
         this.emit('device-added', device.address);
@@ -211,6 +280,14 @@ export class Bluetooth extends Service {
     private _deviceRemoved(_: GnomeBluetooth.Client, path: string) {
         const device = this.devices.find(d => d.device.get_object_path() === path);
         if (!device || !this._devices.has(device.address)) return;
+
+        // Disconnect device signals before closing
+        const signals = this._deviceSignals.get(device.address);
+        if (signals) {
+            bulkDisconnect(device as unknown as GObject.Object, signals);
+            globalSignalRegistry.disconnect(device as unknown as GObject.Object);
+            this._deviceSignals.delete(device.address);
+        }
 
         this._devices.get(device.address)?.close();
         this._devices.delete(device.address);
@@ -284,6 +361,22 @@ export class Bluetooth extends Service {
             if (device.connected) list.push(device);
         }
         return list;
+    }
+
+    dispose(): void {
+        super.dispose();
+
+        // Cleanup all devices
+        for (const device of this._devices.values()) {
+            globalSignalRegistry.disconnect(device as unknown as GObject.Object);
+            device.dispose();
+        }
+        this._devices.clear();
+
+        // Cleanup client connections
+        if (this._client) {
+            globalSignalRegistry.disconnect(this._client);
+        }
     }
 }
 

@@ -25,7 +25,8 @@ export function readFile(file: string | Gio.File) {
 
         const [, bytes] = f.load_contents(null);
         return new TextDecoder().decode(bytes);
-    } catch (_) {
+    } catch (error) {
+        console.error('Failed to read file:', error);
         return '';
     }
 }

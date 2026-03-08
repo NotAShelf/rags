@@ -122,7 +122,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked when the button is clicked. */
-    get on_clicked() {
+    get on_clicked(): ((self: this) => void) | undefined {
         return this._get('on-clicked');
     }
 
@@ -131,7 +131,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked when the pointer enters the button. */
-    get on_hover() {
+    get on_hover(): EventHandler<this> | undefined {
         return this._get('on-hover');
     }
 
@@ -140,7 +140,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked when the pointer leaves the button. */
-    get on_hover_lost() {
+    get on_hover_lost(): EventHandler<this> | undefined {
         return this._get('on-hover-lost');
     }
 
@@ -149,7 +149,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on scroll-up over the button. */
-    get on_scroll_up() {
+    get on_scroll_up(): EventHandler<this> | undefined {
         return this._get('on-scroll-up');
     }
 
@@ -158,7 +158,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on scroll-down over the button. */
-    get on_scroll_down() {
+    get on_scroll_down(): EventHandler<this> | undefined {
         return this._get('on-scroll-down');
     }
 
@@ -167,7 +167,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on primary (left) mouse button press. */
-    get on_primary_click() {
+    get on_primary_click(): EventHandler<this> | undefined {
         return this._get('on-primary-click');
     }
 
@@ -176,7 +176,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on middle mouse button press. */
-    get on_middle_click() {
+    get on_middle_click(): EventHandler<this> | undefined {
         return this._get('on-middle-click');
     }
 
@@ -185,7 +185,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on secondary (right) mouse button press. */
-    get on_secondary_click() {
+    get on_secondary_click(): EventHandler<this> | undefined {
         return this._get('on-secondary-click');
     }
 
@@ -194,7 +194,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on primary (left) mouse button release. */
-    get on_primary_click_release() {
+    get on_primary_click_release(): EventHandler<this> | undefined {
         return this._get('on-primary-click-release');
     }
 
@@ -203,7 +203,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on middle mouse button release. */
-    get on_middle_click_release() {
+    get on_middle_click_release(): EventHandler<this> | undefined {
         return this._get('on-middle-click-release');
     }
 
@@ -212,7 +212,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
     }
 
     /** Callback invoked on secondary (right) mouse button release. */
-    get on_secondary_click_release() {
+    get on_secondary_click_release(): EventHandler<this> | undefined {
         return this._get('on-secondary-click-release');
     }
 

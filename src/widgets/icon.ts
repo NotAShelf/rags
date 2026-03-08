@@ -64,7 +64,7 @@ export class Icon<Attr> extends Gtk.Image {
 
     /** The icon source: a named icon string, a file path, or a Pixbuf. */
     get icon() {
-        return this._get('icon');
+        return this._get<string | GdkPixbuf.Pixbuf>('icon') || '';
     }
 
     set icon(icon: string | GdkPixbuf.Pixbuf) {

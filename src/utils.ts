@@ -44,6 +44,10 @@ export const { merge, derive, watch } = Binding;
 
 export const { cpuUsage, memUsage, temperature, uptime, networkRates, diskUsage } = System;
 
+export * from './utils/errors.js';
+export * from './utils/signal-registry.js';
+export * from './utils/gobject-types.js';
+
 export default {
     USER,
     HOME,
