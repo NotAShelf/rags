@@ -66,7 +66,7 @@ in
     pnpmInstallFlags = ["--prod"]; # only install build deps, skip dev tooling
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
-      hash = "sha256-pYC+82WU7FFDFFf8WFryhAHSbgfJijDQ4rt1cotpulU=";
+      hash = "sha256-Ljf8MiT42d5pHbaLFQ800WRE8c9oN30d3reCiAPmpJw=";
       fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
