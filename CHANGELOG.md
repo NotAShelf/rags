@@ -1,199 +1,113 @@
-# 1.8.2
+<!--markdownlint-disable MD024-->
 
-## Features
+# RAGS Changelog
 
-- Calendar.detail
-- SpinButton.range
-- SpinButton.increments
-- Network.frequency
-- recursive Utils.monitorFile
-- add: Network.vpn
-- add write and writeAsync to Utils.subprocess (#388)
+## 1.11.0
 
-## Fixes
+This release represents a comprehensive refactoring of the RAGS codebase,
+focusing on memory management, type safety, error handling, and performance.
+There is _a lot_ of new changes. Some of those are breaking, but user
+configurations should not be affected. In certain edge-cases, i.e., custom
+services the users may need to update. See below for a full list of changes.
 
-- compiles with typescript >= 5.0.4
-- DrawingArea.draw-fn
-- hyprland: active client empty on window close
-- dispose signal on Variable
-- skip unnecessary value setting in Utils.derive and Utils.merge
-- properly log errors from Variables
-- adjust Hyprland socket (#398)
+### Added
 
-## Breaking Changes
+- Error class hierarchy: `AgsError`, `AgsConfigError`, `AgsServiceError`,
+  `AgsDBusError`, `AgsRuntimeError` with context support
+- Global signal registry (`SignalRegistry`) for centralized connection tracking
+  and cleanup
+- `Disposable` interface and pattern for explicit resource cleanup
+- Type-safe GObject helpers for safer property access
+- Type-safe signal definitions with `SignalDefinition` and `SignalPayload` types
 
-- Stream.is_muted corresponds to actual mute state
-- Utils.exec returns stderr on error
+- Lazy window registration via `App.registerLazyWindow()`, for windows created
+  on-demand
+- Runtime theme switching with `App.registerTheme()`, `App.setTheme()`,
+  `App.activeTheme`
+- Window names automatically added as CSS classes for scoping
 
-# 1.8.0
+- `autoSuspend` option to defer polling until bound to visible widgets
+- `dispose` signal emitted on cleanup
 
-## Features
+- `diffBind()` method for binding to differences between values
+- Development warnings for unregistered signals
+- Error recovery with exponential backoff (`retryWithBackoff`)
+- `error` signal emitted on service failures
 
-- add: Utils.watch
-- custom hookable objects
-- add: App.config
-- impove widget subclasses
-  - Calendar.on_day_selected
-  - ColorButton.on_color_set
-  - DrawingArea.draw_fn
-  - FileChooserButton.on_file_set
-  - FontButton.on_font_set
-  - LevelBar.vertical
-  - LevelBar.bar_mode
-  - Separator.vertical
-  - SpinButton.on_value_changed
-  - Spinner starts based on visibility
-  - Switch.on_activate
-  - ToggleButton.on_toggled
-- print notification daemons's name when its already running
+- Frame-synced animation primitives
+- System info helpers
+- Promisified `send_and_read_async` with `GLib.PRIORITY_DEFAULT`
 
-## Fixes
+### Changed
 
-- Widget.attribute assign falsy values
-- Overlay child type
+- Comprehensive JSDoc added to all public APIs
+- Service lifecycle documentation (Construction → Initialization → Ready →
+  Disposal)
+- Dropped various deprecated features and cleanup
+- Improved widget registration and initialization
+- Widget `class_names` getter now cached (called hundreds of times per second)
+- Battery icon name caching to reduce repeated string allocations
+- Network access points caching infrastructure
 
-## Breaking Changes
+- All signal handlers now have null-safe cleanup
+- Widget `_onHandlerIds` initialized properly with destroy cleanup
+- Improved signal handler lifecycle management
 
-- revert: hyprland service: workspace and monitor signal emit number
-- types: Label's and Icon's Props type renamed to LabelProps, IconProps
-- deprecate: default export config object in favor of App.config
+- Notifications: Added `_timeoutIds` Map to track and cancel timeouts properly
+- Network: Added null check for `get_ssid()`; changed `.map` to `.forEach` where
+  appropriate
+- App: Fixed deprecation warnings (`cacheCoverArt` to `maxStreamVolume`)
+- Fetch: Wrapped `GBytes` from `send_and_read_async` in `MemoryInputStream`
 
-# 1.7.7
+Some of the breaking changes:
 
-## Features
+- All services now implement `Disposable` interface
+- Services require explicit `dispose()` calls for cleanup
+- Signal connections must be tracked with `trackConnection()` and
+  `globalSignalRegistry.register()`
 
-- App.addIcons, App.gtkTheme, App.cursorTheme, App.iconTheme
-- add: Notifications.clearDelay
-- add MprisPlayer.track_album
-- add MprisPlayer.metadata
-- add Widget.keybind
-- App.applyCss takes stylesheets, and an optional reset parameter
+- Variable class now throws errors instead of logging them in many cases
+- Empty catch blocks replaced with proper error handling
+- Errors include context for better debugging
 
-## Fixes
+- Widget base class uses native private fields (`#field`) instead of `__field`
+  pattern
+- Internal widget storage changed from direct properties to `#internalFields`
+  Map
 
-- prepend icons from config instead of append
-- Network.wifi.enabled signal
-- Utils.merge connect to notify signal
+### Fixed
 
-## Breaking Changes
+- Memory leaks in signal connection management across all services
+- Non-null assertions, which got replaced with proper validation
+- Type safety issues
+- CSS error handling and reporting improved
 
-- deprecate: Window.popup
+## 1.10.0
 
-# 1.7.6
+Maintenance release to prepare the repository for future plans. Features
+dependency updates, minor bug fixes, and a large number of tooling
+consolidation. There should be no breaking changes between 1.9.0 and 1.10.0.
 
-## Features
+We've migrated to PNPM, and a more Nix-centric setup with proper CI/CD and
+user-facing documentation.
 
-- Utils.writeFileSync
-- add Utils.merge, Utils.derive
-- add Binding.as alias for Binding.transform
+### Added
 
-## Fixes
+- TypeDoc setup for generated type documentation
+- Hand-written guides in documentation
+- Comprehensive JSDoc annotations across all modules
+- GitHub Pages deployment for documentation
+- Project README updated with usage examples
+- New prettier configuration
 
-- Stack.add_named
-- Scrollable destroy child on destroy event
+### Changed
 
-## Breaking Changes
+- Streamlined ESLint flat config (ESLint 10 compatible)
+- Bumped all dependencies to latest versions
 
-- hyprland service: workspace and monitor signal emit number
-- hyprland service: deprecate sendMessage, introduce message and messageAsync
-- Variable: value check on setter, force on setValue
-- `Utils.monitorFile()` no longer takes the `type` (`file` or `directory`) parameter. It will monitor each accordingly without specifying it.
+### Fixed
 
-# 1.7.5
-
-## Features
-
-- generate types for utils subdirectory (#287)
-- export gobject utils in Utils
-- bind service methods
-- make App.closeWindowDelay writable
-
-## Fixes
-
-- widget: button, eventbox child second parameter
-
-## Breaking Changes
-
-- add: Stack.children
-- deprecate: Stack.items
-
-# 1.7.4
-
-## Features
-
-- add: Overlay.overlay Box.child
-- add: params to Utils.fetch
-- feat(circular-progress): end-at property (#239)
-- feat(Utils.notify)
-- feat(notifications): support every hint
-- add: Widget.click-through (#245)
-- feat: --init cli flag
-- add: Widget.keymode
-- improved types
-- add: Window.gdkmonitor
-- export modules globally
-- make Audio.microphone and Audio.speaker always
-- feat: greetd service (#282)
-- feat(pam): Utils.authenticate (#273)
-- feat: child property as second parameter [#265](https://github.com/Aylur/ags/pull/265/)
-
-## Breaking Changes
-
-- subclassing of widgets
-
-## Fixes
-
-- notifications: warn on non 8 bits image
-
-# 1.6.3
-
-## Features
-
-- feat: Service.bind and Variable.bind
-- feat: AgsWidget.register
-- export Widget.createCtor utility
-- add: Applications.reload
-- add: Utils.idle
-- use GLib.shell_parse_argv on Utils.execAsync
-- feat: Utils.fetch
-- overwrite toJSON method on GObjects
-- feat: PowerProfile Service
-
-## Breaking Changes
-
-- update: Hyprland.active.monitor to be an object
-
-# 1.5.5
-
-## Features
-
-- feat: support print from client with --run-js
-- feat: support shebang with --run-file
-- add: Utils.monitorFile
-- feat: Utils.readFile and readFileAsync can take a Gio.File
-- improve Button, EventBox hover events
-- parse passed files starting with .
-- feat: binds targetProp can be in kebab, camel or snake case too
-- add: hook, on, poll, bind, attribute
-
-# 1.5.4
-
-## Features
-
-- add: notificationForceTimeout option
-- add: bluetooth device-added, device-removed signal
-- add: cursor property
-- feat: window popup close on click away
-- add: config.onWindowToggled & config.onConfigParsed
-- add: marks property setter to slider #186
-- feat: --run-js async support
-- add: --run-file
-
-## Breaking Changes
-
-- feat: Window.exclusivity
-- deprecate: --run-promise cli flag
-
-## Fixes
-
-- overlay pass-through #168
+- Linting issues across codebase
+- Dependency hashes updated
+- SystemTray now uses a `Widget` wrapper for `DbusmenuGtk3.Menu`, which fixes
+  styling issues
