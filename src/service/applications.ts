@@ -6,8 +6,8 @@ import { CACHE_DIR, ensureDirectory, readFile, writeFile, globalSignalRegistry }
 
 // Use GioUnix.DesktopAppInfo to avoid deprecation warning
 // @ts-expect-error GioUnix types not available in @girs yet
-const GioUnix = (await import('gi://GioUnix?version=2.0')).default;
-type DesktopAppInfo = Gio.DesktopAppInfo; // Use Gio types for TypeScript
+import GioUnix from 'gi://GioUnix?version=2.0';
+type DesktopAppInfo = GioUnix.DesktopAppInfo;
 
 const APPS_CACHE_DIR = `${CACHE_DIR}/apps`;
 const CACHE_FILE = APPS_CACHE_DIR + '/apps_frequency.json';
