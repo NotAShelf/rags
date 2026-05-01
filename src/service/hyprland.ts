@@ -214,6 +214,14 @@ export class Actives extends Service implements Disposable {
  * @fires client-added - Emitted when window is opened (address: string)
  * @fires client-removed - Emitted when window is closed (address: string)
  * @fires fullscreen - Emitted on fullscreen state change (isFullscreen: boolean)
+ * @fires screencast - Emitted on screencast change (state: boolean, owner: number, target: string)
+ * @fires activespecial - Emitted on special workspace change (workspaceName: string, monitorName: string)
+ * @fires pin - Emitted on window pin change (address: string, pinned: boolean)
+ * @fires minimized - Emitted on window minimize change (address: string, minimized: boolean)
+ * @fires bell - Emitted on window bell (address: string)
+ * @fires configreloaded - Emitted when config is reloaded
+ * @fires empty - Emitted when workspace becomes empty (workspaceId: string)
+ * @fires kill - Emitted when window is killed (address: string)
  * @fires changed - Emitted when any state changes
  */
 export class Hyprland extends Service implements Disposable {
@@ -232,6 +240,16 @@ export class Hyprland extends Service implements Disposable {
                 'client-added': ['string'],
                 'client-removed': ['string'],
                 fullscreen: ['boolean'],
+                screencast: ['boolean', 'int', 'string'],
+                activespecial: ['string', 'string'],
+                pin: ['string', 'boolean'],
+                minimized: ['string', 'boolean'],
+                bell: ['string'],
+                lockgroups: ['boolean'],
+                configreloaded: [],
+                empty: ['string'],
+                kill: ['string'],
+                custom: ['string'],
             },
             {
                 active: ['jsobject'],
@@ -465,7 +483,9 @@ export class Hyprland extends Service implements Disposable {
         try {
             switch (e) {
                 case 'workspace':
+                case 'workspacev2':
                 case 'focusedmon':
+                case 'focusedmonv2':
                     await this._syncMonitors();
                     break;
 
@@ -474,19 +494,53 @@ export class Hyprland extends Service implements Disposable {
                     this.emit('monitor-removed', argv[0]);
                     break;
 
+                case 'monitorremovedv2':
+                    await this._syncMonitors();
+                    this.emit('monitor-removed', argv[1]);
+                    break;
+
                 case 'monitoradded':
                     await this._syncMonitors();
                     this.emit('monitor-added', argv[0]);
                     break;
 
+                case 'monitoraddedv2':
+                    await this._syncMonitors();
+                    this.emit('monitor-added', argv[1]);
+                    break;
+
                 case 'createworkspace':
+                case 'createworkspacev2':
                     await this._syncWorkspaces();
                     this.emit('workspace-added', argv[0]);
                     break;
 
                 case 'destroyworkspace':
+                case 'destroyworkspacev2':
                     await this._syncWorkspaces();
                     this.emit('workspace-removed', argv[0]);
+                    break;
+
+                case 'moveworkspace':
+                case 'moveworkspacev2':
+                    await Promise.all([
+                        this._syncClients(false),
+                        this._syncWorkspaces(false),
+                        this._syncMonitors(false),
+                    ]);
+                    ['clients', 'workspaces', 'monitors'].forEach(e => this.notify(e));
+                    break;
+
+                case 'renameworkspace':
+                    await this._syncWorkspaces();
+                    break;
+
+                case 'activespecial':
+                    this.emit('activespecial', argv[0], argv[1] || '');
+                    break;
+
+                case 'activespecialv2':
+                    this.emit('activespecial', argv[1], argv[2] || '');
                     break;
 
                 case 'openwindow':
@@ -495,19 +549,30 @@ export class Hyprland extends Service implements Disposable {
                     this.emit('client-added', '0x' + argv[0]);
                     break;
 
-                case 'movewindow':
-                case 'windowtitle':
-                    await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
+                case 'closewindow':
+                    await Promise.all([this._syncWorkspaces(false), this._syncClients(false)]);
+                    if (this._active.client.address === '0x' + argv[0]) {
+                        this._active.client.updateProperty('class', '');
+                        this._active.client.updateProperty('title', '');
+                        this._active.client.updateProperty('address', '');
+                        this._active.client.emit('changed');
+                    }
                     ['clients', 'workspaces'].forEach(e => this.notify(e));
+                    this.emit('client-removed', '0x' + argv[0]);
                     break;
 
-                case 'moveworkspace':
-                    await Promise.all([
-                        this._syncClients(false),
-                        this._syncWorkspaces(false),
-                        this._syncMonitors(false),
-                    ]);
-                    ['clients', 'workspaces', 'monitors'].forEach(e => this.notify(e));
+                case 'kill':
+                    await Promise.all([this._syncWorkspaces(false), this._syncClients(false)]);
+                    ['clients', 'workspaces'].forEach(e => this.notify(e));
+                    this.emit('kill', '0x' + argv[0]);
+                    break;
+
+                case 'movewindow':
+                case 'movewindowv2':
+                case 'windowtitle':
+                case 'windowtitlev2':
+                    await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
+                    ['clients', 'workspaces'].forEach(e => this.notify(e));
                     break;
 
                 case 'fullscreen':
@@ -523,20 +588,8 @@ export class Hyprland extends Service implements Disposable {
                     break;
 
                 case 'activewindowv2':
-                    this._active.client.updateProperty('address', '0x' + argv[0]);
+                    this._active.client.updateProperty('address', argv[0] ? '0x' + argv[0] : '');
                     this._active.client.emit('changed');
-                    break;
-
-                case 'closewindow':
-                    await Promise.all([this._syncWorkspaces(false), this._syncClients(false)]);
-                    if (this._active.client.address === '0x' + argv[0]) {
-                        this._active.client.updateProperty('class', '');
-                        this._active.client.updateProperty('title', '');
-                        this._active.client.updateProperty('address', '');
-                        this._active.client.emit('changed');
-                    }
-                    ['clients', 'workspaces'].forEach(e => this.notify(e));
-                    this.emit('client-removed', '0x' + argv[0]);
                     break;
 
                 case 'urgent':
@@ -547,12 +600,59 @@ export class Hyprland extends Service implements Disposable {
                     this.emit('keyboard-layout', `${argv[0]}`, `${argv[1]}`);
                     break;
 
-                case 'changefloatingmode': {
+                case 'changefloatingmode':
                     await this._syncClients();
                     break;
-                }
+
                 case 'submap':
                     this.emit('submap', argv[0]);
+                    break;
+
+                case 'screencast':
+                case 'screencastv2':
+                    this.emit('screencast', argv[0] === '1', parseInt(argv[1]), argv[2] || '');
+                    break;
+
+                case 'togglegroup':
+                case 'moveintogroup':
+                case 'moveoutofgroup':
+                case 'ignoregrouplock':
+                    await this._syncClients();
+                    break;
+
+                case 'lockgroups':
+                    await this._syncClients();
+                    this.emit('lockgroups', argv[0] === '1');
+                    break;
+
+                case 'configreloaded':
+                    this.emit('configreloaded');
+                    break;
+
+                case 'pin':
+                    await this._syncClients();
+                    this.emit('pin', '0x' + argv[0], argv[1] === '1');
+                    break;
+
+                case 'minimized':
+                    await this._syncClients();
+                    this.emit('minimized', '0x' + argv[0], argv[1] === '1');
+                    break;
+
+                case 'bell':
+                    this.emit('bell', argv[0] ? '0x' + argv[0] : '');
+                    break;
+
+                case 'empty':
+                    this.emit('empty', argv[0]);
+                    break;
+
+                case 'custom':
+                    this.emit('custom', params);
+                    break;
+
+                case 'openlayer':
+                case 'closelayer':
                     break;
 
                 default:
@@ -629,6 +729,23 @@ export interface Monitor {
     dpmsStatus: boolean;
     vrr: boolean;
     activelyTearing: boolean;
+    physicalWidth: number;
+    physicalHeight: number;
+    solitary: boolean;
+    solitaryBlockedBy: string[];
+    tearingBlockedBy: string[];
+    directScanoutTo: string;
+    directScanoutBlockedBy: string[];
+    disabled: boolean;
+    currentFormat: string;
+    mirrorOf: string;
+    availableModes: string[];
+    colorManagementPreset: number;
+    sdrBrightness: number;
+    sdrSaturation: number;
+    sdrMinLuminance: number;
+    sdrMaxLuminance: number;
+    hardwareCursorsInUse: boolean;
 }
 
 /** Hyprland workspace state as returned by the IPC. */
@@ -641,6 +758,8 @@ export interface Workspace {
     hasfullscreen: boolean;
     lastwindow: string;
     lastwindowtitle: string;
+    ispersistent: boolean;
+    tiledLayout: string;
 }
 
 /** Hyprland client (window) state as returned by the IPC. */
@@ -663,12 +782,22 @@ export interface Client {
     pid: number;
     xwayland: boolean;
     pinned: boolean;
-    fullscreen: boolean;
+    fullscreen: number;
+    fullscreenClient: number;
     fullscreenMode: number;
     fakeFullscreen: boolean;
-    grouped: [string];
+    grouped: string[];
+    tags: string[];
     swallowing: string;
     focusHistoryID: number;
+    visible: boolean;
+    acceptsInput: boolean;
+    overFullscreen: boolean;
+    inhibitingIdle: boolean;
+    xdgTag: string;
+    xdgDescription: string;
+    contentType: string;
+    stableId: string;
 }
 
 export const hyprland = new Hyprland();
