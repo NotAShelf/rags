@@ -27,6 +27,10 @@
   libsoup_3,
   libnotify,
   pam,
+  wayland-scanner,
+  wayland-protocols,
+  cairo,
+  libxkbcommon,
   # Extra Options
   extraPackages ? [],
   version ? "git",
@@ -80,6 +84,7 @@ in
       typescript
       wrapGAppsHook3
       gobject-introspection
+      wayland-scanner
     ];
 
     buildInputs =
@@ -98,6 +103,10 @@ in
         libsoup_3
         libnotify
         pam
+        wayland-scanner
+        wayland-protocols
+        cairo
+        libxkbcommon
         glib
         gobject-introspection
       ];
