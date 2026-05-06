@@ -234,21 +234,80 @@ Utils.fetch("http://wttr.in/?format=3")
 
 ## Authentication
 
-authenticate a user using pam
+Authenticate users via PAM (Pluggable Authentication Modules). As of 1.11.0 RAGS
+bundles a native C PAM library exposed to the JS runtime through GObject
+Introspection. Both functions are async and return a Promise.
+
+### Configuration
+
+The PAM module uses the `ags` service name. You must create a PAM configuration
+file at `/etc/pam.d/ags` (or symlink it to an existing config):
+
+```sh
+# You may reuse the system login PAM stack
+echo "auth include login" > /etc/pam.d/ags
+```
 
 > [!NOTE]
-> on NixOS make sure you have `security.pam.services.ags = {}` in
-> `configuration.nix`
+> On NixOS, enable the PAM service in your system configuration:
+>
+> ```nix
+> security.pam.services.ags = {};
+> ```
+
+### `Utils.authenticate(password: string): Promise<void>`
+
+Verifies the current user's password against PAM. Resolves on success, rejects
+with an error on failure.
 
 ```js
 Utils.authenticate("password")
   .then(() => print("authentication successful"))
   .catch((err) => logError(err, "unsuccessful"));
+```
 
+### `Utils.authenticateUser(username: string, password: string): Promise<void>`
+
+Authenticates a specific user by username. Useful for multi-user lock screens or
+greeter implementations.
+
+```js
 Utils.authenticateUser("username", "password")
   .then(() => print("authentication successful"))
   .catch((err) => logError(err, "unsuccessful"));
 ```
+
+### Lock Screen Integration
+
+Combine PAM authentication with the
+[ext-session-lock-v1](../services/13-sessionlock.md) service to build a secure
+lock screen:
+
+```js
+const sessionLock = await Service.import("sessionLock");
+
+sessionLock.connect("locked", () => {
+  // The session is locked. Render content to each output surface.
+});
+
+sessionLock.connect("surface-created", (surf) => {
+  // Create a password entry on this output's surface
+  const entry = Widget.Entry({ visibility: false });
+  entry.connect("activate", () => {
+    Utils.authenticate(entry.text)
+      .then(() => sessionLock.unlock())
+      .catch(() => print("Authentication failed"));
+  });
+  surf.renderWidget(entry, /* x */ 0, /* y */ Math.floor(surf.height / 2));
+});
+
+sessionLock.lock();
+```
+
+> [!IMPORTANT]
+> PAM authentication runs as the current user, not as root. If your
+> `/etc/pam.d/ags` includes modules that require elevated privileges (e.g.,
+> `pam_faillock.so`), ensure they are configured to work without root.
 
 ## Send Notifications
 
