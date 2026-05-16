@@ -268,6 +268,7 @@ export class Hyprland extends Service implements Disposable {
     private _encoder = new TextEncoder();
     private _eventConnection: Gio.SocketConnection | null = null;
     private _eventStream: Gio.DataInputStream | null = null;
+    private _messageQueue: Promise<unknown> = Promise.resolve();
 
     /** The currently active client, monitor, and workspace. */
     get active() {
@@ -399,14 +400,17 @@ export class Hyprland extends Service implements Disposable {
      * @returns The response string
      */
     readonly message = (cmd: string) => {
-        const [connection, stream] = this._socketStream(cmd);
+        let connection: Gio.SocketConnection | null = null;
         try {
+            const [conn, stream] = this._socketStream(cmd);
+            connection = conn;
+
             const [response] = stream.read_upto('\x04', -1, null);
             return response || '';
         } catch (error) {
             logError(error);
         } finally {
-            connection.close(null);
+            connection?.close(null);
         }
         return '';
     };
@@ -417,18 +421,30 @@ export class Hyprland extends Service implements Disposable {
      * @param cmd - The Hyprland IPC command string
      * @returns The response string
      */
-    readonly messageAsync = async (cmd: string) => {
-        const [connection, stream] = this._socketStream(cmd);
+    private _messageAsync = async (cmd: string) => {
+        let connection: Gio.SocketConnection | null = null;
         try {
+            const [conn, stream] = this._socketStream(cmd);
+            connection = conn;
+
             const result = await stream.read_upto_async('\x04', -1, 0, null);
             const [response] = result as unknown as [string, number];
             return response;
         } catch (error) {
             logError(error);
         } finally {
-            connection.close(null);
+            connection?.close(null);
         }
         return '';
+    };
+
+    readonly messageAsync = (cmd: string) => {
+        const run = () => this._messageAsync(cmd);
+        const next = this._messageQueue.then(run, run);
+
+        this._messageQueue = next.catch(() => undefined);
+
+        return next;
     };
 
     private async _syncMonitors(notify = true) {
