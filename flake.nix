@@ -1,19 +1,13 @@
 {
   description = "RAGS - raf's (fork of) AGS ";
 
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
-
-    # «https://github.com/nix-systems/nix-systems»
-    systems.url = "github:nix-systems/default-linux";
-  };
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
 
   outputs = {
     nixpkgs,
-    systems,
     self,
   }: let
-    genSystems = nixpkgs.lib.genAttrs (import systems);
+    genSystems = nixpkgs.lib.genAttrs ["x86_64-linux" "aarch64-linux"];
     pkgsForEach = nixpkgs.legacyPackages;
   in {
     homeManagerModules = {
