@@ -3,7 +3,7 @@
   stdenv,
   fetchFromGitLab,
   # Dependency Resolution
-  pnpm,
+  pnpm_10,
   fetchPnpmDeps,
   pnpmConfigHook,
   # Build dependencies
@@ -66,12 +66,13 @@ in
     pnpmInstallFlags = ["--prod"]; # only install build deps, skip dev tooling
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
+      pnpm = pnpm_10;
       hash = "sha256-Ljf8MiT42d5pHbaLFQ800WRE8c9oN30d3reCiAPmpJw=";
       fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
     nativeBuildInputs = [
-      pnpm
+      pnpm_10
       pnpmConfigHook # dependency resolution
 
       pkg-config
