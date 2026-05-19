@@ -161,6 +161,7 @@ interface Services {
     audio: typeof import('./service/audio.js').default;
     battery: typeof import('./service/battery.js').default;
     bluetooth: typeof import('./service/bluetooth.js').default;
+    brightness: typeof import('./service/brightness.js').default;
     hyprland: typeof import('./service/hyprland.js').default;
     mpris: typeof import('./service/mpris.js').default;
     network: typeof import('./service/network.js').default;
