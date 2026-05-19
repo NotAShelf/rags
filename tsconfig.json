@@ -9,9 +9,11 @@
         "allowJs": true,
         "checkJs": false,
         "outDir": "_build/tsc-out",
+        "rootDir": "src",
         "strict": true,
         "moduleResolution": "node",
         "baseUrl": ".",
+        "ignoreDeprecations": "6.0",
         "typeRoots": [
             "./node_modules/@girs"
         ],

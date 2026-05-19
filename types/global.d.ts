@@ -25,6 +25,10 @@
 /// <reference types="@girs/notify-0.7/notify-0.7-ambient" />
 /// <reference types="@girs/soup-3.0/soup-3.0-ambient" />
 /// <reference types="@girs/dbusmenugtk3-0.4/dbusmenugtk3-0.4-ambient" />
+/// <reference types="@girs/freetype2-2.0/freetype2-2.0-ambient" />
+/// <reference types="@girs/gmodule-2.0/gmodule-2.0-ambient" />
+/// <reference types="@girs/harfbuzz-0.0/harfbuzz-0.0-ambient" />
+/// <reference types="@girs/xlib-2.0/xlib-2.0-ambient" />
 
 declare global {
     /** GJS package metadata available globally at runtime. */

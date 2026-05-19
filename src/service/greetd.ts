@@ -134,9 +134,9 @@ export class Greetd extends Service implements Disposable {
 
     private async _send<R extends keyof Request>(req: R, payload: Request[R]): Promise<Response> {
         const connection = new Gio.SocketClient().connect(
-            new Gio.UnixSocketAddress({ path: SOCK }),
-            undefined,
-        );
+            new Gio.UnixSocketAddress({ path: SOCK }) as Gio.SocketConnectable,
+            null,
+        ) as Gio.SocketConnection;
 
         try {
             const json = JSON.stringify({ type: req, ...payload });
