@@ -1,0 +1,6 @@
+#pragma once
+
+#define APP_ID "@APP_ID@"
+#define PACKAGE_VERSION "@PACKAGE_VERSION@"
+#define PKGDATADIR "@PKGDATADIR@"
+#define GJS_LAUNCHER PKGDATADIR "/" APP_ID ".gjs"
