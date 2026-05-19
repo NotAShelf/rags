@@ -45,29 +45,33 @@ in
   stdenv.mkDerivation (finalAttrs: {
     inherit pname version;
 
-    src = lib.fileset.toSource {
-      root = ../.;
-      fileset = lib.fileset.unions [
-        ../src
-        ../subprojects
-        ../types
+    src = let
+      fs = lib.fileset;
+      sp = ../.;
+    in
+      fs.toSource {
+        root = sp;
+        fileset = fs.unions [
+          (sp + /src)
+          (sp + /subprojects)
+          (sp + /types)
 
-        ../package.json
-        ../pnpm-lock.yaml
+          (sp + /package.json)
+          (sp + /pnpm-lock.yaml)
 
-        ../meson.build
-        ../meson_options.txt
-        ../post_install.sh
-        ../tsconfig.json
-        ../version
-      ];
-    };
+          (sp + /meson.build)
+          (sp + /meson_options.txt)
+          (sp + /post_install.sh)
+          (sp + /tsconfig.json)
+          (sp + /version)
+        ];
+      };
 
     pnpmInstallFlags = ["--prod"]; # only install build deps, skip dev tooling
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
       pnpm = pnpm_10;
-      hash = "sha256-Ljf8MiT42d5pHbaLFQ800WRE8c9oN30d3reCiAPmpJw=";
+      hash = "sha256-tecP0XuP14MEhmtcpJ2x3cOiP00zKB/RZhCwWq4EQf0=";
       fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 

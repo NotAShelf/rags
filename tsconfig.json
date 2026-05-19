@@ -11,9 +11,7 @@
         "outDir": "_build/tsc-out",
         "rootDir": "src",
         "strict": true,
-        "moduleResolution": "node",
-        "baseUrl": ".",
-        "ignoreDeprecations": "6.0",
+        "moduleResolution": "bundler",
         "typeRoots": [
             "./node_modules/@girs"
         ],
