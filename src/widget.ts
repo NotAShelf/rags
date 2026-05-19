@@ -32,6 +32,15 @@ import { newStack as Stack } from './widgets/stack.js';
 import { newSwitch as Switch } from './widgets/switch.js';
 import { newToggleButton as ToggleButton } from './widgets/togglebutton.js';
 import { newWindow as Window } from './widgets/window.js';
+import { newExpander as Expander } from './widgets/expander.js';
+import { newFrame as Frame } from './widgets/frame.js';
+import { newGrid as Grid } from './widgets/grid.js';
+import { newHeaderBar as HeaderBar } from './widgets/headerbar.js';
+import { newImage as Image } from './widgets/image.js';
+import { newNotebook as Notebook } from './widgets/notebook.js';
+import { newPaned as Paned } from './widgets/paned.js';
+import { newSearchEntry as SearchEntry } from './widgets/searchentry.js';
+import { newTextView as TextView } from './widgets/textview.js';
 
 /**
  * Creates a subclassed AGS widget factory from a GTK widget class.
@@ -80,6 +89,15 @@ export {
     register,
     W as subclass,
     Box,
+    Expander,
+    Frame,
+    Grid,
+    HeaderBar,
+    Image,
+    Notebook,
+    Paned,
+    SearchEntry,
+    TextView,
     Button,
     Calendar,
     CenterBox,
@@ -147,3 +165,12 @@ W.Stack = Stack;
 W.Switch = Switch;
 W.ToggleButton = ToggleButton;
 W.Window = Window;
+W.Expander = Expander;
+W.Frame = Frame;
+W.Grid = Grid;
+W.HeaderBar = HeaderBar;
+W.Image = Image;
+W.Notebook = Notebook;
+W.Paned = Paned;
+W.SearchEntry = SearchEntry;
+W.TextView = TextView;

@@ -2,7 +2,6 @@
 <gresources>
   <gresource prefix="/com/github/Aylur/ags">
     <file>app.js</file>
-    <file>client.js</file>
     <file>main.js</file>
     <file>overrides.js</file>
     <file>service.js</file>
@@ -39,8 +38,17 @@
     <file>widgets/slider.js</file>
     <file>widgets/spinbutton.js</file>
     <file>widgets/spinner.js</file>
+    <file>widgets/expander.js</file>
+    <file>widgets/frame.js</file>
+    <file>widgets/grid.js</file>
+    <file>widgets/headerbar.js</file>
+    <file>widgets/image.js</file>
+    <file>widgets/notebook.js</file>
+    <file>widgets/paned.js</file>
+    <file>widgets/searchentry.js</file>
     <file>widgets/stack.js</file>
     <file>widgets/switch.js</file>
+    <file>widgets/textview.js</file>
     <file>widgets/togglebutton.js</file>
     <file>widgets/window.js</file>
 
