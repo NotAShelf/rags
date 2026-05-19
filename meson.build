@@ -1,6 +1,6 @@
 project('ags', 'c',
   version: run_command('cat', join_paths(meson.project_source_root(), 'version')).stdout().strip(),
-  meson_version: '>= 1.0.0',
+  meson_version: '>= 1.10.0',
   license: ['GPL-3.0-or-later'],
   default_options: [ 'warning_level=2', 'werror=false', ],
 )
@@ -31,6 +31,13 @@ subproject('gvc',
 )
 
 subproject('gutils',
+  default_options: [
+    'pkgdatadir=' + pkgdatadir,
+    'pkglibdir=' + libdir,
+  ]
+)
+
+subproject('brightness',
   default_options: [
     'pkgdatadir=' + pkgdatadir,
     'pkglibdir=' + libdir,
