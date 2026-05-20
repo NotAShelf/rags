@@ -50,7 +50,7 @@ App.registerTheme(
 App.setTheme("catppuccin");
 ```
 
-This calls `App.applyCss(css, true)` — the `true` flag resets all previously
+This calls `App.applyCss(css, true)`; the `true` flag resets all previously
 applied CSS before applying the theme. This means your base styles and theme
 colours should live in the same CSS file, or you should apply your base styles
 after switching:

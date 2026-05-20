@@ -22,7 +22,7 @@ group: Services
 
 ## Wifi
 
-### properties
+### Properties
 
 - `ssid`: `string`
 - `strength`: `number` 0..100
@@ -35,7 +35,7 @@ group: Services
   [NM.DeviceState](https://gjs-docs.gnome.org/nm10~1.0/nm.devicestate) as
   lowercase string
 
-### methods
+### Methods
 
 - `scan`: `() => void`
 
@@ -44,7 +44,7 @@ group: Services
 access points are not a GObjects, just a regular js objects meaning you can't
 bind to it or use notify::prop signal
 
-### properties
+### Properties
 
 - `bssid`: `string`
 - `address`: `string`
@@ -58,7 +58,6 @@ bind to it or use notify::prop signal
 ## Wired
 
 - `internet`: `"connected" | "connecting" | "disconnected"`
-- `state`: `"enabled" | "disabled" | "unknown"`
 - `state`: `string`:
   [NM.DeviceState](https://gjs-docs.gnome.org/nm10~1.0/nm.devicestate) as
   lowercase string

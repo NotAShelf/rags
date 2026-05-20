@@ -8,8 +8,8 @@ group: Services
 
 - `event`: `(name: string, data: string)`:
   [hyprland ipc events](https://wiki.hyprland.org/IPC/#events-list)
-- `urgent-window`: `(windowaddress: string)`
-- `keyboard-layout`: `(keyboardname: string, layoutname: string)`
+- `urgent-window`: `(address: string)`
+- `keyboard-layout`: `(deviceName: string, layoutName: string)`
 - `submap`: `(name: string)`
 - `monitor-added`: `(name: string)`
 - `monitor-removed`: `(name: string)`
@@ -17,6 +17,17 @@ group: Services
 - `workspace-removed`: `(name: string)`
 - `client-added`: `(address: string)`
 - `client-removed`: `(address: string)`
+- `kill`: `(address: string)`
+- `fullscreen`: `(isFullscreen: boolean)`
+- `screencast`: `(state: boolean, owner: number, target: string)`
+- `activespecial`: `(workspaceName: string, monitorName: string)`
+- `pin`: `(address: string, pinned: boolean)`
+- `minimized`: `(address: string, minimized: boolean)`
+- `bell`: `(address: string)`
+- `lockgroups`: `(locked: boolean)`
+- `empty`: `(workspaceId: string)`
+- `configreloaded`: (no parameters)
+- `custom`: `(params: string)`
 
 ## properties
 
@@ -33,6 +44,8 @@ group: Services
 - `getMonitor`: `(id: number) => Monitor`
 - `getWorkspace`: `(id: number) => Workspace`
 - `getClient`: `(address: string) => Client`
+- `getGdkMonitor`: `(id: number) => Gdk.Monitor | null`: returns the GDK monitor
+  corresponding to the given Hyprland monitor ID, or `null` if not found
 - `message`: `(msg: string) => string`: send a message to the
   [hyprland socket](https://wiki.hyprland.org/IPC/#tmphyprhissocketsock)
 - `messageAsync`: `(msg: string) => Promise<string>`: async version of message

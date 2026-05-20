@@ -96,8 +96,8 @@ variable.startPoll();
 ### Getting if its active
 
 ```js
-print(variable.isListening);
-print(variable.isPolling);
+print(variable.is_listening);
+print(variable.is_polling);
 ```
 
 ### Usage with widgets
