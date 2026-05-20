@@ -11,6 +11,7 @@
     "readme": "docs/index.md",
     "tsconfig": "tsconfig.json",
     "skipErrorChecking": true,
+    "excludeExternals": true,
     "plugin": ["typedoc-rhineai-theme"],
     "navigation": {
         "includeCategories": true,
@@ -38,8 +39,33 @@
         "javascript",
         "ini"
     ],
+    "blockTags": [
+        "@defaultValue", "@deprecated", "@example", "@jsx", "@param",
+        "@privateRemarks", "@remarks", "@returns", "@see", "@throws",
+        "@typeParam", "@author", "@callback", "@category", "@categoryDescription",
+        "@default", "@document", "@extends", "@augments", "@yields", "@group",
+        "@groupDescription", "@import", "@inheritDoc", "@license", "@module",
+        "@mergeModuleWith", "@prop", "@property", "@return", "@satisfies",
+        "@since", "@sortStrategy", "@template", "@this", "@type", "@typedef",
+        "@summary", "@preventInline", "@inlineType", "@preventExpand",
+        "@expandType", "@fires"
+    ],
+    "externalSymbolLinkMappings": {
+        "@girs/gio-2.0": {
+            "Gio.Application": "#",
+            "Gio.Application.SignalSignatures.activate": "#"
+        },
+        "@girs/gobject-2.0": {
+            "GObject.ParamSpec": "#"
+        },
+        "@girs/gtk-3.0": {
+            "Gtk.Label.use_markup": "#",
+            "Gtk.Label.use_underline": "#"
+        }
+    },
     "intentionallyNotExported": [
         "Anchor",
+        "AccessPointInfo",
         "Args",
         "B",
         "BarMode",
@@ -53,7 +79,6 @@
         "Event",
         "EventHandler",
         "Exclusivity",
-        "Flags",
         "Ico",
         "Instance",
         "Justification",
