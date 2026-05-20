@@ -37,12 +37,18 @@ button {
 /*
 * Mute text colors a little bit, using Tailwind colors
 * Looks much better. Tailwind devs know their colors.
-* */
+*
+*/
+
+/* OS-level preference */
 @media (prefers-color-scheme: light) {
   :root {
     --color-text: #334155;
     --color-text-aside: #64748b;
     --color-link: #3b82f6;
+    --color-icon-background: #eaecf0;
+    --color-icon-text: #24292f;
+    --color-ts-variable: #57606a;
   }
 }
 
@@ -51,5 +57,26 @@ button {
     --color-text: #cbd5e1;
     --color-text-aside: #94a3b8;
     --color-link: #7dd3fc;
+    --color-icon-background: #2d333b;
+    --color-icon-text: #e6edf3;
+    --color-ts-variable: #8b949e;
   }
+}
+
+:root[data-theme='light'] {
+  --color-text: #334155;
+  --color-text-aside: #64748b;
+  --color-link: #3b82f6;
+  --color-icon-background: #eaecf0;
+  --color-icon-text: #24292f;
+  --color-ts-variable: #57606a;
+}
+
+:root[data-theme='dark'] {
+  --color-text: #cbd5e1;
+  --color-text-aside: #94a3b8;
+  --color-link: #7dd3fc;
+  --color-icon-background: #2d333b;
+  --color-icon-text: #e6edf3;
+  --color-ts-variable: #8b949e;
 }
