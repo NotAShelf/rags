@@ -19,24 +19,21 @@ services the users may need to update. See below for a full list of changes.
 - `Disposable` interface and pattern for explicit resource cleanup
 - Type-safe GObject helpers for safer property access
 - Type-safe signal definitions with `SignalDefinition` and `SignalPayload` types
-
 - Lazy window registration via `App.registerLazyWindow()`, for windows created
   on-demand
 - Runtime theme switching with `App.registerTheme()`, `App.setTheme()`,
   `App.activeTheme`
 - Window names automatically added as CSS classes for scoping
-
 - `autoSuspend` option to defer polling until bound to visible widgets
 - `dispose` signal emitted on cleanup
-
 - `diffBind()` method for binding to differences between values
 - Development warnings for unregistered signals
 - Error recovery with exponential backoff (`retryWithBackoff`)
 - `error` signal emitted on service failures
-
 - Frame-synced animation primitives
 - System info helpers
 - Promisified `send_and_read_async` with `GLib.PRIORITY_DEFAULT`
+- `Brightness` service for reading and controlling screen brightness via sysfs
 
 ### Changed
 
@@ -58,6 +55,14 @@ services the users may need to update. See below for a full list of changes.
   appropriate
 - App: Fixed deprecation warnings (`cacheCoverArt` to `maxStreamVolume`)
 - Fetch: Wrapped `GBytes` from `send_and_read_async` in `MemoryInputStream`
+- GJS shebang launcher replaced with a compiled C binary entrypoint
+- Hyprland: remaining IPC events supported; IPC commands serialized with socket
+  failure handling
+- `utils/file` returns an error when file read fails instead of swallowing it
+- `utils/fetch` updated to use the new logging framework
+- Service `any` casts replaced with `Record<string, unknown>` for type safety
+- GTK3 widget class coverage expanded with some new widgets. This is rather
+  experimental, report bugs.
 
 Some of the breaking changes:
 
@@ -93,6 +98,7 @@ user-facing documentation.
 
 ### Added
 
+- GIRepository 3.0 support
 - TypeDoc setup for generated type documentation
 - Hand-written guides in documentation
 - Comprehensive JSDoc annotations across all modules
@@ -111,3 +117,4 @@ user-facing documentation.
 - Dependency hashes updated
 - SystemTray now uses a `Widget` wrapper for `DbusmenuGtk3.Menu`, which fixes
   styling issues
+- `service/greetd`: ensure `Uint32Array` always receives an `ArrayBuffer`
