@@ -374,8 +374,13 @@ export class Hyprland extends Service implements Disposable {
         stream.read_line_async(0, null, (stream, result) => {
             if (!stream) return console.error('Error reading Hyprland socket');
 
-            const [line] = stream.read_line_finish(result);
-            this._onEvent(this._decoder.decode(line || new Uint8Array()));
+            try {
+                const [line] = stream.read_line_finish(result);
+                this._onEvent(this._decoder.decode(line || new Uint8Array()));
+            } catch (error) {
+                logError(error);
+            }
+
             this._watchSocket(stream);
         });
     }
@@ -526,15 +531,23 @@ export class Hyprland extends Service implements Disposable {
                     break;
 
                 case 'createworkspace':
-                case 'createworkspacev2':
                     await this._syncWorkspaces();
                     this.emit('workspace-added', argv[0]);
                     break;
 
+                case 'createworkspacev2':
+                    await this._syncWorkspaces();
+                    this.emit('workspace-added', argv[1]);
+                    break;
+
                 case 'destroyworkspace':
-                case 'destroyworkspacev2':
                     await this._syncWorkspaces();
                     this.emit('workspace-removed', argv[0]);
+                    break;
+
+                case 'destroyworkspacev2':
+                    await this._syncWorkspaces();
+                    this.emit('workspace-removed', argv[1]);
                     break;
 
                 case 'moveworkspace':

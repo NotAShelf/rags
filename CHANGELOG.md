@@ -86,6 +86,11 @@ Some of the breaking changes:
 - Non-null assertions, which got replaced with proper validation
 - Type safety issues
 - CSS error handling and reporting improved
+- `_watchSocket` for Hyprland event loop now survives socket errors; previously
+  any `read_line_finish` failure would permanently kill the loop with no
+  recovery. Additionally, `createworkspacev2` and `destroyworkspacev2` now emit
+  the workspace name instead of the numeric ID for `workspace-added` and
+  `workspace-removed`
 
 ## 1.10.0
 
