@@ -87,6 +87,7 @@ export class Battery extends Service implements Disposable {
 
     /** Symbolic icon name reflecting current battery level and charge state. */
     get icon_name() {
+        if (this._percent < 0) return this._iconName;
         if (this.#iconDirty) {
             const percent = Math.max(0, Math.min(100, this._percent));
             const level = Math.floor(percent / 10) * 10;
@@ -160,10 +161,9 @@ export class Battery extends Service implements Disposable {
         const energyRate = this._proxy.EnergyRate;
 
         this.updateProperty('available', true);
-        // Invalidate icon cache when relevant properties change
-        if (this._percent !== percent || this._charging !== charging || this._charged !== charged) {
-            this.#iconDirty = true;
-        }
+        // Keep icon cache aligned with the latest UPower values before notifying.
+        this.#cachedIconName = iconName;
+        this.#iconDirty = false;
 
         this.updateProperty('icon-name', iconName);
         this.updateProperty('percent', percent);
