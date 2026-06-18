@@ -104,3 +104,5 @@ import { battery } from "resource:///com/github/Aylur/ags/service/battery.js";
 - [notifications](../services/10-notifications.md)
 - [powerprofiles](../services/11-powerprofiles.md)
 - [systemtray](../services/12-systemtray.md)
+- [lockscreen](../services/13-lockscreen.md)
+- [polkit](../services/14-polkit.md)

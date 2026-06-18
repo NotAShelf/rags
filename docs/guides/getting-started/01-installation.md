@@ -22,15 +22,20 @@ available in your PATH.
 ### Installing with `nix profile`
 
 ```bash
-nix profile install github:Aylur/ags
+# Get RAGS from GitHub using `nix profile`. Unlike the NixOS module this does
+# not provide the necessary integrations, e.g., PAM so you must handle those
+# manually per your distribution.
+$ nix profile install github:notashelf/rags
 ```
 
 ### Single run with `nix run`
 
-or try it without installing
+You may also run RAGS without installing, and have it removed on the next
+garbage collection. Simply run with `nix run`:
 
 ```bash
-nix run github:Aylur/ags
+# Fetch, unpack and build RAGS. Then run it from the Nix storeç
+$ nix run github:notashelf/rags
 ```
 
 ### Installing Permanently
@@ -58,30 +63,31 @@ An example installation for Home Manager is provided over at the
 
 ```bash
 # Arch
-sudo pacman -S typescript npm meson gjs gtk3 gtk-layer-shell gnome-bluetooth-3.0 upower networkmanager gobject-introspection libdbusmenu-gtk3 libsoup3
+sudo pacman -S typescript npm meson gjs gtk3 gtk-layer-shell gtk-session-lock gnome-bluetooth-3.0 upower networkmanager gobject-introspection libdbusmenu-gtk3 libsoup3 polkit
 ```
 
 ```bash
 # Fedora
-sudo dnf install typescript npm meson gjs-devel gtk3-devel gtk-layer-shell gnome-bluetooth upower NetworkManager pulseaudio-libs-devel libdbusmenu-gtk3 libsoup3
+sudo dnf install typescript npm meson gjs-devel gtk3-devel gtk-layer-shell-devel gtk-session-lock-devel gnome-bluetooth upower NetworkManager pulseaudio-libs-devel libdbusmenu-gtk3 libsoup3 polkit-devel
 ```
 
 ```bash
 # Ubuntu
-sudo apt install node-typescript npm meson libgjs-dev gjs libgtk-layer-shell-dev libgtk-3-dev libpulse-dev network-manager-dev libgnome-bluetooth-3.0-dev libdbusmenu-gtk3-dev libsoup-3.0-dev
+sudo apt install node-typescript npm meson libgjs-dev gjs libgtk-layer-shell-dev libgtk-session-lock-dev libgtk-3-dev libpulse-dev network-manager-dev libgnome-bluetooth-3.0-dev libdbusmenu-gtk3-dev libsoup-3.0-dev libpolkit-agent-1-dev libpolkit-gobject-1-dev
 ```
 
 ```bash
-# clone, build, install
-git clone --recursive https://github.com/Aylur/ags.git
-cd ags
-npm install
-meson setup build
-meson install -C build
+# Clone, build, and  install
+$ git clone --recursive https://github.com/Aylur/ags.git && cd ags
+$ pnpm install
+$ meson setup build
+$ meson install -C build
 ```
 
 ## Running
 
 ```bash
-ags --help
+# RAGS provides `ags` as the main binary for compatibility. This may change
+# in the future.
+$ ags --help
 ```
