@@ -5,11 +5,18 @@ pkgdatadir = get_option('pkgdatadir')
 
 cc = meson.get_compiler('c')
 
+add_project_arguments(
+  '-DPOLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE',
+  language: 'c',
+)
+
 libsources = ['pam.c', 'pam.h']
 
 deps = [
   dependency('gobject-2.0'),
   dependency('gio-2.0'),
+  dependency('polkit-agent-1'),
+  dependency('polkit-gobject-1'),
   dependency('pam')
 ]
 
@@ -28,7 +35,7 @@ gnome.generate_gir(
   namespace: 'GUtils',
   symbol_prefix: 'gutils',
   identifier_prefix: 'GUtils',
-  includes: ['GObject-2.0', 'Gio-2.0'],
+  includes: ['GObject-2.0', 'Gio-2.0', 'PolkitAgent-1.0', 'Polkit-1.0'],
   install_dir_gir: pkgdatadir,
   install_dir_typelib: pkglibdir,
   install: true

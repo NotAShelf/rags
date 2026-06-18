@@ -163,9 +163,11 @@ interface Services {
     bluetooth: typeof import('./service/bluetooth.js').default;
     brightness: typeof import('./service/brightness.js').default;
     hyprland: typeof import('./service/hyprland.js').default;
+    lockscreen: typeof import('./service/lockscreen.js').default;
     mpris: typeof import('./service/mpris.js').default;
     network: typeof import('./service/network.js').default;
     notifications: typeof import('./service/notifications.js').default;
+    polkit: typeof import('./service/polkit.js').default;
     powerprofiles: typeof import('./service/powerprofiles.js').default;
     systemtray: typeof import('./service/systemtray.js').default;
     greetd: typeof import('./service/greetd.js').default;

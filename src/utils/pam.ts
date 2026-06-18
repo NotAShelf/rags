@@ -16,15 +16,21 @@ import Gio from 'gi://Gio';
  * @param password - The password to verify
  * @returns A promise that resolves on success or rejects on failure
  */
-export function authenticate(password: string) {
+export function authenticate(password: string, service = 'ags') {
     return new Promise((resolve, reject) => {
-        GUtils.authenticate(password, 0, null, (_: unknown, res: Gio.AsyncResult) => {
-            try {
-                resolve(GUtils.authenticate_finish(res));
-            } catch (e) {
-                reject(e);
-            }
-        });
+        GUtils.authenticate_for_service(
+            service,
+            password,
+            0,
+            null,
+            (_: unknown, res: Gio.AsyncResult) => {
+                try {
+                    resolve(GUtils.authenticate_finish(res));
+                } catch (e) {
+                    reject(e);
+                }
+            },
+        );
     });
 }
 
@@ -35,9 +41,10 @@ export function authenticate(password: string) {
  * @param password - The password to verify
  * @returns A promise that resolves on success or rejects on failure
  */
-export function authenticateUser(username: string, password: string) {
+export function authenticateUser(username: string, password: string, service = 'ags') {
     return new Promise((resolve, reject) => {
-        GUtils.authenticate_user(
+        GUtils.authenticate_user_for_service(
+            service,
             username,
             password,
             0,
