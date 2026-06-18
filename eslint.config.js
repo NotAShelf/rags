@@ -34,8 +34,11 @@ export default [
             globals: {
                 pkg: 'readonly',
                 ARGV: 'readonly',
+                App: 'readonly',
                 Debugger: 'readonly',
                 GIRepositoryGType: 'readonly',
+                Variable: 'readonly',
+                Widget: 'readonly',
                 globalThis: 'readonly',
                 imports: 'readonly',
                 Intl: 'readonly',
