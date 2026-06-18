@@ -13,7 +13,7 @@
 
 - Utility GObject based library in c
   - [x] pam module [#273](https://github.com/Aylur/ags/pull/273)
-  - [ ] ext-session-lock
+  - [x] ext-session-lock
 - [x] fetch util function [#187](https://github.com/Aylur/ags/pull/187)
 - [x] toJSON overridies [#203](https://github.com/Aylur/ags/pull/203)
 - [ ] Circular slider widget
