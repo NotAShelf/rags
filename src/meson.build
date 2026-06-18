@@ -39,7 +39,7 @@ typescript = custom_target(
   input: files( 'main.ts' ),
   build_by_default: true,
   build_always_stale: true,
-  command: [ tsc, '--outDir', tsc_out ],
+  command: [ tsc, '--project', meson.project_source_root() / 'tsconfig.json', '--outDir', tsc_out ],
   output: ['tsc-output'],
 )
 
