@@ -2,6 +2,14 @@
 
 # RAGS Changelog
 
+## Unreleased
+
+### Added
+
+- `lockscreen` service for secure Wayland `ext-session-lock-v1` session locking
+  through the `gtk-session-lock` library
+- `polkit` service for registering RAGS as a Polkit authentication agent
+
 ## 1.11.0
 
 This release represents a comprehensive refactoring of the RAGS codebase,
@@ -56,6 +64,8 @@ services the users may need to update. See below for a full list of changes.
 - App: Fixed deprecation warnings (`cacheCoverArt` to `maxStreamVolume`)
 - Fetch: Wrapped `GBytes` from `send_and_read_async` in `MemoryInputStream`
 - GJS shebang launcher replaced with a compiled C binary entrypoint
+- Build/package dependencies now include `gtk-session-lock` and Polkit agent
+  libraries for the new lockscreen and Polkit services
 - Hyprland: remaining IPC events supported; IPC commands serialized with socket
   failure handling
 - `utils/file` returns an error when file read fails instead of swallowing it
