@@ -58,9 +58,11 @@
     <file>service/bluetooth.js</file>
     <file>service/greetd.js</file>
     <file>service/hyprland.js</file>
+    <file>service/lockscreen.js</file>
     <file>service/mpris.js</file>
     <file>service/network.js</file>
     <file>service/notifications.js</file>
+    <file>service/polkit.js</file>
     <file>service/powerprofiles.js</file>
     <file>service/systemtray.js</file>
 

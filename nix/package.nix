@@ -27,6 +27,8 @@
   libsoup_3,
   libnotify,
   pam,
+  polkit,
+  gtk-session-lock,
   # Extra Options
   extraPackages ? [],
   version ? "git",
@@ -103,6 +105,8 @@ in
         libsoup_3
         libnotify
         pam
+        polkit
+        gtk-session-lock
         glib
         gobject-introspection
       ];
