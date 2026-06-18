@@ -1,0 +1,30 @@
+window {
+    font-family: sans-serif;
+}
+
+.polkit-card {
+    min-width: 320px;
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.94);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.polkit-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.polkit-prompt {
+    margin-bottom: 8px;
+}
+
+entry {
+    margin: 8px 0;
+}
+
+button {
+    margin: 4px;
+}
