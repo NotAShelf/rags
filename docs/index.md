@@ -30,8 +30,8 @@ here if you are new to RAGS.
 - **Advanced** - Writing custom services, subclassing GTK widgets, common
   issues, and example configurations.
 - **Services** - Reference pages for each built-in service: Applications, Audio,
-  Backlight, Battery, Bluetooth, Greetd, Hyprland, MPRIS, Network,
-  Notifications, Power Profiles, and System Tray.
+  Backlight, Battery, Bluetooth, Greetd, Hyprland, Lockscreen, MPRIS, Network,
+  Notifications, Polkit, Power Profiles, and System Tray.
 
 ### API Reference
 
