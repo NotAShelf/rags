@@ -11,6 +11,337 @@ Gio._promisify(Gio.DataInputStream.prototype, 'read_upto_async');
 const HIS = GLib.getenv('HYPRLAND_INSTANCE_SIGNATURE');
 const XDG_RUNTIME_DIR = GLib.getenv('XDG_RUNTIME_DIR') || '/';
 
+/*
+ * Lua IPC (Hyprland 0.55+).
+ *
+ * Hyprland 0.55 moved its command socket from the legacy text protocol to a Lua
+ * interpreter. The `dispatch <X>` request is now shorthand for
+ * `eval 'hl.dispatch(<X>)'`, where `<X>` is a dispatcher table built from the
+ * `hl.dsp.*` namespace (e.g. `hl.dsp.focus({ workspace = "3" })`). Plain info
+ * reads (`j/monitors` etc.) are unaffected.
+ */
+
+/** A value encodable as a Lua literal. */
+export type LuaValue =
+    | string
+    | number
+    | boolean
+    | null
+    | undefined
+    | LuaValue[]
+    | { [key: string]: LuaValue };
+
+/**
+ * Encodes a JS value as a Lua literal string.
+ *
+ * Objects become Lua tables with bare identifier keys (`{ k = v }`), arrays
+ * become positional tables (`{ v, v }`), and `undefined` entries are omitted.
+ *
+ * @param value - The value to encode
+ * @returns A Lua literal expression
+ */
+function luaEncode(value: LuaValue): string {
+    if (value === null || value === undefined) return 'nil';
+    if (typeof value === 'string') {
+        return '"' + value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+    }
+    if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'nil';
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (Array.isArray(value)) return '{ ' + value.map(luaEncode).join(', ') + ' }';
+
+    const entries = Object.entries(value).filter(([, v]) => v !== undefined);
+    return '{ ' + entries.map(([k, v]) => `${k} = ${luaEncode(v)}`).join(', ') + ' }';
+}
+
+/** Sends a `hl.dispatch(<expr>)` call and resolves with the socket response. */
+type DispatchSender = (luaExpr: string) => Promise<string>;
+
+type Selector = string;
+
+interface FocusOpts {
+    direction?: string;
+    monitor?: string | number;
+    workspace?: string;
+    on_current_monitor?: boolean;
+    window?: Selector;
+    urgent_or_last?: boolean;
+    last?: boolean;
+}
+
+interface WindowMoveOpts {
+    direction?: string;
+    workspace?: string;
+    monitor?: string | number;
+    x?: number;
+    y?: number;
+    relative?: boolean;
+    follow?: boolean;
+    group_aware?: boolean;
+    into_group?: string;
+    into_or_create_group?: string;
+    out_of_group?: boolean | string;
+    window?: Selector;
+}
+
+interface ActionOpts {
+    action?: string;
+    window?: Selector;
+}
+
+/**
+ * Builds the typed Lua-native dispatch namespace mirroring Hyprland's
+ * `hl.dsp.*` dispatchers. Each method forwards its argument table straight to
+ * the matching dispatcher, so the shape follows the upstream wiki exactly.
+ *
+ * @param send - Callback that issues `hl.dispatch(<expr>)` over the socket
+ * @returns The dispatch namespace object
+ */
+function createDispatch(send: DispatchSender) {
+    // call() takes unknown[] because the public methods below already constrain
+    // caller input; luaEncode handles the option tables structurally.
+    const call = (path: string, ...args: unknown[]) =>
+        send(`hl.dsp.${path}(${args.map(a => luaEncode(a as LuaValue)).join(', ')})`);
+
+    return {
+        /** Execute a command via `sh -c`. Optional window rules table. */
+        exec: (cmd: string, rules?: Record<string, LuaValue>) =>
+            rules ? call('exec_cmd', cmd, rules) : call('exec_cmd', cmd),
+        /** Execute a raw command without `sh -c`. */
+        execRaw: (cmd: string) => call('exec_raw', cmd),
+        /** Move focus (by direction, monitor, workspace, window, etc.). */
+        focus: (opts: FocusOpts) => call('focus', opts),
+        /** Quit Hyprland. Prefer `hyprshutdown`. */
+        exit: () => call('exit'),
+        /** Switch to a submap. */
+        submap: (name: string) => call('submap', name),
+        /** Send a layout message string to the active layout. */
+        layout: (message: string) => call('layout', message),
+        /** Toggle monitors on/off. */
+        dpms: (opts: { action?: string; monitor?: string | number }) => call('dpms', opts),
+        /** Activate a D-Bus global shortcut. */
+        global: (name: string) => call('global', name),
+        /** Send an event to socket2. */
+        event: (str: string) => call('event', str),
+        /** Set elapsed time for all idle timers. */
+        forceIdle: (seconds: number) => call('force_idle', seconds),
+        /** Does nothing; useful for conditional binds. */
+        noOp: () => call('no_op'),
+
+        window: {
+            /** Gracefully request the window to close. */
+            close: (window?: Selector) =>
+                window !== undefined ? call('window.close', window) : call('window.close'),
+            /** Kill the window's process with SIGKILL. */
+            kill: (window?: Selector) =>
+                window !== undefined ? call('window.kill', window) : call('window.kill'),
+            /** Send a POSIX signal to the window's process. */
+            signal: (opts: { signal: number | string; window?: Selector }) =>
+                call('window.signal', opts),
+            /** Set a window's floating state (`action`: toggle/true/false). */
+            float: (opts: ActionOpts = {}) => call('window.float', opts),
+            /** Set a window's fullscreen state. */
+            fullscreen: (opts: { mode?: string; action?: string; window?: Selector } = {}) =>
+                call('window.fullscreen', opts),
+            /** Set a window's fullscreen state with internal/client precision. */
+            fullscreenState: (opts: {
+                internal?: string;
+                client?: string;
+                action?: string;
+                window?: Selector;
+            }) => call('window.fullscreen_state', opts),
+            /** Set a window's pseudotiling state. */
+            pseudo: (opts: ActionOpts = {}) => call('window.pseudo', opts),
+            /** Move a window (direction/workspace/monitor/coords/group). */
+            move: (opts: WindowMoveOpts) => call('window.move', opts),
+            /** Swap the active window with another. */
+            swap: (opts: {
+                direction?: string;
+                target?: Selector;
+                next?: boolean;
+                prev?: boolean;
+            }) => call('window.swap', opts),
+            /** Center the current window. */
+            center: (opts: { window?: Selector } = {}) => call('window.center', opts),
+            /** Resize a window, or begin an interactive resize with no args. */
+            resize: (opts?: {
+                x?: number;
+                y?: number;
+                relative?: boolean;
+                keep_aspect_ratio?: boolean;
+                window?: Selector;
+            }) => (opts ? call('window.resize', opts) : call('window.resize')),
+            /** Begin an interactive drag (mouse binds). */
+            drag: () => call('window.drag'),
+            /** Tag a window. */
+            tag: (opts: { tag: string; window?: Selector }) => call('window.tag', opts),
+            /** Clear all tags from a window. */
+            clearTags: (opts: { window?: Selector } = {}) => call('window.clear_tags', opts),
+            /** Toggle all swallowed windows visible. */
+            toggleSwallow: () => call('window.toggle_swallow'),
+            /** Pin a window across workspaces. */
+            pin: (opts: ActionOpts = {}) => call('window.pin', opts),
+            /** Alter a window's z-order (`mode`: "top" or "bottom"). */
+            alterZorder: (opts: { mode: string; window?: Selector }) =>
+                call('window.alter_zorder', opts),
+            /** Set a window property. */
+            setProp: (opts: { prop: string; value: LuaValue; window?: Selector }) =>
+                call('window.set_prop', opts),
+        },
+
+        workspace: {
+            /** Rename a workspace. */
+            rename: (opts: { workspace: string; name?: string }) => call('workspace.rename', opts),
+            /** Move a workspace to a monitor. */
+            move: (opts: { workspace?: string; monitor: string | number }) =>
+                call('workspace.move', opts),
+            /** Swap the current workspaces of two monitors. */
+            swapMonitors: (opts: { monitor1: string | number; monitor2: string | number }) =>
+                call('workspace.swap_monitors', opts),
+            /** Toggle a named special workspace. */
+            toggleSpecial: (name = '') => call('workspace.toggle_special', name),
+        },
+
+        group: {
+            /** Toggle a group. */
+            toggle: (opts: { window?: Selector } = {}) => call('group.toggle', opts),
+            /** Focus the next window in a group. */
+            next: (opts: { window?: Selector } = {}) => call('group.next', opts),
+            /** Focus the previous window in a group. */
+            prev: (opts: { window?: Selector } = {}) => call('group.prev', opts),
+            /** Focus a window in a group by index. */
+            active: (opts: { index: number; window?: Selector }) => call('group.active', opts),
+            /** Move a window within the group order. */
+            moveWindow: (opts: { forward?: boolean; window?: Selector }) =>
+                call('group.move_window', opts),
+            /** Lock a group. */
+            lock: (opts: ActionOpts = {}) => call('group.lock', opts),
+            /** Lock the active group. */
+            lockActive: (opts: { action?: string } = {}) => call('group.lock_active', opts),
+        },
+
+        cursor: {
+            /** Move the cursor to a corner of the window (corner 0-3). */
+            moveToCorner: (opts: { corner: number; window?: Selector }) =>
+                call('cursor.move_to_corner', opts),
+            /** Move the cursor to an absolute coordinate. */
+            move: (opts: { x: number; y: number }) => call('cursor.move', opts),
+        },
+
+        /** Escape hatch: dispatch a raw `hl.dsp.*` expression string. */
+        raw: (luaExpr: string) => send(luaExpr),
+    };
+}
+
+/** The typed dispatch namespace returned by {@link createDispatch}. */
+export type Dispatch = ReturnType<typeof createDispatch>;
+
+const warnedLegacy = new Set<string>();
+
+const luaNum = (s: string | undefined) => {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : undefined;
+};
+
+/**
+ * Translation table from legacy text dispatchers to `hl.dsp.*` Lua expressions.
+ * `rest` is the argument portion of the legacy command (everything after the
+ * dispatcher name). Mappings are intentionally limited to the dispatchers
+ * commonly used by bars; anything absent surfaces a deprecation notice so the
+ * caller can migrate to the native {@link createDispatch} API.
+ */
+const LEGACY_DISPATCHERS: Record<string, (rest: string) => string | null> = {
+    exec: r => `hl.dsp.exec_cmd(${luaEncode(r)})`,
+    execr: r => `hl.dsp.exec_raw(${luaEncode(r)})`,
+    killactive: () => 'hl.dsp.window.close()',
+    forcekillactive: () => 'hl.dsp.window.kill()',
+    closewindow: r => `hl.dsp.window.close(${luaEncode(r)})`,
+    workspace: r => `hl.dsp.focus({ workspace = ${luaEncode(r)} })`,
+    movetoworkspace: r => `hl.dsp.window.move({ workspace = ${luaEncode(r)}, follow = true })`,
+    movetoworkspacesilent: r =>
+        `hl.dsp.window.move({ workspace = ${luaEncode(r)}, follow = false })`,
+    movefocus: r => `hl.dsp.focus({ direction = ${luaEncode(r)} })`,
+    focuswindow: r => `hl.dsp.focus({ window = ${luaEncode(r)} })`,
+    focusmonitor: r => `hl.dsp.focus({ monitor = ${luaEncode(r)} })`,
+    focusurgentorlast: () => 'hl.dsp.focus({ urgent_or_last = true })',
+    focuscurrentorlast: () => 'hl.dsp.focus({ last = true })',
+    movewindow: r => `hl.dsp.window.move({ direction = ${luaEncode(r)} })`,
+    togglefloating: r =>
+        `hl.dsp.window.float({ action = "toggle"${r ? `, window = ${luaEncode(r)}` : ''} })`,
+    fullscreen: r =>
+        r === '1'
+            ? 'hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })'
+            : 'hl.dsp.window.fullscreen({ action = "toggle" })',
+    pseudo: () => 'hl.dsp.window.pseudo({ action = "toggle" })',
+    pin: r => `hl.dsp.window.pin({ action = "toggle"${r ? `, window = ${luaEncode(r)}` : ''} })`,
+    centerwindow: () => 'hl.dsp.window.center({})',
+    togglespecialworkspace: r => `hl.dsp.workspace.toggle_special(${luaEncode(r || 'special')})`,
+    togglegroup: () => 'hl.dsp.group.toggle({})',
+    changegroupactive: r =>
+        r === 'b' || r === 'prev' ? 'hl.dsp.group.prev({})' : 'hl.dsp.group.next({})',
+    submap: r => `hl.dsp.submap(${luaEncode(r)})`,
+    exit: () => 'hl.dsp.exit()',
+    global: r => `hl.dsp.global(${luaEncode(r)})`,
+    resizeactive: r => {
+        const [x, y] = r.split(/\s+/);
+        return `hl.dsp.window.resize({ x = ${luaNum(x) ?? 0}, y = ${luaNum(y) ?? 0}, relative = true })`;
+    },
+    moveactive: r => {
+        const [x, y] = r.split(/\s+/);
+        return `hl.dsp.window.move({ x = ${luaNum(x) ?? 0}, y = ${luaNum(y) ?? 0}, relative = true })`;
+    },
+    dpms: r => {
+        const [action, monitor] = r.split(/\s+/);
+        return `hl.dsp.dpms(${luaEncode({ action: action || undefined, monitor: monitor || undefined })})`;
+    },
+};
+
+/**
+ * Rewrites a legacy text IPC command into its Lua equivalent when applicable.
+ *
+ * Only commands beginning with `dispatch ` are considered, and only when they
+ * are not already Lua (i.e. do not reference `hl.dsp`/`hl.dispatch`). All other
+ * requests (`j/...`, `keyword`, `eval`, already-Lua dispatches) are returned
+ * unchanged. Recognised legacy dispatchers emit a one-time deprecation warning.
+ *
+ * @param cmd - The raw IPC command
+ * @returns The possibly-rewritten command
+ */
+function translateLegacyDispatch(cmd: string): string {
+    if (!cmd.startsWith('dispatch ')) return cmd;
+
+    const body = cmd.slice('dispatch '.length).trim();
+    if (body.includes('hl.dsp') || body.includes('hl.dispatch')) return cmd;
+
+    const sep = body.indexOf(' ');
+    const name = (sep === -1 ? body : body.slice(0, sep)).toLowerCase();
+    const rest = sep === -1 ? '' : body.slice(sep + 1).trim();
+
+    const mapper = LEGACY_DISPATCHERS[name];
+    if (!mapper) {
+        if (!warnedLegacy.has(name)) {
+            warnedLegacy.add(name);
+            console.warn(
+                `[hyprland] legacy dispatcher "${name}" has no Lua translation; ` +
+                    'use hyprland.dispatch.* (Hyprland 0.55+ removed the text dispatch protocol)',
+            );
+        }
+        return cmd;
+    }
+
+    const lua = mapper(rest);
+    if (lua === null) return cmd;
+
+    if (!warnedLegacy.has(name)) {
+        warnedLegacy.add(name);
+        console.warn(
+            `[hyprland] legacy dispatcher "${name}" is deprecated; ` +
+                'prefer the typed hyprland.dispatch.* API',
+        );
+    }
+
+    return `dispatch ${lua}`;
+}
+
 /**
  * Active Client Tracker
  *
@@ -270,6 +601,12 @@ export class Hyprland extends Service implements Disposable {
     private _eventStream: Gio.DataInputStream | null = null;
     private _messageQueue: Promise<unknown> = Promise.resolve();
 
+    /**
+     * Typed, Lua-native dispatch API mirroring Hyprland's `hl.dsp.*`
+     * dispatchers (Hyprland 0.55+). Example: `hyprland.dispatch.focus({ workspace: '3' })`.
+     */
+    readonly dispatch: Dispatch = createDispatch(expr => this._sendDispatch(expr));
+
     /** The currently active client, monitor, and workspace. */
     get active() {
         return this._active;
@@ -405,6 +742,8 @@ export class Hyprland extends Service implements Disposable {
      * @returns The response string
      */
     readonly message = (cmd: string) => {
+        cmd = translateLegacyDispatch(cmd);
+
         let connection: Gio.SocketConnection | null = null;
         try {
             const [conn, stream] = this._socketStream(cmd);
@@ -427,6 +766,8 @@ export class Hyprland extends Service implements Disposable {
      * @returns The response string
      */
     private _messageAsync = async (cmd: string) => {
+        cmd = translateLegacyDispatch(cmd);
+
         let connection: Gio.SocketConnection | null = null;
         try {
             const [conn, stream] = this._socketStream(cmd);
@@ -451,6 +792,39 @@ export class Hyprland extends Service implements Disposable {
 
         return next;
     };
+
+    /**
+     * Sends a `hl.dispatch(<expr>)` call over the command socket and surfaces
+     * Lua errors instead of swallowing them (the socket replies with an
+     * `error: ...` string on failure rather than `ok`).
+     */
+    private async _sendDispatch(expr: string) {
+        const response = await this.messageAsync(`dispatch ${expr}`);
+        if (response.startsWith('error:')) {
+            const error = new Error(`Hyprland dispatch failed: ${response}`);
+            logError(error);
+            throw error;
+        }
+        return response;
+    }
+
+    /**
+     * Evaluates a raw Lua string via the command socket's `eval` request.
+     * Returns `ok` or the raised error.
+     *
+     * @param lua - The Lua source to execute
+     */
+    readonly eval = (lua: string) => this.messageAsync(`eval ${lua}`);
+
+    /**
+     * Runs a legacy text-protocol dispatch command (e.g. `workspace 1`),
+     * translating it to the Lua dispatcher API.
+     *
+     * @deprecated Hyprland 0.55 removed the text dispatch protocol. Use the
+     * typed {@link Hyprland.dispatch} API instead.
+     * @param command - A legacy dispatcher invocation without the `dispatch` prefix
+     */
+    readonly dispatchLegacy = (command: string) => this.messageAsync(`dispatch ${command}`);
 
     private async _syncMonitors(notify = true) {
         try {

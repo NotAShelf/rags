@@ -79,7 +79,7 @@ App.config({ windows: [win] });
 
 ```ini
 # /etc/greetd/hyprland.conf
-exec-once = ags --config /etc/greetd/greeter.js; hyprctl dispatch exit
+exec-once = ags --config /etc/greetd/greeter.js; hyprctl dispatch 'hl.dsp.exit()'
 ```
 
 ```toml

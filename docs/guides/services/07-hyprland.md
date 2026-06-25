@@ -49,6 +49,35 @@ group: Services
 - `message`: `(msg: string) => string`: send a message to the
   [hyprland socket](https://wiki.hyprland.org/IPC/#tmphyprhissocketsock)
 - `messageAsync`: `(msg: string) => Promise<string>`: async version of message
+- `dispatch`: typed, Lua-native dispatch API mirroring Hyprland's `hl.dsp.*`
+  namespace, see [Dispatching](#dispatching) below
+- `eval`: `(lua: string) => Promise<string>`: run a raw Lua string via the
+  socket's `eval` request, returns `ok` or the raised error
+- `dispatchLegacy`: `(command: string) => Promise<string>`: **deprecated**, runs
+  a legacy text dispatch command (e.g. `workspace 1`). Prefer `dispatch`
+
+## Dispatching
+
+Hyprland 0.55 replaced its text command socket with a Lua interpreter, so the
+old text protocol (`dispatch workspace 1`) is rejected by the compositor. Use
+the `dispatch` namespace, which builds the `hl.dsp.*` calls for you:
+
+```js
+hyprland.dispatch.focus({ workspace: "3" });
+hyprland.dispatch.exec("firefox");
+hyprland.dispatch.window.close(); // active window
+hyprland.dispatch.window.float({ action: "toggle" });
+hyprland.dispatch.workspace.toggleSpecial("magic");
+
+// escape hatch for anything not wrapped:
+hyprland.dispatch.raw("hl.dsp.focus({ urgent_or_last = true })");
+// or arbitrary Lua:
+hyprland.eval("hl.dispatch(hl.dsp.exit())");
+```
+
+Existing configs that call `messageAsync("dispatch ...")` keep working: legacy
+dispatch strings are translated to Lua automatically, with a one-time
+deprecation warning. This compatibility shim targets Hyprland 0.55+ only.
 
 ## Active
 
@@ -103,18 +132,18 @@ const focusedTitle = Widget.Label({
     .as((addr) => addr !== "0x"),
 });
 
-const dispatch = (ws) => hyprland.messageAsync(`dispatch workspace ${ws}`);
+const focusWorkspace = (ws) => hyprland.dispatch.focus({ workspace: `${ws}` });
 
 const Workspaces = () =>
   Widget.EventBox({
-    onScrollUp: () => dispatch("+1"),
-    onScrollDown: () => dispatch("-1"),
+    onScrollUp: () => focusWorkspace("+1"),
+    onScrollDown: () => focusWorkspace("-1"),
     child: Widget.Box({
       children: Array.from({ length: 10 }, (_, i) => i + 1).map((i) =>
         Widget.Button({
           attribute: i,
           label: `${i}`,
-          onClicked: () => dispatch(i),
+          onClicked: () => focusWorkspace(i),
         })
       ),
 
