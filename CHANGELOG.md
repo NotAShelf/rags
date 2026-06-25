@@ -9,6 +9,19 @@
 - `lockscreen` service for secure Wayland `ext-session-lock-v1` session locking
   through the `gtk-session-lock` library
 - `polkit` service for registering RAGS as a Polkit authentication agent
+- `Hyprland.dispatch`, a typed Lua-native dispatch API mirroring Hyprland's
+  `hl.dsp.*` namespace (e.g. `hyprland.dispatch.focus({ workspace: '3' })`),
+  plus `Hyprland.eval()` for raw Lua. Required for Hyprland 0.55+, which
+  replaced the text dispatch protocol with a Lua interpreter
+
+### Fixed
+
+- Bar buttons and other `dispatch`-based actions no longer fail silently on
+  Hyprland 0.55+. The compositor moved its command socket to a Lua interpreter,
+  so legacy `dispatch` strings sent through `message`/`messageAsync` are now
+  transparently translated to the Lua protocol (existing configs keep working,
+  with a one-time deprecation warning), and dispatch errors are surfaced via the
+  `error` log instead of being swallowed
 
 ## 1.11.0
 
