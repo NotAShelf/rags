@@ -144,13 +144,6 @@ export class Battery extends Service implements Disposable {
             this._proxy.State === DeviceState.FULLY_CHARGED ||
             (this._proxy.State === DeviceState.CHARGING && percent === 100);
 
-        const level = Math.floor(percent / 10) * 10;
-        const state = this._proxy.State === DeviceState.CHARGING ? '-charging' : '';
-
-        const iconName = charged
-            ? 'battery-level-100-charged-symbolic'
-            : `battery-level-${level}${state}-symbolic`;
-
         const timeRemaining = charging ? this._proxy.TimeToFull : this._proxy.TimeToEmpty;
 
         const energy = this._proxy.Energy;
@@ -159,16 +152,19 @@ export class Battery extends Service implements Disposable {
 
         const energyRate = this._proxy.EnergyRate;
 
-        this.updateProperty('available', true);
-        // Invalidate icon cache when relevant properties change
-        if (this._percent !== percent || this._charging !== charging || this._charged !== charged) {
-            this.#iconDirty = true;
-        }
+        const previousIconName = this.icon_name;
+        const iconChanged =
+            this._percent !== percent || this._charging !== charging || this._charged !== charged;
 
-        this.updateProperty('icon-name', iconName);
+        this.updateProperty('available', true);
         this.updateProperty('percent', percent);
         this.updateProperty('charging', charging);
         this.updateProperty('charged', charged);
+
+        if (iconChanged) {
+            this.#iconDirty = true;
+            if (this.icon_name !== previousIconName) this.notify('icon-name');
+        }
         this.updateProperty('time-remaining', timeRemaining);
         this.updateProperty('energy', energy);
         this.updateProperty('energy-full', energyFull);
