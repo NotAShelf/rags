@@ -430,8 +430,14 @@ export class SystemTray extends Service implements Disposable {
             objectPath = service;
             busName = invocation.get_sender()!;
         } else {
-            busName = service;
-            objectPath = '/StatusNotifierItem';
+            const pathStart = service.indexOf('/');
+            if (pathStart > 0) {
+                busName = service.slice(0, pathStart);
+                objectPath = service.slice(pathStart);
+            } else {
+                busName = service;
+                objectPath = '/StatusNotifierItem';
+            }
         }
 
         invocation.return_value(null);
