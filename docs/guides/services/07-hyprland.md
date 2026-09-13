@@ -42,7 +42,7 @@ group: Services
 ## methods
 
 - `getMonitor`: `(id: number) => Monitor`
-- `getWorkspace`: `(id: number) => Workspace`
+- `getWorkspace`: `(address: string) => Workspace`
 - `getClient`: `(address: string) => Client`
 - `getGdkMonitor`: `(id: number) => Gdk.Monitor | null`: returns the GDK monitor
   corresponding to the given Hyprland monitor ID, or `null` if not found
@@ -88,7 +88,7 @@ interface Active {
     name: string;
   };
   workspace: {
-    id: number;
+    address: string;
     name: string;
   };
   client: {
@@ -116,7 +116,7 @@ const widget = Widget({
       .bind("prop", hyprland.active, "workspace", (ws) => {})
       .bind("prop", hyprland.active, "client", (client) => {})
       .bind("prop", hyprland.active.monitor, "id", (id) => {})
-      .bind("prop", hyprland.active.workspace, "id", (id) => {})
+      .bind("prop", hyprland.active.workspace, "address", (address) => {})
       .bind("prop", hyprland.active.client, "address", (address) => {}),
 });
 ```
@@ -141,7 +141,7 @@ const Workspaces = () =>
     child: Widget.Box({
       children: Array.from({ length: 10 }, (_, i) => i + 1).map((i) =>
         Widget.Button({
-          attribute: i,
+          attribute: `${i}`,
           label: `${i}`,
           onClicked: () => focusWorkspace(i),
         })
@@ -152,7 +152,7 @@ const Workspaces = () =>
         self.hook(hyprland, () =>
           self.children.forEach((btn) => {
             btn.visible = hyprland.workspaces.some((ws) =>
-              ws.id === btn.attribute
+              ws.address === btn.attribute
             );
           })),
     }),
