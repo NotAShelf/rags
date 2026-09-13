@@ -392,7 +392,7 @@ export class ActiveClient extends Service implements Disposable {
 /**
  * Active ID Tracker
  *
- * Tracks an active monitor or workspace by numeric ID and name.
+ * Tracks an active monitor by numeric ID and name.
  *
  * @property {number} id - Numeric identifier
  * @property {string} name - String name
@@ -440,6 +440,48 @@ export class ActiveID extends Service implements Disposable {
 }
 
 /**
+ * Tracks an active workspace by its Hyprland address and display name.
+ *
+ * @property {string} address - Stable workspace identity
+ * @property {string} name - Display name
+ */
+export class ActiveWorkspace extends Service implements Disposable {
+    static {
+        Service.register(
+            this,
+            {},
+            {
+                address: ['string'],
+                name: ['string'],
+            },
+        );
+    }
+
+    private _address = '';
+    private _name = '';
+
+    /** Stable workspace identity. */
+    get address() {
+        return this._address;
+    }
+
+    /** Workspace display name. */
+    get name() {
+        return this._name;
+    }
+
+    /** Updates the workspace identity and display data. */
+    update(address: string, name: string) {
+        super.updateProperty('address', address);
+        super.updateProperty('name', name);
+    }
+
+    dispose(): void {
+        super.dispose();
+    }
+}
+
+/**
  * Actives Aggregator
  *
  * Aggregates the currently active client, monitor, and workspace.
@@ -451,7 +493,7 @@ export class ActiveID extends Service implements Disposable {
  *
  * @property {ActiveClient} client - Currently focused client window
  * @property {ActiveID} monitor - Currently focused monitor
- * @property {ActiveID} workspace - Currently active workspace
+ * @property {ActiveWorkspace} workspace - Currently active workspace
  *
  * @fires changed - Emitted when any active entity changes
  */
@@ -470,7 +512,7 @@ export class Actives extends Service implements Disposable {
 
     private _client = new ActiveClient();
     private _monitor = new ActiveID();
-    private _workspace = new ActiveID();
+    private _workspace = new ActiveWorkspace();
 
     constructor() {
         super();
@@ -495,7 +537,7 @@ export class Actives extends Service implements Disposable {
     }
 
     /** The currently active workspace. */
-    get workspace() {
+    get workspace(): ActiveWorkspace {
         return this._workspace;
     }
 
@@ -593,7 +635,7 @@ export class Hyprland extends Service implements Disposable {
 
     private _active: Actives = new Actives();
     private _monitors: Map<number, Monitor> = new Map();
-    private _workspaces: Map<number, Workspace> = new Map();
+    private _workspaces: Map<string, Workspace> = new Map();
     private _clients: Map<string, Client> = new Map();
     private _decoder = new TextDecoder();
     private _encoder = new TextEncoder();
@@ -635,12 +677,12 @@ export class Hyprland extends Service implements Disposable {
      */
     readonly getMonitor = (id: number) => this._monitors.get(id);
     /**
-     * Retrieves a workspace by its numeric ID.
+     * Retrieves a workspace by its stable address.
      *
-     * @param id - The workspace ID
+     * @param address - The workspace address
      * @returns The Workspace data or undefined
      */
-    readonly getWorkspace = (id: number) => this._workspaces.get(id);
+    readonly getWorkspace = (address: string) => this._workspaces.get(address);
     /**
      * Retrieves a client by its hex address.
      *
@@ -672,13 +714,16 @@ export class Hyprland extends Service implements Disposable {
             this._monitors.set(m.id, m);
             if (m.focused) {
                 this._active.monitor.update(m.id, m.name);
-                this._active.workspace.update(m.activeWorkspace.id, m.activeWorkspace.name);
+                this._active.workspace.update(
+                    m.activeWorkspace.address,
+                    m.activeWorkspace.name,
+                );
             }
         }
 
         // init workspaces
         for (const ws of JSON.parse(this.message('j/workspaces')) as Workspace[])
-            this._workspaces.set(ws.id, ws);
+            this._workspaces.set(ws.address, ws);
 
         // init clients
         for (const c of JSON.parse(this.message('j/clients')) as Client[])
@@ -834,7 +879,10 @@ export class Hyprland extends Service implements Disposable {
                 this._monitors.set(m.id, m);
                 if (m.focused) {
                     this._active.monitor.update(m.id, m.name);
-                    this._active.workspace.update(m.activeWorkspace.id, m.activeWorkspace.name);
+                    this._active.workspace.update(
+                        m.activeWorkspace.address,
+                        m.activeWorkspace.name,
+                    );
                     this._active.monitor.emit('changed');
                     this._active.workspace.emit('changed');
                 }
@@ -849,7 +897,8 @@ export class Hyprland extends Service implements Disposable {
         try {
             const msg = await this.messageAsync('j/workspaces');
             this._workspaces.clear();
-            for (const ws of JSON.parse(msg) as Array<Workspace>) this._workspaces.set(ws.id, ws);
+            for (const ws of JSON.parse(msg) as Array<Workspace>)
+                this._workspaces.set(ws.address, ws);
 
             if (notify) this.notify('workspaces');
         } catch (error) {
@@ -1118,11 +1167,13 @@ export interface Monitor {
     x: number;
     y: number;
     activeWorkspace: {
-        id: number;
+        address: string;
+        type: string;
         name: string;
     };
     specialWorkspace: {
-        id: number;
+        address: string;
+        type: string;
         name: string;
     };
     reserved: [number, number, number, number];
@@ -1153,7 +1204,8 @@ export interface Monitor {
 
 /** Hyprland workspace state as returned by the IPC. */
 export interface Workspace {
-    id: number;
+    address: string;
+    type: string;
     name: string;
     monitor: string;
     monitorID: number;
@@ -1173,7 +1225,8 @@ export interface Client {
     at: [number, number];
     size: [number, number];
     workspace: {
-        id: number;
+        address: string;
+        type: string;
         name: string;
     };
     floating: boolean;
