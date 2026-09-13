@@ -188,7 +188,7 @@ const ssid = Network.wifi?.ssid;
 const strength = Network.wifi?.strength;
 
 // Hyprland IPC
-Hyprland.active.workspace.bind("id");
+Hyprland.active.workspace.bind("address");
 
 // MPRIS media players
 const player = Mpris.players[0];
