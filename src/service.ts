@@ -1,7 +1,7 @@
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=3.0';
 import { pspec, registerGObject, PspecFlag, PspecType } from './utils/gobject.js';
-import { globalSignalRegistry } from './utils/signal-registry.js';
+import { ResourceScope, type ChildScope } from './internal/resource-scope.js';
 import { AgsServiceError } from './utils/errors.js';
 
 function shallowEqual(a: unknown, b: unknown): boolean {
@@ -232,7 +232,8 @@ export default class Service extends GObject.Object {
      * ```
      */
     static async import<S extends keyof Services>(service: S): Promise<Services[S]> {
-        return (await import(`./service/${service}.js`)).default;
+        // The name is runtime-selected; services must only start when requested.
+        return (await import(`resource:///com/github/Aylur/ags/service/${service}.js`)).default;
     }
 
     /**
@@ -349,8 +350,8 @@ export default class Service extends GObject.Object {
         return new Binding(this, prop);
     }
 
-    // Connection tracking fields
-    private _connections: Array<{ emitter: GObject.Object; id: number }> = [];
+    protected readonly resources = new ResourceScope();
+    private _connections?: ChildScope;
     private _isDisposed = false;
 
     /**
@@ -361,16 +362,14 @@ export default class Service extends GObject.Object {
     protected trackConnection(emitter: GObject.Object, id: number): void;
     protected trackConnection(id: number): void;
     protected trackConnection(emitterOrId: GObject.Object | number, id?: number): void {
-        if (typeof emitterOrId === 'number') {
-            // Called with just ID - assume signal is on 'this'
-            this._connections.push({ emitter: this, id: emitterOrId });
-        } else {
-            // Called with emitter and ID
-            if (typeof id !== 'number') {
-                throw new Error('trackConnection requires id when emitter is provided');
-            }
-            this._connections.push({ emitter: emitterOrId, id });
+        const emitter = typeof emitterOrId === 'number' ? this : emitterOrId;
+        const signalId = typeof emitterOrId === 'number' ? emitterOrId : id;
+        if (typeof signalId !== 'number') {
+            throw new Error('trackConnection requires id when emitter is provided');
         }
+        (this._connections ??= this.resources.child()).scope.add(() => {
+            if (GObject.signal_handler_is_connected(emitter, signalId)) emitter.disconnect(signalId);
+        });
     }
 
     /**
@@ -378,17 +377,8 @@ export default class Service extends GObject.Object {
      * Call this in service-specific dispose implementations
      */
     protected disconnectAll(): void {
-        while (this._connections.length > 0) {
-            const { emitter, id } = this._connections.pop()!;
-            try {
-                emitter.disconnect(id);
-            } catch (error) {
-                console.error(
-                    `Failed to disconnect signal ${id} in ${this.constructor.name}:`,
-                    error,
-                );
-            }
-        }
+        this._connections?.release();
+        this._connections = undefined;
     }
 
     /**
@@ -401,8 +391,8 @@ export default class Service extends GObject.Object {
             return;
         }
 
-        this.disconnectAll();
         this._isDisposed = true;
+        this.resources.dispose();
     }
 
     /**
