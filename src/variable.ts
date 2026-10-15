@@ -1,10 +1,12 @@
 import GObject from 'gi://GObject';
 import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+import { ResourceScope } from './internal/resource-scope.js';
+import type { ChildScope } from './internal/resource-scope.js';
 import Service, { Binding, Props } from './service.js';
-import type { Disposable } from './service.js';
+import type { Connectable, Disposable } from './service.js';
 import { execAsync, interval, subprocess } from './utils.js';
 import { AgsRuntimeError } from './utils/errors.js';
+import { stopSubprocess } from './utils/exec.js';
 
 /**
  * Configuration for listening to a subprocess's stdout.
@@ -18,6 +20,10 @@ type Listen<T> =
     | [string[] | string]
     | string[]
     | string;
+
+function isArgv(value: unknown[]): value is string[] {
+    return value.every(arg => typeof arg === 'string');
+}
 
 /**
  * Configuration for polling a command or function at an interval.
@@ -43,6 +49,11 @@ export interface Options<T> {
     listen?: Listen<T>;
     /** When true, polling is suspended until at least one widget consumer exists. */
     autoSuspend?: boolean;
+}
+
+interface VariableSignals extends GObject.Object.SignalSignatures {
+    changed: () => void;
+    dispose: () => void;
 }
 
 /**
@@ -87,6 +98,9 @@ export class Variable<T> extends GObject.Object implements Disposable {
         );
     }
 
+    declare connect_after: GObject.SignalMethods<this, VariableSignals>['connect_after'];
+    declare emit: GObject.SignalMethods<this, VariableSignals>['emit'];
+
     protected _value!: T;
     protected _poll?: Poll<T>;
     protected _listen?: Listen<T>;
@@ -94,6 +108,10 @@ export class Variable<T> extends GObject.Object implements Disposable {
     protected _subprocess?: Gio.Subprocess | null;
     protected _autoSuspend = false;
     protected _visibleConsumers = 0;
+
+    private readonly _resources = new ResourceScope();
+    private _pollScope?: ChildScope;
+    private _listenScope?: ChildScope;
 
     /**
      * @param value - The initial value
@@ -105,14 +123,19 @@ export class Variable<T> extends GObject.Object implements Disposable {
 
         if (autoSuspend) this._autoSuspend = true;
 
-        if (poll) {
-            this._poll = poll;
-            if (!this._autoSuspend) this.startPoll();
-        }
+        try {
+            if (poll) {
+                this._poll = poll;
+                if (!this._autoSuspend) this.startPoll();
+            }
 
-        if (listen) {
-            this._listen = listen;
-            this.startListen();
+            if (listen) {
+                this._listen = listen;
+                this.startListen();
+            }
+        } catch (error) {
+            this.dispose();
+            throw error;
         }
     }
 
@@ -130,41 +153,60 @@ export class Variable<T> extends GObject.Object implements Disposable {
             });
         }
 
-        if (this._interval) {
+        if (this._pollScope) {
             throw new AgsRuntimeError(`${this} is already polling`, {
                 variable: this.toString(),
             });
         }
 
         const [time, cmd, transform = (out: string) => out as T] = this._poll;
-        if (Array.isArray(cmd) || typeof cmd === 'string') {
-            this._interval = interval(time, () =>
-                execAsync(cmd)
-                    .then(out => (this.value = transform(out, this)))
-                    .catch(console.error),
-            );
-        }
-        if (typeof cmd === 'function') {
-            this._interval = interval(time, () => {
-                const value = cmd(this);
-                if (value instanceof Promise)
-                    value.then(v => (this.value = v)).catch(console.error);
-                else this.value = value;
-            });
+        const pollScope = this._resources.child();
+        this._pollScope = pollScope;
+        let source: number;
+        try {
+            if (Array.isArray(cmd) || typeof cmd === 'string') {
+                source = interval(time, () => {
+                    if (this._pollScope !== pollScope) return;
+                    execAsync(cmd)
+                        .then(out => {
+                            if (this._pollScope !== pollScope) return;
+                            const value = transform(out, this);
+                            if (this._pollScope === pollScope) this.value = value;
+                        })
+                        .catch(console.error);
+                });
+            } else {
+                source = interval(time, () => {
+                    if (this._pollScope !== pollScope) return;
+                    const value = cmd(this);
+                    if (value instanceof Promise)
+                        value.then(v => {
+                            if (this._pollScope === pollScope) this.value = v;
+                        }).catch(console.error);
+                    else if (this._pollScope === pollScope) this.value = value;
+                });
+            }
+            pollScope.scope.source(source);
+            if (this._pollScope === pollScope) this._interval = source;
+        } catch (error) {
+            if (this._pollScope === pollScope) this._pollScope = undefined;
+            pollScope.release();
+            throw error;
         }
         this.notify('is-polling');
     }
 
     /** Stops the active poll loop. */
     stopPoll() {
-        if (this._interval) {
-            GLib.source_remove(this._interval);
-            this._interval = 0;
-        } else {
+        const pollScope = this._pollScope;
+        if (!pollScope) {
             throw new AgsRuntimeError(`${this} has no poll running`, {
                 variable: this.toString(),
             });
         }
+        this._pollScope = undefined;
+        this._interval = 0;
+        pollScope.release();
         this.notify('is-polling');
     }
 
@@ -200,37 +242,45 @@ export class Variable<T> extends GObject.Object implements Disposable {
             });
         }
 
-        let cmd: string | string[];
         const transform =
             typeof this._listen[1] === 'function' ? this._listen[1] : (out: string) => out as T;
+        const listen = this._listen;
+        const cmd = Array.isArray(listen)
+            ? isArgv(listen) ? listen : listen[0]
+            : listen;
 
-        // string
-        if (typeof this._listen === 'string') cmd = this._listen;
-        // string[]
-        else if (Array.isArray(this._listen) && this._listen.every(s => typeof s === 'string'))
-            cmd = this._listen as string[];
-        // [string, fn]
-        else if (Array.isArray(this._listen) && typeof this._listen[0] === 'string')
-            cmd = this._listen[0];
-        // [string[], fn]
-        else if (Array.isArray(this._listen) && Array.isArray(this._listen[0]))
-            cmd = this._listen[0];
-        else {
+        if (typeof cmd !== 'string' && !Array.isArray(cmd)) {
             throw new AgsRuntimeError(`${this._listen} is not a valid type for Variable.listen`, {
                 variable: this.toString(),
                 listenType: typeof this._listen,
             });
         }
 
-        this._subprocess = subprocess(cmd, out => (this.value = transform(out, this)));
+        const listenScope = this._resources.child();
+        this._listenScope = listenScope;
+        try {
+            const process = subprocess(cmd, out => {
+                if (this._listenScope !== listenScope) return;
+                const value = transform(out, this);
+                if (this._listenScope === listenScope) this.value = value;
+            });
+            listenScope.scope.add(() => stopSubprocess(process));
+            this._subprocess = process;
+        } catch (error) {
+            listenScope.release();
+            this._listenScope = undefined;
+            throw error;
+        }
         this.notify('is-listening');
     }
 
     /** Stops the active listener subprocess. */
     stopListen() {
         if (this._subprocess) {
-            this._subprocess.force_exit();
+            const listenScope = this._listenScope;
+            this._listenScope = undefined;
             this._subprocess = null;
+            listenScope?.release();
         } else {
             throw new AgsRuntimeError(`${this} has no listen running`, {
                 variable: this.toString(),
@@ -246,19 +296,30 @@ export class Variable<T> extends GObject.Object implements Disposable {
 
     /** Whether a poll loop is currently active. */
     get is_polling() {
-        return !!this._interval;
+        return !!this._pollScope;
     }
 
     private _isDisposed = false;
 
+    /** @internal Owns a subscription used to compute this variable's value. */
+    _trackDerivedConnection(emitter: Connectable, id: number): void {
+        this._resources.add(() => {
+            if (emitter instanceof GObject.Object && !GObject.signal_handler_is_connected(emitter, id))
+                return;
+            emitter.disconnect(id);
+        });
+    }
+
     /** Stops all polling and listening, then disposes the GObject. */
     dispose() {
         if (this._isDisposed) return;
+        this._isDisposed = true;
 
         if (this.is_polling) this.stopPoll();
         if (this.is_listening) this.stopListen();
 
-        this._isDisposed = true;
+        this._resources.dispose();
+        this.emit('dispose');
     }
 
     /** Whether the variable has been disposed. */
@@ -297,7 +358,7 @@ export class Variable<T> extends GObject.Object implements Disposable {
      * @returns The connection ID
      */
     connect(signal = 'notify::value', callback: (self: this, ...args: any[]) => void): number {
-        return super.connect(signal, callback);
+        return GObject.signal_connect(this, signal, callback);
     }
 
     /**

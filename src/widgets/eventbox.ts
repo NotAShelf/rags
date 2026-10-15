@@ -73,21 +73,21 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
         this.add_events(Gdk.EventMask.SCROLL_MASK);
         this.add_events(Gdk.EventMask.SMOOTH_SCROLL_MASK);
 
-        this.connect('enter-notify-event', (_, event: Gdk.Event) => {
+        this._connect('enter-notify-event', (_, event: Gdk.Event) => {
             if (this.isHovered(event)) {
                 this.set_state_flags(Gtk.StateFlags.PRELIGHT, false);
                 return this.on_hover?.(this, event);
             }
         });
 
-        this.connect('leave-notify-event', (_, event: Gdk.Event) => {
+        this._connect('leave-notify-event', (_, event: Gdk.Event) => {
             if (!this.isHovered(event)) {
                 this.unset_state_flags(Gtk.StateFlags.PRELIGHT);
                 return this.on_hover_lost?.(this, event);
             }
         });
 
-        this.connect('button-press-event', (_, event: Gdk.Event) => {
+        this._connect('button-press-event', (_, event: Gdk.Event) => {
             this.set_state_flags(Gtk.StateFlags.ACTIVE, false);
             if (event.get_button()[1] === Gdk.BUTTON_PRIMARY)
                 return this.on_primary_click?.(this, event);
@@ -97,7 +97,7 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
                 return this.on_secondary_click?.(this, event);
         });
 
-        this.connect('button-release-event', (_, event: Gdk.Event) => {
+        this._connect('button-release-event', (_, event: Gdk.Event) => {
             this.unset_state_flags(Gtk.StateFlags.ACTIVE);
             if (event.get_button()[1] === Gdk.BUTTON_PRIMARY)
                 return this.on_primary_click_release?.(this, event);
@@ -107,7 +107,7 @@ export class EventBox<Child extends Gtk.Widget, Attr> extends Gtk.EventBox {
                 return this.on_secondary_click_release?.(this, event);
         });
 
-        this.connect('scroll-event', (_, event: Gdk.Event) => {
+        this._connect('scroll-event', (_, event: Gdk.Event) => {
             if (event.get_scroll_deltas()[2] < 0) return this.on_scroll_up?.(this, event);
             else if (event.get_scroll_deltas()[2] > 0) return this.on_scroll_down?.(this, event);
         });

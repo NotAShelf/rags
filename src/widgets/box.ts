@@ -44,7 +44,9 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
         propsOrChildren: BoxProps<Child, Attr> | Child[] = {} as BoxProps<Child, Attr>,
         ...children: Gtk.Widget[]
     ) {
-        const props: any = Array.isArray(propsOrChildren) ? {} : propsOrChildren;
+        const props = Array.isArray(propsOrChildren)
+            ? ({} as BoxProps<Child, Attr>)
+            : propsOrChildren;
         const { setup, ...rest } = props;
 
         if (Array.isArray(propsOrChildren)) rest.children = propsOrChildren;
@@ -52,19 +54,7 @@ export class Box<Child extends Gtk.Widget, Attr> extends Gtk.Box {
 
         super(rest as Gtk.Box.ConstructorProps);
 
-        const self = this as any;
-        self._onHandlerIds = [];
-        this.connect('destroy', () => {
-            if (self._onHandlerIds) {
-                for (const id of self._onHandlerIds) {
-                    this.disconnect(id);
-                }
-                self._onHandlerIds = [];
-            }
-            self._set('is-destroyed', true);
-        });
-
-        this.connect('notify::orientation', () => this.notify('vertical'));
+        this._connect('notify::orientation', () => this.notify('vertical'));
 
         if (typeof setup === 'function') setup(this);
     }

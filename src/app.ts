@@ -2,6 +2,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 import Gdk from 'gi://Gdk?version=3.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import Service from './service.js';
 import Variable from './variable.js';
 import Widget from './widget.js';
@@ -9,6 +10,7 @@ import Utils from './utils.js';
 import { timeout, readFileAsync } from './utils.js';
 import { loadInterfaceXML } from './utils.js';
 import { AgsConfigError } from './utils/errors.js';
+import { ResourceScope, ensureWidgetScope, type ChildScope, type ScopeHandle } from './internal/resource-scope.js';
 
 /** @internal */
 function deprecated(config: Config) {
@@ -79,6 +81,11 @@ export interface Config {
     maxStreamVolume?: number;
 }
 
+interface AppSignals extends Gtk.Application.SignalSignatures {
+    'window-toggled': (name: string, visible: boolean) => void;
+    'config-parsed': () => void;
+}
+
 /**
  * The main AGS application singleton.
  *
@@ -102,7 +109,15 @@ export class App extends Gtk.Application {
         });
     }
 
-    private _dbus!: Gio.DBusExportedObject;
+    declare connect_after: GObject.SignalMethods<this, AppSignals>['connect_after'];
+    declare emit: GObject.SignalMethods<this, AppSignals>['emit'];
+
+    private readonly _resources = new ResourceScope();
+    private _dbus?: Gio.DBusExportedObject;
+    private _dbusExport?: ScopeHandle;
+    private _cssResources?: ChildScope;
+    private _windowScopes = new Map<Gtk.Window, ChildScope>();
+    private _shuttingDown = false;
     private _cssProviders: Gtk.CssProvider[] = [];
     private _objectPath!: string;
     private _windows: Map<string, Gtk.Window> = new Map();
@@ -172,9 +187,8 @@ export class App extends Gtk.Application {
             return;
         }
 
-        this._cssProviders.forEach(provider => {
-            Gtk.StyleContext.remove_provider_for_screen(screen, provider);
-        });
+        this._cssResources?.release();
+        this._cssResources = undefined;
 
         this._cssProviders = [];
     };
@@ -195,11 +209,13 @@ export class App extends Gtk.Application {
         if (reset) this.resetCss();
 
         const cssProvider = new Gtk.CssProvider();
-        cssProvider.connect('parsing-error', (_, section, err) => {
+        const scope = (this._cssResources ??= this._resources.child()).scope.child();
+        const parsingId = cssProvider.connect('parsing-error', (_, section, err) => {
             const file = section.get_file().get_path();
             const location = section.get_start_line();
             console.error(`CSS ERROR: ${err.message} at line ${location} in ${file}`);
         });
+        scope.scope.add(() => cssProvider.disconnect(parsingId));
 
         try {
             if (GLib.file_test(pathOrStyle, GLib.FileTest.EXISTS)) {
@@ -208,6 +224,7 @@ export class App extends Gtk.Application {
                 cssProvider.load_from_data(new TextEncoder().encode(pathOrStyle));
             }
         } catch (error) {
+            scope.release();
             console.error('CSS loading error:', error);
             throw new AgsConfigError('Failed to load CSS', {
                 path: pathOrStyle,
@@ -220,6 +237,7 @@ export class App extends Gtk.Application {
             cssProvider,
             Gtk.STYLE_PROVIDER_PRIORITY_USER,
         );
+        scope.scope.add(() => Gtk.StyleContext.remove_provider_for_screen(screen, cssProvider));
 
         this._cssProviders.push(cssProvider);
     };
@@ -291,6 +309,16 @@ export class App extends Gtk.Application {
         this._load();
     }
 
+    vfunc_shutdown() {
+        this._shuttingDown = true;
+        this._resources.dispose();
+        this._windowScopes.clear();
+        this._cssProviders = [];
+        this._windows.clear();
+        this._windowFactories.clear();
+        super.vfunc_shutdown();
+    }
+
     /**
      * Connects a callback to a signal.
      *
@@ -299,7 +327,7 @@ export class App extends Gtk.Application {
      * @returns The connection ID
      */
     readonly connect = (signal = 'window-toggled', callback: (_: this, ...args: any[]) => void) => {
-        return super.connect(signal, callback);
+        return GObject.signal_connect(this, signal, callback);
     };
 
     /**
@@ -342,7 +370,12 @@ export class App extends Gtk.Application {
 
         const delay = this.closeWindowDelay[name];
         if (delay && w.visible) {
-            timeout(delay, () => w.hide());
+            const owner = this._windowScopes.get(w)?.scope;
+            const id = timeout(delay, () => {
+                pending?.forget();
+                if (!this._shuttingDown) w.hide();
+            });
+            const pending = owner?.source(id);
             this.emit('window-toggled', name, false);
         } else {
             w.hide();
@@ -398,15 +431,23 @@ export class App extends Gtk.Application {
 
         if (!w.name) return console.error(Error(`${w} has no name`));
 
-        w.connect('notify::visible', () => this.emit('window-toggled', w.name, w.visible));
+        const child = this._resources.child();
+        const windowOwner = ensureWidgetScope(w).add(() => {
+            child.release();
+            this._windowScopes.delete(w);
+        });
+        child.scope.add(() => windowOwner.forget());
+        child.scope.connect(w, 'notify::visible', () => this.emit('window-toggled', w.name, w.visible));
 
         if (this._windows.has(w.name)) {
             console.error(Error('There is already a window named' + w.name));
             this.quit();
+            child.release();
             return;
         }
 
         this._windows.set(w.name, w);
+        this._windowScopes.set(w, child);
     };
 
     /** Quits the application. */
@@ -449,9 +490,11 @@ export class App extends Gtk.Application {
         }
 
         if (typeof onWindowToggled === 'function')
-            this.connect('window-toggled', (_, n, v) => onWindowToggled!(n, v));
+            this._resources.connect(this, 'window-toggled', (_, name, visible) =>
+                onWindowToggled(name as string, visible as boolean));
 
-        if (typeof onConfigParsed === 'function') this.connect('config-parsed', onConfigParsed);
+        if (typeof onConfigParsed === 'function')
+            this._resources.connect(this, 'config-parsed', () => onConfigParsed(this));
 
         if (typeof windows === 'function') windows().forEach(this.addWindow);
 
@@ -481,6 +524,7 @@ export class App extends Gtk.Application {
     private async _load() {
         try {
             const entry = await import(`file://${this.configPath}`);
+            if (this._shuttingDown) return;
             const config = entry.default as Config;
             if (!config) return this.emit('config-parsed');
             else
@@ -502,21 +546,28 @@ export class App extends Gtk.Application {
     }
 
     private _register() {
-        Gio.bus_own_name(
+        const ownerId = Gio.bus_own_name(
             Gio.BusType.SESSION,
             this.application_id!,
             Gio.BusNameOwnerFlags.NONE,
             (connection: Gio.DBusConnection) => {
-                this._dbus = Gio.DBusExportedObject.wrapJSObject(
+                if (this._shuttingDown) return;
+                this._dbusExport?.release();
+                const dbus = Gio.DBusExportedObject.wrapJSObject(
                     AgsIFace(this.application_id!) as string,
                     this,
                 );
-
-                this._dbus.export(connection, this._objectPath);
+                this._dbus = dbus;
+                dbus.export(connection, this._objectPath);
+                this._dbusExport = this._resources.add(() => {
+                    dbus.unexport();
+                    if (this._dbus === dbus) this._dbus = undefined;
+                });
             },
             null,
             null,
         );
+        this._resources.add(() => Gio.bus_unown_name(ownerId));
     }
 
     /** Returns a JSON-serializable representation of the application state. */

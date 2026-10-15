@@ -2,10 +2,11 @@ import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=3.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gdk from 'gi://Gdk?version=3.0';
-import Cairo from 'gi://cairo?version=1.0';
+import Cairo from 'cairo';
 import { Props, BindableProps, Binding, Connectable } from '../service.js';
 import { registerGObject, kebabify, type CtorProps } from '../utils/gobject.js';
-import { interval, idle } from '../utils.js';
+import { interval } from '../utils.js';
+import { ensureWidgetScope, initWidget } from '../internal/resource-scope.js';
 
 /** @internal Map of alignment string names to GTK Align enum values. */
 const ALIGN = {
@@ -197,6 +198,8 @@ export interface Widget<Attr> extends Required<Omit<CommonProps<Attr>, 'cursor' 
     /** Whether this widget has been destroyed. */
     readonly is_destroyed: boolean;
     /** @internal */
+    _connect<Args extends unknown[]>(signal: string, callback: (self: this, ...args: Args) => unknown): number;
+    /** @internal */
     _handleParamProp(prop: keyof this, value: any): void;
     /** @internal */
     _get<T>(field: string): T | undefined;
@@ -248,8 +251,23 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
         return this._get<Attr>('attribute');
     }
 
-    _onHandlerIds: number[] = [];
     _cursorHandlersConnected = false;
+
+    _connect<Args extends unknown[]>(signal: string, callback: (self: this, ...args: Args) => unknown): number {
+        initWidget(this);
+        if (this.is_destroyed) return 0;
+        return GObject.signal_connect(this, signal, callback);
+    }
+
+    _idle(callback: () => void, priority = GLib.PRIORITY_DEFAULT): void {
+        if (this.is_destroyed) return;
+        const id = GLib.idle_add(priority, () => {
+            handle.forget();
+            if (!this.is_destroyed) callback();
+            return GLib.SOURCE_REMOVE;
+        });
+        const handle = ensureWidgetScope(this).source(id);
+    }
 
     hook(
         gobject: Connectable,
@@ -268,19 +286,12 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
             return this;
         }
 
-        const id = gobject.connect(signal!, (_, ...args: unknown[]) => {
-            callback(this, ...args);
-        });
-
-        this.connect('destroy', () => {
-            gobject.disconnect(id);
-        });
-
-        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-            if (!this.is_destroyed) callback(this);
-
-            return GLib.SOURCE_REMOVE;
-        });
+        const scope = ensureWidgetScope(this);
+        if (this.is_destroyed) return this;
+        const handler = (_emitter: unknown, ...args: unknown[]) => callback(this, ...args);
+        if (gobject === this) this._connect(signal!, handler);
+        else scope.connect(gobject, signal!, handler);
+        this._idle(() => callback(this), GLib.PRIORITY_DEFAULT_IDLE);
 
         return this;
     }
@@ -311,9 +322,7 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
     }
 
     on(signal: string, callback: (self: this, ...args: any[]) => void): this {
-        if (!this._onHandlerIds) this._onHandlerIds = [];
-        const id = this.connect(signal, callback);
-        this._onHandlerIds.push(id);
+        this._connect(signal, callback);
         return this;
     }
 
@@ -331,7 +340,7 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
         const key = callback ? (keyOrCallback as Key) : (modsOrKey as Key);
         const fn = callback ? callback : (keyOrCallback as Fn);
 
-        this.connect('key-press-event', (_, event: Gdk.Event) => {
+        this._connect('key-press-event', (_, event: Gdk.Event) => {
             const k = event.get_keyval()[1];
             const m = event.get_state()[1];
             const ms = mods.reduce((ms, m) => ms | Gdk.ModifierType[`${m}_MASK`], 0);
@@ -352,50 +361,35 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
         > = {} as any,
         child?: Gtk.Widget,
     ) {
-        this._onHandlerIds = [];
         const { setup, attribute, ...props } = config || {};
 
-        const binds = (Object.keys(props) as Array<keyof typeof props>)
-            .map(prop => {
-                if (props[prop] instanceof Binding) {
-                    const bind = [prop, props[prop]];
-                    delete props[prop];
-                    return bind;
-                }
-            })
-            .filter(pair => pair);
+        let binds: Array<[keyof typeof props, unknown]> | undefined;
+        for (const prop in props) {
+            const key = prop as keyof typeof props;
+            const value = props[key];
+            if (value instanceof Binding) {
+                (binds ??= []).push([key, value]);
+                delete props[key];
+            }
+        }
 
         if (child) props.child = child;
 
         super._init(props as Gtk.Widget.ConstructorProps);
+        initWidget(this);
 
         if (attribute !== undefined) this._set('attribute', attribute);
 
-        (binds as unknown as Array<[keyof Props<this>, Binding<any, any, any>]>).forEach(
+        (binds as unknown as Array<[keyof Props<this>, Binding<any, any, any>]>)?.forEach(
             ([selfProp, { emitter, prop, transformFn }]) => {
                 this.bind(selfProp, emitter, prop, transformFn);
 
                 if (emitter._autoSuspend) {
                     emitter._addVisibleConsumer();
-                    this.connect('destroy', () => emitter._removeVisibleConsumer());
+                    ensureWidgetScope(this).add(() => emitter._removeVisibleConsumer());
                 }
             },
         );
-
-        this.connect('destroy', () => {
-            if (this._onHandlerIds) {
-                for (const id of this._onHandlerIds) {
-                    this.disconnect(id);
-                }
-                this._onHandlerIds = [];
-            }
-            this._set('is-destroyed', true);
-        });
-
-        idle(() => {
-            if (this.click_through && !this.is_destroyed)
-                this.input_shape_combine_region(new Cairo.Region());
-        });
 
         if (setup) setup(this);
     }
@@ -548,8 +542,8 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
             this._cursorHandlersConnected = true;
             this.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK);
             this.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK);
-            this.connect('enter-notify-event', this._updateCursor.bind(this));
-            this.connect('leave-notify-event', this._updateCursor.bind(this));
+            this._connect('enter-notify-event', this._updateCursor.bind(this));
+            this._connect('leave-notify-event', this._updateCursor.bind(this));
         }
 
         this._updateCursor();
@@ -574,6 +568,11 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
         const value = clickThrough ? new Cairo.Region() : null;
         this.input_shape_combine_region(value);
         this._set('click-through', value);
+        if (clickThrough) {
+            this._idle(() => {
+                if (this.click_through) this.input_shape_combine_region(new Cairo.Region());
+            });
+        }
         this.notify('click-through');
     }
 }
@@ -592,13 +591,7 @@ export function register<T extends { new (...args: any[]): Gtk.Widget }>(
     klass: T,
     config?: Parameters<typeof registerGObject>[1] & { cssName?: string },
 ) {
-    Object.getOwnPropertyNames(AgsWidget.prototype).forEach(name => {
-        Object.defineProperty(
-            klass.prototype,
-            name,
-            Object.getOwnPropertyDescriptor(AgsWidget.prototype, name) || Object.create(null),
-        );
-    });
+    Object.defineProperties(klass.prototype, Object.getOwnPropertyDescriptors(AgsWidget.prototype));
 
     return registerGObject(klass, {
         cssName: config?.cssName,

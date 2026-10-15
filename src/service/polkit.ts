@@ -2,6 +2,40 @@
 import GUtils from 'gi://GUtils';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
+import type Gio from 'gi://Gio';
+import type GObject from 'gi://GObject';
+import type GLib from 'gi://GLib';
+
+interface NativePolkitSignals extends GObject.Object.SignalSignatures {
+    begin: (
+        actionId: string,
+        message: string,
+        iconName: string,
+        details: GLib.Variant,
+        identities: GLib.Variant,
+    ) => void;
+    request: (message: string, echoOn: boolean) => void;
+    'show-info': (text: string) => void;
+    'show-error': (text: string) => void;
+    completed: (authorized: boolean) => void;
+    cancelled: () => void;
+}
+
+interface NativePolkitAgent extends GObject.Object {
+    connect: GObject.SignalMethods<this, NativePolkitSignals>['connect'];
+    connect_after: GObject.SignalMethods<this, NativePolkitSignals>['connect_after'];
+    emit: GObject.SignalMethods<this, NativePolkitSignals>['emit'];
+    register(
+        sessionId: string,
+        objectPath: string,
+        fallback: boolean,
+        cancellable: Gio.Cancellable | null,
+    ): boolean;
+    unregister(): void;
+    select_identity(index: number): boolean;
+    response(response: string): boolean;
+    cancel(): void;
+}
 
 export type PolkitIdentity = {
     id: string;
@@ -75,7 +109,7 @@ export class Polkit extends Service implements Disposable {
         );
     }
 
-    private _agent: any = GUtils.PolkitAgent.new();
+    private _agent: NativePolkitAgent = GUtils.PolkitAgent.new();
     private _registered = false;
     private _active = false;
     private _currentRequest: PolkitRequest | null = null;
@@ -103,8 +137,27 @@ export class Polkit extends Service implements Disposable {
         return this._prompt;
     }
 
+    private _isCurrentRequest(request: PolkitRequest | null, disposed = false) {
+        return this.isDisposed === disposed && this._currentRequest === request;
+    }
+
+    private _isCurrentPrompt(prompt: PolkitPrompt | null) {
+        return !this.isDisposed && this._prompt === prompt;
+    }
+
     constructor() {
         super();
+        this.resources.add(() => {
+            try {
+                this._agent.cancel();
+            } finally {
+                if (this._registered) this.unregisterAgent();
+                else {
+                    this._agent.unregister();
+                    if (this._active || this._currentRequest || this._prompt) this._clearActive();
+                }
+            }
+        });
 
         this.trackConnection(
             this._agent,
@@ -118,22 +171,32 @@ export class Polkit extends Service implements Disposable {
                     details: unknown,
                     identities: unknown,
                 ) => {
+                    if (this.isDisposed) return;
                     this._active = true;
                     this._prompt = null;
-                    this._currentRequest = {
+                    const request: PolkitRequest = {
                         actionId,
                         message,
                         iconName,
                         details: unpackVariant<Record<string, string>>(details),
                         identities: unpackVariant<PolkitIdentity[]>(identities),
                     };
+                    this._currentRequest = request;
                     this.notify('active');
+                    if (!this._isCurrentRequest(request)) return;
                     this.notify('prompt');
+                    if (!this._isCurrentRequest(request)) return;
                     this.notify('current-request');
-                    this.emit('begin', this._currentRequest);
+                    if (!this._isCurrentRequest(request)) return;
+                    this.emit('begin', request);
+                    if (!this._isCurrentRequest(request)) return;
                     this.emit('changed');
 
-                    if (this.autoSelectIdentity && this._currentRequest.identities.length > 0) {
+                    if (
+                        this._isCurrentRequest(request) &&
+                        this.autoSelectIdentity &&
+                        request.identities.length > 0
+                    ) {
                         this.selectIdentity(0);
                     }
                 },
@@ -143,10 +206,13 @@ export class Polkit extends Service implements Disposable {
         this.trackConnection(
             this._agent,
             this._agent.connect('request', (_agent: unknown, message: string, echoOn: boolean) => {
-                this._prompt = { message, echoOn };
+                if (this.isDisposed) return;
+                const prompt = { message, echoOn };
+                this._prompt = prompt;
                 this.notify('prompt');
-                this.emit('request', this._prompt);
-                this.emit('changed');
+                if (!this._isCurrentPrompt(prompt)) return;
+                this.emit('request', prompt);
+                if (this._isCurrentPrompt(prompt)) this.emit('changed');
             }),
         );
 
@@ -167,47 +233,53 @@ export class Polkit extends Service implements Disposable {
         this.trackConnection(
             this._agent,
             this._agent.connect('completed', (_agent: unknown, authorized: boolean) => {
-                this._clearActive();
-                this.emit('completed', authorized);
+                if (this._clearActive()) this.emit('completed', authorized);
             }),
         );
 
         this.trackConnection(
             this._agent,
             this._agent.connect('cancelled', () => {
-                this._clearActive();
-                this.emit('cancelled');
+                if (this._clearActive()) this.emit('cancelled');
             }),
         );
     }
 
     /** Registers this process as the polkit authentication agent. */
     readonly registerAgent = (options: RegisterOptions = {}) => {
-        if (this._registered) return;
+        if (this.isDisposed || this._registered) return;
 
-        this._agent.register(
+        const registered = this._agent.register(
             options.sessionId ?? '',
             options.objectPath ?? DEFAULT_OBJECT_PATH,
             options.fallback ?? false,
             null,
         );
+        if (this.isDisposed) {
+            this._agent.unregister();
+            return;
+        }
+        if (!registered) return;
         this._registered = true;
         this.notify('registered');
+        if (this.isDisposed || !this._registered) return;
         this.emit('changed');
     };
 
     /** Unregisters this process as the polkit authentication agent. */
     readonly unregisterAgent = () => {
         if (!this._registered) return;
-        this._agent.unregister();
+        const disposed = this.isDisposed;
         this._registered = false;
-        this._clearActive();
+        this._agent.unregister();
+        if (!this._clearActive()) return;
         this.notify('registered');
-        this.emit('changed');
+        if (this.isDisposed === disposed) this.emit('changed');
     };
 
     /** Selects which offered identity to authenticate as. */
     readonly selectIdentity = (index: number) => {
+        if (this.isDisposed) return;
         if (!Number.isInteger(index) || index < 0) {
             throw new RangeError('Identity index must be a non-negative integer');
         }
@@ -217,29 +289,40 @@ export class Polkit extends Service implements Disposable {
 
     /** Sends a response to the current PAM prompt. */
     readonly respond = (response: string) => {
+        if (this.isDisposed) return;
+        const prompt = this._prompt;
         this._agent.response(response);
+        if (!this._isCurrentPrompt(prompt)) return;
         this._prompt = null;
         this.notify('prompt');
+        if (!this._isCurrentPrompt(null)) return;
         this.emit('changed');
     };
 
     /** Cancels the current authentication request. */
     readonly cancel = () => {
+        if (this.isDisposed || !this._active) return;
+        this._active = false;
         this._agent.cancel();
     };
 
-    private _clearActive() {
+    private _clearActive(): boolean {
+        const disposed = this.isDisposed;
         this._active = false;
         this._currentRequest = null;
         this._prompt = null;
         this.notify('active');
+        if (!this._isCurrentRequest(null, disposed)) return false;
         this.notify('current-request');
+        if (!this._isCurrentRequest(null, disposed)) return false;
         this.notify('prompt');
+        if (!this._isCurrentRequest(null, disposed)) return false;
         this.emit('changed');
+        return this._isCurrentRequest(null, disposed);
     }
 
     dispose(): void {
-        this.unregisterAgent();
+        if (this.isDisposed) return;
         super.dispose();
     }
 }

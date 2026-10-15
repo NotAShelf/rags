@@ -48,9 +48,9 @@ export class MenuItem<Child extends Gtk.Widget, Attr> extends Gtk.MenuItem {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.MenuItem.ConstructorProps);
 
-        this.connect('activate', () => this.on_activate?.(this));
-        this.connect('select', () => this.on_select?.(this));
-        this.connect('deselect', () => this.on_deselect?.(this));
+        this._connect('activate', () => this.on_activate?.(this));
+        this._connect('select', () => this.on_select?.(this));
+        this._connect('deselect', () => this.on_deselect?.(this));
         if (typeof setup === 'function') setup(this);
     }
 

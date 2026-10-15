@@ -74,7 +74,7 @@ export class Stack<Children extends { [name: string]: Gtk.Widget }, Attr> extend
         if (children) rest.children = children;
 
         super(rest as Gtk.Stack.ConstructorProps);
-        this.connect('notify::visible-child-name', () => this.notify('shown'));
+        this._connect('notify::visible-child-name', () => this.notify('shown'));
 
         if (typeof setup === 'function') setup(this);
     }

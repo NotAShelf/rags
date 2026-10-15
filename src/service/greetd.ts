@@ -1,6 +1,7 @@
 import App from '../app.js';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
+import { ResourceScope } from '../internal/resource-scope.js';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
@@ -133,36 +134,46 @@ export class Greetd extends Service implements Disposable {
     };
 
     private async _send<R extends keyof Request>(req: R, payload: Request[R]): Promise<Response> {
-        const connection = new Gio.SocketClient().connect(
-            new Gio.UnixSocketAddress({ path: SOCK }) as Gio.SocketConnectable,
-            null,
-        ) as Gio.SocketConnection;
+        const request = this.resources.child();
+        const cancellable = new Gio.Cancellable();
+        const io = new ResourceScope();
+        let reading = false;
+        request.scope.add(() => {
+            cancellable.cancel();
+            if (!reading) io.dispose();
+        });
 
         try {
+            const connection = new Gio.SocketClient().connect(
+                new Gio.UnixSocketAddress({ path: SOCK }) as Gio.SocketConnectable,
+                cancellable,
+            ) as Gio.SocketConnection;
+            io.add(() => connection.close(null));
+
             const json = JSON.stringify({ type: req, ...payload });
             const ostream = new Gio.DataOutputStream({
-                close_base_stream: true,
+                close_base_stream: false,
                 base_stream: connection.get_output_stream(),
             });
+            io.add(() => ostream.close(null));
 
             const istream = connection.get_input_stream();
 
-            ostream.put_int32(json.length, null);
-            ostream.put_string(json, null);
+            ostream.put_int32(json.length, cancellable);
+            ostream.put_string(json, cancellable);
 
-            const data = await istream.read_bytes_async(4, GLib.PRIORITY_DEFAULT, null);
+            reading = true;
+            const data = await istream.read_bytes_async(4, GLib.PRIORITY_DEFAULT, cancellable);
+            cancellable.set_error_if_cancelled();
             const length = new Uint32Array((data.get_data() ?? new Uint8Array([0])).buffer)[0];
-            const res = await istream.read_bytes_async(length, GLib.PRIORITY_DEFAULT, null);
+            const res = await istream.read_bytes_async(length, GLib.PRIORITY_DEFAULT, cancellable);
+            cancellable.set_error_if_cancelled();
             return JSON.parse(this._decoder.decode(res.get_data()!)) as Response;
         } finally {
-            connection.close(null);
+            reading = false;
+            request.release();
+            io.dispose();
         }
-    }
-
-    dispose(): void {
-        super.dispose();
-        // No persistent connections to cleanup
-        // Socket connections are created and closed per request in _send()
     }
 }
 

@@ -37,21 +37,21 @@ export function merge<
 >(deps: Deps, fn: (...args: Args) => V) {
     const update = () => fn(...(deps.map(d => d.transformFn(d.emitter[d.prop])) as Args));
     const watcher = new Variable(update());
-    const connectionIds: Array<{ emitter: Connectable; id: number }> = [];
+    const set = () => {
+        if (watcher.is_disposed) return;
+        const value = update();
+        if (!watcher.is_disposed) watcher.value = value;
+    };
 
-    for (const dep of deps) {
-        const id = dep.emitter.connect(
-            `notify::${kebabify(dep.prop)}`,
-            () => (watcher.value = update()),
-        );
-        connectionIds.push({ emitter: dep.emitter, id });
-    }
-
-    watcher.connect('dispose', () => {
-        for (const { emitter, id } of connectionIds) {
-            emitter.disconnect(id);
+    try {
+        for (const dep of deps) {
+            const id = dep.emitter.connect(`notify::${kebabify(dep.prop)}`, set);
+            watcher._trackDerivedConnection(dep.emitter, id);
         }
-    });
+    } catch (error) {
+        watcher.dispose();
+        throw error;
+    }
 
     return watcher.bind();
 }
@@ -73,18 +73,21 @@ export function derive<
 >(deps: Deps, fn: (...args: Args) => V) {
     const update = () => fn(...(deps.map(d => d.value) as Args));
     const watcher = new Variable(update());
-    const connectionIds: Array<{ emitter: Connectable; id: number }> = [];
+    const set = () => {
+        if (watcher.is_disposed) return;
+        const value = update();
+        if (!watcher.is_disposed) watcher.value = value;
+    };
 
-    for (const dep of deps) {
-        const id = dep.connect('changed', () => (watcher.value = update()));
-        connectionIds.push({ emitter: dep, id });
-    }
-
-    watcher.connect('dispose', () => {
-        for (const { emitter, id } of connectionIds) {
-            emitter.disconnect(id);
+    try {
+        for (const dep of deps) {
+            const id = dep.connect('changed', set);
+            watcher._trackDerivedConnection(dep, id);
         }
-    });
+    } catch (error) {
+        watcher.dispose();
+        throw error;
+    }
 
     return watcher;
 }
@@ -125,35 +128,37 @@ export function watch<T>(
 ) {
     const v = new Variable(init);
     const f = typeof sigOrFn === 'function' ? sigOrFn : (callback ?? (() => v.value));
-    const set = () => (v.value = f());
-    const connectionIds: Array<{ emitter: Connectable; id: number }> = [];
+    const set = () => {
+        if (v.is_disposed) return;
+        const value = f();
+        if (!v.is_disposed) v.value = value;
+    };
 
-    if (Array.isArray(objs)) {
-        // multiple objects
-        for (const obj of objs) {
-            if (Array.isArray(obj)) {
-                // obj signal pair
-                const [o, s = 'changed'] = obj;
-                const id = o.connect(s, set);
-                connectionIds.push({ emitter: o, id });
-            } else {
-                // obj on changed
-                const id = obj.connect('changed', set);
-                connectionIds.push({ emitter: obj, id });
+    try {
+        if (Array.isArray(objs)) {
+            // multiple objects
+            for (const obj of objs) {
+                if (Array.isArray(obj)) {
+                    // obj signal pair
+                    const [o, s = 'changed'] = obj;
+                    const id = o.connect(s, set);
+                    v._trackDerivedConnection(o, id);
+                } else {
+                    // obj on changed
+                    const id = obj.connect('changed', set);
+                    v._trackDerivedConnection(obj, id);
+                }
             }
+        } else {
+            // watch single object
+            const signal = typeof sigOrFn === 'string' ? sigOrFn : 'changed';
+            const id = objs.connect(signal, set);
+            v._trackDerivedConnection(objs, id);
         }
-    } else {
-        // watch single object
-        const signal = typeof sigOrFn === 'string' ? sigOrFn : 'changed';
-        const id = objs.connect(signal, set);
-        connectionIds.push({ emitter: objs, id });
+    } catch (error) {
+        v.dispose();
+        throw error;
     }
-
-    v.connect('dispose', () => {
-        for (const { emitter, id } of connectionIds) {
-            emitter.disconnect(id);
-        }
-    });
 
     return v.bind();
 }

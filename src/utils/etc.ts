@@ -34,7 +34,7 @@ export function bulkConnect(
     list: Array<[event: string, callback: (...args: any[]) => void]>,
 ) {
     const ids = [];
-    for (const [event, callback] of list) ids.push(service.connect(event, callback));
+    for (const [event, callback] of list) ids.push(GObject.signal_connect(service, event, callback));
 
     return ids;
 }

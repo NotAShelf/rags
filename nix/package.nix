@@ -3,11 +3,12 @@
   stdenv,
   fetchFromGitLab,
   # Dependency Resolution
-  pnpm_10,
+  pnpm_12,
   fetchPnpmDeps,
   pnpmConfigHook,
   # Build dependencies
   meson,
+  nodejs,
   typescript,
   pkg-config,
   ninja,
@@ -60,6 +61,8 @@ in
 
           (sp + /package.json)
           (sp + /pnpm-lock.yaml)
+          (sp + /pnpm-workspace.yaml)
+          (sp + /bundle.mjs)
 
           (sp + /meson.build)
           (sp + /meson_options.txt)
@@ -72,13 +75,14 @@ in
     pnpmInstallFlags = ["--prod"]; # only install build deps, skip dev tooling
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
-      pnpm = pnpm_10;
-      hash = "sha256-tecP0XuP14MEhmtcpJ2x3cOiP00zKB/RZhCwWq4EQf0=";
-      fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
+      pnpm = pnpm_12;
+      hash = "sha256-fP5Wp7vdm3E4CoFgGjPev2zjAfsi5ajB5ZmF0Fc5T9w=";
+      fetcherVersion = 4; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
     nativeBuildInputs = [
-      pnpm_10
+      pnpm_12
+      nodejs
       pnpmConfigHook # dependency resolution
 
       pkg-config
