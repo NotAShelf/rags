@@ -1,6 +1,6 @@
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
-import Cairo from 'gi://cairo?version=1.0';
+import type Cairo from 'cairo';
 
 type DrawFn<Self> = (self: Self, cr: Cairo.Context, width: number, height: number) => void;
 
