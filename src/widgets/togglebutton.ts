@@ -43,7 +43,7 @@ export class ToggleButton<Child extends Gtk.Widget, Attr> extends Gtk.ToggleButt
 
         const { setup, ...rest } = props as any;
         super(rest as Gtk.ToggleButton.ConstructorProps);
-        this.connect('toggled', this.on_toggled.bind(this));
+        this._connect('toggled', this.on_toggled.bind(this));
         if (typeof setup === 'function') setup(this);
     }
 

@@ -33,8 +33,8 @@ export class ProgressBar<Attr> extends Gtk.ProgressBar {
     constructor(props: ProgressBarProps<Attr> = {} as ProgressBarProps<Attr>) {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.ProgressBar.ConstructorProps);
-        this.connect('notify::fraction', () => this.notify('value'));
-        this.connect('notify::orientation', () => this.notify('vertical'));
+        this._connect('notify::fraction', () => this.notify('value'));
+        this._connect('notify::orientation', () => this.notify('vertical'));
 
         if (typeof setup === 'function') setup(this);
     }

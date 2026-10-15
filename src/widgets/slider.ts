@@ -1,4 +1,5 @@
 import { register, type BaseProps, type Widget } from './widget.js';
+import { ensureWidgetScope } from '../internal/resource-scope.js';
 import Gtk from 'gi://Gtk?version=3.0';
 import Gdk from 'gi://Gdk?version=3.0';
 
@@ -77,6 +78,7 @@ export class Slider<Attr> extends Gtk.Scale {
             ...(rest as Gtk.Scale.ConstructorProps),
             adjustment: new Gtk.Adjustment(),
         });
+        const scope = ensureWidgetScope(this);
 
         this._handleParamProp('value', value);
         this._handleParamProp('min', min);
@@ -84,10 +86,10 @@ export class Slider<Attr> extends Gtk.Scale {
         this._handleParamProp('step', step);
         this._handleParamProp('marks', marks);
 
-        this.adjustment.connect('notify::value', (_, event: Gdk.Event) => {
+        scope.connect(this.adjustment, 'notify::value', (_, event) => {
             if (!this.dragging) return;
 
-            this.on_change?.(this, event);
+            this.on_change?.(this, event as Gdk.Event);
         });
 
         if (typeof setup === 'function') setup(this);

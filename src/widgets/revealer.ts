@@ -59,7 +59,7 @@ export class Revealer<Child extends Gtk.Widget, Attr> extends Gtk.Revealer {
         if (child) rest.child = child;
 
         super(rest as Gtk.Revealer.ConstructorProps);
-        this.connect('notify::transition-type', () => this.notify('transition'));
+        this._connect('notify::transition-type', () => this.notify('transition'));
 
         if (typeof setup === 'function') setup(this);
     }

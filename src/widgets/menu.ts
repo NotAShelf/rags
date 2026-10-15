@@ -1,5 +1,6 @@
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
+import Gdk from 'gi://Gdk?version=3.0';
 
 /** Event handlers for Menu popup and scroll events. */
 type MenuEventHandler<Self> = {
@@ -55,8 +56,9 @@ export class Menu<MenuItem extends Gtk.MenuItem, Attr> extends Gtk.Menu {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.Menu.ConstructorProps);
 
-        this.connect('popped-up', (_, ...args) => this.on_popup?.(this, ...args));
-        this.connect('move-scroll', (_, ...args) => this.on_move_scroll?.(this, ...args));
+        this._connect('popped-up', (_, flippedRect: Gdk.Rectangle | null, finalRect: Gdk.Rectangle | null,
+            flippedX: boolean, flippedY: boolean) => this.on_popup?.(this, flippedRect, finalRect, flippedX, flippedY));
+        this._connect('move-scroll', (_, scrollType: Gtk.ScrollType) => this.on_move_scroll?.(this, scrollType));
         if (typeof setup === 'function') setup(this);
     }
 

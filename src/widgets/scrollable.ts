@@ -1,3 +1,4 @@
+import { ensureWidgetScope } from '../internal/resource-scope.js';
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
 
@@ -66,8 +67,8 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
             vadjustment: new Gtk.Adjustment(),
         });
 
-        this.connect('destroy', () => {
-            if (this.child instanceof Gtk.Viewport) this.child.child.destroy();
+        ensureWidgetScope(this).add(() => {
+            if (this.child instanceof Gtk.Viewport) this.child.child?.destroy();
         });
 
         if (typeof setup === 'function') setup(this);

@@ -30,7 +30,7 @@ export class Spinner<Attr> extends Gtk.Spinner {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.Widget.ConstructorProps);
         this.start();
-        this.connect('notify::visible', ({ visible }) => {
+        this._connect('notify::visible', ({ visible }) => {
             visible ? this.start() : this.stop();
         });
         if (typeof setup === 'function') setup(this);

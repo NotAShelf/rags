@@ -76,17 +76,17 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
         this.add_events(Gdk.EventMask.SCROLL_MASK);
         this.add_events(Gdk.EventMask.SMOOTH_SCROLL_MASK);
 
-        this.connect('clicked', () => this.on_clicked?.(this));
+        this._connect('clicked', () => this.on_clicked?.(this));
 
-        this.connect('enter-notify-event', (_, event: Gdk.Event) => {
+        this._connect('enter-notify-event', (_, event: Gdk.Event) => {
             if (this.isHovered(event)) return this.on_hover?.(this, event);
         });
 
-        this.connect('leave-notify-event', (_, event: Gdk.Event) => {
+        this._connect('leave-notify-event', (_, event: Gdk.Event) => {
             if (!this.isHovered(event)) return this.on_hover_lost?.(this, event);
         });
 
-        this.connect('button-press-event', (_, event: Gdk.Event) => {
+        this._connect('button-press-event', (_, event: Gdk.Event) => {
             if (event.get_button()[1] === Gdk.BUTTON_PRIMARY)
                 return this.on_primary_click?.(this, event);
             else if (event.get_button()[1] === Gdk.BUTTON_MIDDLE)
@@ -95,7 +95,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
                 return this.on_secondary_click?.(this, event);
         });
 
-        this.connect('button-release-event', (_, event: Gdk.Event) => {
+        this._connect('button-release-event', (_, event: Gdk.Event) => {
             if (event.get_button()[1] === Gdk.BUTTON_PRIMARY)
                 return this.on_primary_click_release?.(this, event);
             else if (event.get_button()[1] === Gdk.BUTTON_MIDDLE)
@@ -104,7 +104,7 @@ export class Button<Child extends Gtk.Widget, Attr> extends Gtk.Button {
                 return this.on_secondary_click_release?.(this, event);
         });
 
-        this.connect('scroll-event', (_, event: Gdk.Event) => {
+        this._connect('scroll-event', (_, event: Gdk.Event) => {
             if (event.get_scroll_deltas()[2] < 0) return this.on_scroll_up?.(this, event);
             else if (event.get_scroll_deltas()[2] > 0) return this.on_scroll_down?.(this, event);
         });
