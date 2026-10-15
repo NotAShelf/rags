@@ -1,11 +1,26 @@
 import Gdk from 'gi://Gdk?version=3.0';
 import Gtk from 'gi://Gtk?version=3.0';
+import type GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
 import { AgsServiceError } from '../utils/errors.js';
 import { authenticate, authenticateUser } from '../utils/pam.js';
+import type { ChildScope, ScopeHandle } from '../internal/resource-scope.js';
 
-let GtkSessionLock: any = null;
+interface NativeSessionLock extends GObject.Object {
+    lock_lock(): void;
+    new_surface(window: Gtk.Window, monitor: Gdk.Monitor): void;
+    unlock_and_destroy(): void;
+    destroy(): void;
+}
+
+interface SessionLockModule {
+    is_supported(): boolean;
+    get_protocol_version(): number;
+    prepare_lock(): NativeSessionLock;
+}
+
+let GtkSessionLock: SessionLockModule | null = null;
 try {
     // @ts-expect-error optional GIR dependency
     GtkSessionLock = (await import('gi://GtkSessionLock?version=0.1')).default;
@@ -44,12 +59,13 @@ export class Lockscreen extends Service implements Disposable {
         );
     }
 
-    private _lock: any = null;
-    private _windows: Gtk.Window[] = [];
+    private _lock: NativeSessionLock | null = null;
+    private _lockScope: ChildScope | null = null;
+    private _nativeLockCleanup: ScopeHandle | null = null;
     private _available = false;
     private _locked = false;
     private _protocolVersion = 0;
-    private _lockSignalIds: number[] = [];
+    private _disposing = false;
 
     get available() {
         return this._available;
@@ -63,6 +79,14 @@ export class Lockscreen extends Service implements Disposable {
         return this._protocolVersion;
     }
 
+    private _isIdle() {
+        return !this.isDisposed && this._lock === null;
+    }
+
+    private _ownsLock(lock: NativeSessionLock) {
+        return !this.isDisposed && this._lock === lock;
+    }
+
     constructor() {
         super();
         this.refresh();
@@ -70,10 +94,13 @@ export class Lockscreen extends Service implements Disposable {
 
     /** Refreshes compositor support and protocol version. */
     readonly refresh = () => {
+        if (this.isDisposed) return;
         this._available = Boolean(GtkSessionLock?.is_supported());
         this._protocolVersion = GtkSessionLock ? Number(GtkSessionLock.get_protocol_version()) : 0;
         this.notify('available');
+        if (this.isDisposed) return;
         this.notify('protocol-version');
+        if (this.isDisposed) return;
         this.emit('changed');
     };
 
@@ -85,10 +112,11 @@ export class Lockscreen extends Service implements Disposable {
      * window.
      */
     readonly lock = (createSurface: LockSurfaceFactory) => {
-        if (this._lock) return;
+        if (this._disposing || !this._isIdle()) return;
 
         this.refresh();
-        if (!this._available) {
+        if (this._disposing || !this._isIdle()) return;
+        if (!this._available || !GtkSessionLock) {
             throw new AgsServiceError('Wayland session-lock is not available', {
                 protocolVersion: this._protocolVersion,
             });
@@ -101,106 +129,117 @@ export class Lockscreen extends Service implements Disposable {
 
         const lock = GtkSessionLock.prepare_lock();
         this._lock = lock;
-        this._windows = [];
-        this._lockSignalIds = [
-            lock.connect('locked', () => {
+        const owner = this.resources.child();
+        this._lockScope = owner;
+        owner.scope.add(() => display.sync());
+        this._nativeLockCleanup = owner.scope.add(() => lock.destroy());
+        try {
+            owner.scope.connect(lock, 'locked', () => {
+                if (!this._ownsLock(lock)) return;
                 this._locked = true;
                 this.notify('locked');
+                if (!this._ownsLock(lock)) return;
                 this.emit('locked');
+                if (!this._ownsLock(lock)) return;
                 this.emit('changed');
-            }),
-            lock.connect('finished', () => {
-                this._cleanupLock();
-                this.emit('finished');
-            }),
-        ];
+            });
+            owner.scope.connect(lock, 'finished', () => {
+                if (!this._ownsLock(lock)) return;
+                this._cleanupLock(lock);
+                if (this._isIdle()) this.emit('finished');
+            });
 
-        try {
             lock.lock_lock();
+            if (!this._ownsLock(lock)) return;
 
-            const nMonitors = display.get_n_monitors();
-            if (nMonitors < 1) {
-                throw new AgsServiceError('Cannot lock without monitors');
-            }
-
-            for (let i = 0; i < nMonitors; i++) {
-                const monitor = display.get_monitor(i);
-                if (!monitor) continue;
-                const window = createSurface(monitor, i);
-                this._windows.push(window);
-                lock.new_surface(window, monitor);
-                window.show_all();
-            }
+            this._createLockSurfaces(lock, owner, display, createSurface);
         } catch (error) {
-            if (this._locked) lock.unlock_and_destroy();
-            else lock.destroy();
-            this._cleanupLock();
+            this._cleanupLock(lock, this._locked);
             throw error;
         }
     };
 
+    private _createLockSurfaces(
+        lock: NativeSessionLock,
+        owner: ChildScope,
+        display: Gdk.Display,
+        createSurface: LockSurfaceFactory,
+    ) {
+        const nMonitors = display.get_n_monitors();
+        if (nMonitors < 1) {
+            throw new AgsServiceError('Cannot lock without monitors');
+        }
+
+        for (let i = 0; i < nMonitors; i++) {
+            if (!this._ownsLock(lock)) return;
+            const monitor = display.get_monitor(i);
+            if (!monitor) continue;
+            const window = createSurface(monitor, i);
+            owner.scope.add(() => window.destroy());
+            if (!this._ownsLock(lock)) return;
+            lock.new_surface(window, monitor);
+            if (!this._ownsLock(lock)) return;
+            window.show_all();
+        }
+    }
+
     /** Unlocks an active lock after the caller has verified the user's identity. */
     readonly unlock = () => {
-        if (!this._lock) return;
-        this._lock.unlock_and_destroy();
-        this._locked = false;
+        const lock = this._lock;
+        if (!lock) return;
+        this._cleanupLock(lock, true, false);
+        if (!this._isIdle()) return;
         this.notify('locked');
+        if (!this._isIdle()) return;
         this.emit('unlocked');
-        this.emit('changed');
+        if (this._isIdle()) this.emit('changed');
     };
 
     /** Verifies a password with PAM and unlocks on success. */
     readonly unlockWithPassword = async (password: string, username?: string, service = 'ags') => {
+        const lock = this._lock;
         if (username) await authenticateUser(username, password, service);
         else await authenticate(password, service);
-        this.unlock();
+        if (!this.isDisposed && this._lock === lock) this.unlock();
     };
 
     /** Cancels the current lock object if it has not become active yet. */
     readonly cancel = () => {
         if (!this._lock || this._locked) return;
-        this._lock.destroy();
         this._cleanupLock();
     };
 
-    private _cleanupLock() {
-        const lock = this._lock;
-        const display = Gdk.Display.get_default();
-        if (lock) {
-            for (const id of this._lockSignalIds) {
-                try {
-                    lock.disconnect(id);
-                } catch {
-                    // The lock may already be disposed by gtk-session-lock.
-                }
-            }
-        }
-
-        for (const window of this._windows) {
-            try {
-                window.destroy();
-            } catch {
-                window.destroy();
-            }
-        }
-
-        display?.sync();
-
+    private _cleanupLock(lock = this._lock, unlock = false, notify = true) {
+        if (!lock || this._lock !== lock) return;
+        const owner = this._lockScope!;
+        const nativeCleanup = this._nativeLockCleanup;
         this._lock = null;
-        this._windows = [];
-        this._lockSignalIds = [];
+        this._lockScope = null;
+        this._nativeLockCleanup = null;
         this._locked = false;
-        this.notify('locked');
-        this.emit('changed');
+        try {
+            if (unlock) {
+                nativeCleanup?.forget();
+                lock.unlock_and_destroy();
+            }
+        } finally {
+            owner.release();
+        }
+        if (notify && this._isIdle()) {
+            this.notify('locked');
+            if (this._isIdle()) this.emit('changed');
+        }
     }
 
     dispose(): void {
-        if (this._lock) {
+        if (this.isDisposed || this._disposing) return;
+        this._disposing = true;
+        try {
             if (this._locked) this.unlock();
             else this.cancel();
+        } finally {
+            super.dispose();
         }
-        this._cleanupLock();
-        super.dispose();
     }
 }
 

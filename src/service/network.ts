@@ -1,8 +1,9 @@
 import NM from 'gi://NM';
 import GObject from 'gi://GObject';
+import Gio from 'gi://Gio';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
-import { bulkConnect, globalSignalRegistry } from '../utils.js';
+import type { ChildScope } from '../internal/resource-scope.js';
 import { AgsServiceError } from '../utils/errors.js';
 
 const _INTERNET = (device: NM.Device) => {
@@ -164,7 +165,8 @@ export class Wifi extends Service implements Disposable {
     private _client: NM.Client;
     private _device: NM.DeviceWifi;
     private _ap!: NM.AccessPoint;
-    private _apBind!: number;
+    private _apScope?: ChildScope;
+    private _cancellable = new Gio.Cancellable();
 
     #cachedAccessPoints: AccessPointInfo[] = [];
     #apCacheDirty = true;
@@ -174,27 +176,22 @@ export class Wifi extends Service implements Disposable {
         this._client = client;
         this._device = device;
 
-        const clientId = this._client.connect('notify::wireless-enabled', () =>
+        this.resources.add(() => this._cancellable.cancel());
+        this.resources.connect(this._client, 'notify::wireless-enabled', () =>
             this.changed('enabled'),
         );
-        this.trackConnection(clientId);
-        globalSignalRegistry.register(this._client, clientId);
 
         if (this._device) {
-            const deviceIds = [
-                this._device.connect('notify::active-access-point', this._activeAp.bind(this)),
-                this._device.connect('access-point-added', () => {
-                    this.#apCacheDirty = true;
-                    this.emit('changed');
-                }),
-                this._device.connect('access-point-removed', () => {
-                    this.#apCacheDirty = true;
-                    this.emit('changed');
-                }),
-            ];
-            deviceIds.forEach(id => {
-                this.trackConnection(id);
-                globalSignalRegistry.register(this._device, id);
+            this.resources.connect(this._device, 'notify::active-access-point', () =>
+                this._activeAp(),
+            );
+            this.resources.connect(this._device, 'access-point-added', () => {
+                this.#apCacheDirty = true;
+                this.emit('changed');
+            });
+            this.resources.connect(this._device, 'access-point-removed', () => {
+                this.#apCacheDirty = true;
+                this.emit('changed');
             });
             this._activeAp();
         }
@@ -202,22 +199,28 @@ export class Wifi extends Service implements Disposable {
 
     /** Triggers an asynchronous Wi-Fi access point scan. */
     readonly scan = () => {
-        this._device?.request_scan_async(null, (device, res) => {
-            device?.request_scan_finish(res);
-            this.emit('changed');
+        if (this.isDisposed) return;
+        this._device?.request_scan_async(this._cancellable, (device, res) => {
+            try {
+                device?.request_scan_finish(res);
+                if (!this.isDisposed) this.emit('changed');
+            } catch (error) {
+                if (!this._cancellable.is_cancelled()) throw error;
+            }
         });
     };
 
     private _activeAp() {
-        if (this._ap && this._apBind) {
-            this._ap.disconnect(this._apBind);
-            globalSignalRegistry.disconnect(this._ap);
-        }
+        this._apScope?.release();
+        this._apScope = undefined;
+        if (this.isDisposed) return;
 
         this._ap = this._device.get_active_access_point();
         if (!this._ap) return;
 
-        this._apBind = this._ap.connect('notify::strength', () => {
+        const child = this.resources.child();
+        this._apScope = child;
+        child.scope.connect(this._ap, 'notify::strength', () => {
             this.#apCacheDirty = true;
             this.emit('changed');
             const props = [
@@ -232,8 +235,6 @@ export class Wifi extends Service implements Disposable {
             ];
             props.forEach(prop => this.notify(prop));
         });
-        this.trackConnection(this._apBind);
-        globalSignalRegistry.register(this._ap, this._apBind);
     }
 
     /** List of visible access points with their SSID, strength, frequency, and status. */
@@ -320,19 +321,6 @@ export class Wifi extends Service implements Disposable {
         return 'network-wireless-disabled-symbolic';
     }
 
-    dispose(): void {
-        super.dispose();
-        if (this._client) {
-            globalSignalRegistry.disconnect(this._client);
-        }
-        if (this._device) {
-            globalSignalRegistry.disconnect(this._device);
-        }
-        if (this._ap && this._apBind) {
-            this._ap.disconnect(this._apBind);
-            globalSignalRegistry.disconnect(this._ap);
-        }
-    }
 }
 
 /**
@@ -373,12 +361,10 @@ export class Wired extends Service implements Disposable {
         this._device = device;
 
         if (this._device) {
-            const id = this._device.connect('notify::speed', () => {
+            this.resources.connect(this._device, 'notify::speed', () => {
                 this.emit('changed');
                 ['speed', 'internet', 'state', 'icon-name'].forEach(prop => this.notify(prop));
             });
-            this.trackConnection(id);
-            globalSignalRegistry.register(this._device, id);
         }
     }
 
@@ -408,12 +394,6 @@ export class Wired extends Service implements Disposable {
         return 'network-wired-disconnected-symbolic';
     }
 
-    dispose(): void {
-        super.dispose();
-        if (this._device) {
-            globalSignalRegistry.disconnect(this._device);
-        }
-    }
 }
 
 /** A nullable NM.VpnConnection alias. */
@@ -455,9 +435,8 @@ export class VpnConnection extends Service implements Disposable {
     private _id!: string;
     private _activeConnection: ActiveVpnConnection = null;
     private _state: ReturnType<typeof _CONNECTION_STATE> = 'disconnected';
-    private _stateBind: undefined | number = undefined;
+    private _activeScope?: ChildScope;
     private _vpnState: ReturnType<typeof _VPN_CONNECTION_STATE> = 'disconnected';
-    private _vpnStateBind: undefined | number = undefined;
 
     /** The underlying NM.Connection profile. */
     get connection() {
@@ -511,9 +490,7 @@ export class VpnConnection extends Service implements Disposable {
         this._connection = connection;
 
         this._id = this._connection.get_id() || '';
-        const id = this._connection.connect('changed', () => this._updateId());
-        this.trackConnection(id);
-        globalSignalRegistry.register(this._connection, id);
+        this.resources.connect(this._connection, 'changed', () => this._updateId());
     }
 
     private _updateId() {
@@ -548,29 +525,18 @@ export class VpnConnection extends Service implements Disposable {
      * @param activeConnection - The active VPN connection, or null to unbind
      */
     readonly updateActiveConnection = (activeConnection: ActiveVpnConnection) => {
-        if (this._activeConnection) {
-            if (this._stateBind) {
-                this._activeConnection.disconnect(this._stateBind);
-            }
-            if (this._vpnStateBind) {
-                this._activeConnection.disconnect(this._vpnStateBind);
-            }
-            globalSignalRegistry.disconnect(this._activeConnection);
-        }
+        this._activeScope?.release();
+        this._activeScope = undefined;
+        if (this.isDisposed) return;
 
         this._activeConnection = activeConnection;
         if (this._activeConnection) {
-            this._stateBind = this._activeConnection.connect('notify::state', () =>
-                this._updateState(),
-            );
-            this.trackConnection(this._stateBind);
-            globalSignalRegistry.register(this._activeConnection, this._stateBind);
-
-            this._vpnStateBind = this._activeConnection.connect('notify::vpn-state', () =>
+            const child = this.resources.child();
+            this._activeScope = child;
+            child.scope.connect(this._activeConnection, 'notify::state', () => this._updateState());
+            child.scope.connect(this._activeConnection, 'notify::vpn-state', () =>
                 this._updateVpnState(),
             );
-            this.trackConnection(this._vpnStateBind);
-            globalSignalRegistry.register(this._activeConnection, this._vpnStateBind);
         }
 
         this._updateState();
@@ -590,21 +556,6 @@ export class VpnConnection extends Service implements Disposable {
         }
     };
 
-    dispose(): void {
-        super.dispose();
-        if (this._connection) {
-            globalSignalRegistry.disconnect(this._connection);
-        }
-        if (this._activeConnection) {
-            if (this._stateBind) {
-                this._activeConnection.disconnect(this._stateBind);
-            }
-            if (this._vpnStateBind) {
-                this._activeConnection.disconnect(this._vpnStateBind);
-            }
-            globalSignalRegistry.disconnect(this._activeConnection);
-        }
-    }
 }
 
 /**
@@ -642,6 +593,8 @@ export class Vpn extends Service implements Disposable {
 
     private _client: NM.Client;
     private _vpnConnections: Map<string, VpnConnection>;
+    private _connectionScopes = new Map<string, ChildScope>();
+    private _cancellable = new Gio.Cancellable();
 
     constructor(client: NM.Client) {
         super();
@@ -649,10 +602,17 @@ export class Vpn extends Service implements Disposable {
         this._client = client;
         this._vpnConnections = new Map();
 
-        bulkConnect(this._client as unknown as GObject.Object, [
-            ['connection-added', this._connectionAdded.bind(this)],
-            ['connection-removed', this._connectionRemoved.bind(this)],
-        ]);
+        this.resources.add(() => this._cancellable.cancel());
+        this.resources.add(() => {
+            this._vpnConnections.clear();
+            this._connectionScopes.clear();
+        });
+        this.resources.connect(this._client, 'connection-added', (_client, connection) =>
+            this._connectionAdded(this._client, connection as NM.RemoteConnection),
+        );
+        this.resources.connect(this._client, 'connection-removed', (_client, connection) =>
+            this._connectionRemoved(this._client, connection as NM.RemoteConnection),
+        );
 
         this._client
             .get_connections()
@@ -660,35 +620,31 @@ export class Vpn extends Service implements Disposable {
                 this._connectionAdded(this._client, connection),
             );
 
-        const activeAddedId = this._client.connect(
-            'active-connection-added',
-            (_: NM.Client, ac: NM.ActiveConnection) => {
-                const uuid = ac.get_uuid();
-                if (uuid && this._vpnConnections.has(uuid))
-                    this._vpnConnections
-                        .get(uuid)
-                        ?.updateActiveConnection(ac as ActiveVpnConnection);
-            },
-        );
-        this.trackConnection(activeAddedId);
-        globalSignalRegistry.register(this._client, activeAddedId);
+        this.resources.connect(this._client, 'active-connection-added', (_client, connection) => {
+            const ac = connection as NM.ActiveConnection;
+            const uuid = ac.get_uuid();
+            if (uuid && this._vpnConnections.has(uuid))
+                this._vpnConnections.get(uuid)?.updateActiveConnection(ac as ActiveVpnConnection);
+        });
 
-        const activeRemovedId = this._client.connect(
-            'active-connection-removed',
-            (_: NM.Client, ac: NM.ActiveConnection) => {
-                const uuid = ac.get_uuid();
-                if (uuid && this._vpnConnections.has(uuid))
-                    this._vpnConnections.get(uuid)?.updateActiveConnection(null);
-            },
-        );
-        this.trackConnection(activeRemovedId);
-        globalSignalRegistry.register(this._client, activeRemovedId);
+        this.resources.connect(this._client, 'active-connection-removed', (_client, connection) => {
+            const ac = connection as NM.ActiveConnection;
+            const uuid = ac.get_uuid();
+            if (uuid && this._vpnConnections.has(uuid))
+                this._vpnConnections.get(uuid)?.updateActiveConnection(null);
+        });
     }
 
     private _connectionAdded(client: NM.Client, connection: NM.RemoteConnection) {
+        if (this.isDisposed) return;
         if (connection.get_connection_type() !== 'vpn' || connection.get_uuid() === null) return;
 
+        const uuid = connection.get_uuid()!;
+        this._connectionScopes.get(uuid)?.release();
+        const child = this.resources.child();
+        this._connectionScopes.set(uuid, child);
         const vpnConnection = new VpnConnection(this, connection);
+        child.scope.add(() => vpnConnection.dispose());
         const activeConnection = client
             .get_active_connections()
             .find((ac: NM.ActiveConnection) => ac.get_uuid() === vpnConnection.uuid);
@@ -696,16 +652,12 @@ export class Vpn extends Service implements Disposable {
         if (activeConnection)
             vpnConnection.updateActiveConnection(activeConnection as NM.VpnConnection);
 
-        const changedId = vpnConnection.connect('changed', () => this.emit('changed'));
-        this.trackConnection(changedId);
-        globalSignalRegistry.register(vpnConnection as unknown as GObject.Object, changedId);
-
-        const stateId = vpnConnection.connect('notify::state', (c: VpnConnection) => {
-            if (c.state === 'connected' || c.state === 'disconnected')
+        const emitter = vpnConnection as unknown as GObject.Object;
+        child.scope.connect(emitter, 'changed', () => this.emit('changed'));
+        child.scope.connect(emitter, 'notify::state', () => {
+            if (vpnConnection.state === 'connected' || vpnConnection.state === 'disconnected')
                 this.changed('activated-connections');
         });
-        this.trackConnection(stateId);
-        globalSignalRegistry.register(vpnConnection as unknown as GObject.Object, stateId);
 
         this._vpnConnections.set(vpnConnection.uuid, vpnConnection);
 
@@ -718,6 +670,8 @@ export class Vpn extends Service implements Disposable {
         if (!uuid || !this._vpnConnections.has(uuid)) return;
 
         this._vpnConnections.get(uuid)!.updateActiveConnection(null);
+        this._connectionScopes.get(uuid)?.release();
+        this._connectionScopes.delete(uuid);
         this._vpnConnections.delete(uuid);
 
         this.notify('connections');
@@ -732,7 +686,8 @@ export class Vpn extends Service implements Disposable {
      * @param vpn - The VPN connection to activate
      */
     readonly activateVpnConnection = (vpn: VpnConnection) => {
-        this._client.activate_connection_async(vpn.connection, null, null, null, null);
+        if (this.isDisposed || vpn.isDisposed) return;
+        this._client.activate_connection_async(vpn.connection, null, null, this._cancellable, null);
     };
 
     /**
@@ -741,9 +696,9 @@ export class Vpn extends Service implements Disposable {
      * @param vpn - The VPN connection to deactivate
      */
     readonly deactivateVpnConnection = (vpn: VpnConnection) => {
-        if (vpn.active_connection === null) return;
+        if (this.isDisposed || vpn.isDisposed || vpn.active_connection === null) return;
 
-        this._client.deactivate_connection_async(vpn.active_connection, null, null);
+        this._client.deactivate_connection_async(vpn.active_connection, this._cancellable, null);
     };
 
     /**
@@ -768,20 +723,6 @@ export class Vpn extends Service implements Disposable {
         return list;
     }
 
-    dispose(): void {
-        super.dispose();
-
-        // Cleanup all VPN connections
-        for (const connection of this._vpnConnections.values()) {
-            connection.dispose();
-        }
-        this._vpnConnections.clear();
-
-        // Cleanup client connections
-        if (this._client) {
-            globalSignalRegistry.disconnect(this._client as unknown as GObject.Object);
-        }
-    }
 }
 
 /**
@@ -856,30 +797,28 @@ export class Network extends Service implements Disposable {
     }
 
     private _clientReady() {
-        bulkConnect(this._client as unknown as GObject.Object, [
-            ['notify::wireless-enabled', this._sync.bind(this)],
-            ['notify::connectivity', this._sync.bind(this)],
-            ['notify::primary-connection', this._sync.bind(this)],
-            ['notify::activating-connection', this._sync.bind(this)],
-        ]);
+        for (const signal of [
+            'notify::wireless-enabled',
+            'notify::connectivity',
+            'notify::primary-connection',
+            'notify::activating-connection',
+        ]) this.resources.connect(this._client, signal, () => this._sync());
 
         this.wifi = new Wifi(this._client, this._getDevice(NM.DeviceType.WIFI) as NM.DeviceWifi);
+        const wifi = this.wifi;
+        this.resources.add(() => wifi.dispose());
 
         this.wired = new Wired(this._getDevice(NM.DeviceType.ETHERNET) as NM.DeviceEthernet);
+        const wired = this.wired;
+        this.resources.add(() => wired.dispose());
 
         this.vpn = new Vpn(this._client);
+        const vpn = this.vpn;
+        this.resources.add(() => vpn.dispose());
 
-        const wifiId = this.wifi.connect('changed', this._sync.bind(this));
-        this.trackConnection(wifiId);
-        globalSignalRegistry.register(this.wifi as unknown as GObject.Object, wifiId);
-
-        const wiredId = this.wired.connect('changed', this._sync.bind(this));
-        this.trackConnection(wiredId);
-        globalSignalRegistry.register(this.wired as unknown as GObject.Object, wiredId);
-
-        const vpnId = this.vpn.connect('changed', () => this.emit('changed'));
-        this.trackConnection(vpnId);
-        globalSignalRegistry.register(this.vpn as unknown as GObject.Object, vpnId);
+        this.resources.connect(wifi as unknown as GObject.Object, 'changed', () => this._sync());
+        this.resources.connect(wired as unknown as GObject.Object, 'changed', () => this._sync());
+        this.resources.connect(vpn as unknown as GObject.Object, 'changed', () => this.emit('changed'));
 
         this._sync();
     }
@@ -896,25 +835,6 @@ export class Network extends Service implements Disposable {
         this.emit('changed');
     }
 
-    dispose(): void {
-        super.dispose();
-
-        // Cleanup sub-services
-        if (this.wifi) {
-            this.wifi.dispose();
-        }
-        if (this.wired) {
-            this.wired.dispose();
-        }
-        if (this.vpn) {
-            this.vpn.dispose();
-        }
-
-        // Cleanup client connections
-        if (this._client) {
-            globalSignalRegistry.disconnect(this._client as unknown as GObject.Object);
-        }
-    }
 }
 
 const network = new Network();

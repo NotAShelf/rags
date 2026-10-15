@@ -7,6 +7,13 @@ import type { Disposable } from '../service.js';
 
 const BACKLIGHT_DIR = '/sys/class/backlight';
 
+interface BrightnessDevice {
+    readonly brightness: number;
+    readonly max_brightness: number;
+    set_brightness(value: number, error: null): boolean;
+    refresh(error: null): number;
+}
+
 /**
  * Brightness Service
  *
@@ -32,11 +39,9 @@ export class Brightness extends Service implements Disposable {
         );
     }
 
-    private _device: any = null;
+    private _device: BrightnessDevice | null = null;
     private _screen = 0;
     private _deviceName = '';
-    private _monitor: Gio.FileMonitor | null = null;
-    private _monitorId = 0;
 
     /** Current brightness normalised to [0, 1]. */
     get screen() {
@@ -77,6 +82,10 @@ export class Brightness extends Service implements Disposable {
             return;
         }
 
+        this.resources.add(() => {
+            this._device = null;
+        });
+
         this._deviceName = name;
         this._screen = this._device.brightness / this._device.max_brightness;
 
@@ -87,60 +96,65 @@ export class Brightness extends Service implements Disposable {
         const path = `${BACKLIGHT_DIR}/${name}/brightness`;
         const file = Gio.File.new_for_path(path);
 
+        let monitor: Gio.FileMonitor;
         try {
-            this._monitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
+            monitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
         } catch {
             // inotify may not fire for sysfs on all kernels; poll instead
             this._startPolling();
             return;
         }
 
-        this._monitorId = this._monitor.connect(
-            'changed',
-            (
-                _monitor: Gio.FileMonitor,
-                _file: Gio.File,
-                _other: Gio.File | null,
-                event: Gio.FileMonitorEvent,
-            ) => {
-                if (
-                    event !== Gio.FileMonitorEvent.CHANGED &&
-                    event !== Gio.FileMonitorEvent.CREATED
-                )
-                    return;
-                this._refresh();
-            },
+        this.resources.add(() => monitor.cancel());
+        this.trackConnection(
+            monitor,
+            monitor.connect(
+                'changed',
+                (
+                    _monitor: Gio.FileMonitor,
+                    _file: Gio.File,
+                    _other: Gio.File | null,
+                    event: Gio.FileMonitorEvent,
+                ) => {
+                    if (
+                        event !== Gio.FileMonitorEvent.CHANGED &&
+                        event !== Gio.FileMonitorEvent.CREATED
+                    )
+                        return;
+                    this._refresh();
+                },
+            ),
         );
     }
 
     private _startPolling() {
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-            if (!this._device) return GLib.SOURCE_REMOVE;
+        if (this.isDisposed) return;
+        const source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+            if (this.isDisposed || !this._device) {
+                handle.forget();
+                return GLib.SOURCE_REMOVE;
+            }
             this._refresh();
+            if (this.isDisposed || !this._device) {
+                handle.forget();
+                return GLib.SOURCE_REMOVE;
+            }
             return GLib.SOURCE_CONTINUE;
         });
+        const handle = this.resources.source(source);
     }
 
     private _refresh() {
-        if (!this._device) return;
-        const raw: number = this._device.refresh(null);
-        if (raw < 0) return;
-        const percent = raw / this._device.max_brightness;
+        const device = this._device;
+        if (this.isDisposed || !device) return;
+        const raw = device.refresh(null);
+        if (this.isDisposed || raw < 0) return;
+        const percent = raw / device.max_brightness;
         if (percent !== this._screen) {
             this._screen = percent;
             this.notify('screen');
             this.emit('changed');
         }
-    }
-
-    dispose(): void {
-        if (this._monitor) {
-            if (this._monitorId) this._monitor.disconnect(this._monitorId);
-            this._monitor.cancel();
-            this._monitor = null;
-        }
-        this._device = null;
-        super.dispose();
     }
 }
 
