@@ -60,17 +60,8 @@ export type PspecType =
  * @returns A GObject.ParamSpec instance
  */
 export function pspec(name: string, type: PspecType = 'jsobject', handle: PspecFlag = 'r') {
-    const flags = (() => {
-        switch (handle) {
-            case 'w':
-                return GObject.ParamFlags.WRITABLE;
-            case 'r':
-                return GObject.ParamFlags.READABLE;
-            case 'rw':
-            default:
-                return GObject.ParamFlags.READWRITE;
-        }
-    })();
+    const flags = handle === 'w' ? GObject.ParamFlags.WRITABLE
+        : handle === 'r' ? GObject.ParamFlags.READABLE : GObject.ParamFlags.READWRITE;
 
     switch (type) {
         case 'string':
