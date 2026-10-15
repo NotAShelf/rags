@@ -1,12 +1,12 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
-import { ensureDirectory, idle, globalSignalRegistry } from '../utils.js';
+import { ensureDirectory, idle } from '../utils.js';
 import { CACHE_DIR } from '../utils.js';
 import { loadInterfaceXML } from '../utils.js';
 import { DBusProxy, PlayerProxy, MprisProxy, connectSignal } from '../dbus/types.js';
+import type { ChildScope } from '../internal/resource-scope.js';
 
 const DBusIFace = loadInterfaceXML('org.freedesktop.DBus')!;
 const PlayerIFace = loadInterfaceXML('org.mpris.MediaPlayer2.Player')!;
@@ -227,7 +227,6 @@ export class MprisPlayer extends Service implements Disposable {
     private _loopStatus!: LoopStatus | null;
     private _length!: number;
 
-    private _binding = { mpris: [0, 0], player: 0 };
     private _mprisProxy: MprisProxy;
     private _playerProxy: PlayerProxy;
     private _rawPlayerProxy: Gio.DBusProxy;
@@ -238,24 +237,35 @@ export class MprisPlayer extends Service implements Disposable {
         this._busName = busName;
         this._name = busName.substring(23).split('.')[0];
 
-        this._mprisProxy = new MprisProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
+        try {
+            this._mprisProxy = new MprisProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
+            this.resources.add(() => this._mprisProxy.run_dispose());
 
-        this._playerProxy = new PlayerProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
+            this._playerProxy = new PlayerProxy(Gio.DBus.session, busName, '/org/mpris/MediaPlayer2');
+            this.resources.add(() => this._playerProxy.run_dispose());
 
-        this._rawPlayerProxy = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SESSION,
-            Gio.DBusProxyFlags.NONE,
-            null,
-            busName,
-            '/org/mpris/MediaPlayer2',
-            'org.mpris.MediaPlayer2.Player',
-            null,
-        );
+            this._rawPlayerProxy = Gio.DBusProxy.new_for_bus_sync(
+                Gio.BusType.SESSION,
+                Gio.DBusProxyFlags.NONE,
+                null,
+                busName,
+                '/org/mpris/MediaPlayer2',
+                'org.mpris.MediaPlayer2.Player',
+                null,
+            );
+            this.resources.add(() => this._rawPlayerProxy.run_dispose());
 
-        this._onPlayerProxyReady();
-        this._onMprisProxyReady();
-        this._updateState();
-        idle(this._updateState.bind(this));
+            this._onPlayerProxyReady();
+            this._onMprisProxyReady();
+            this._updateState();
+            const initialUpdate = this.resources.source(idle(() => {
+                initialUpdate.forget();
+                this._updateState();
+            }));
+        } catch (error) {
+            this.dispose();
+            throw error;
+        }
     }
 
     close() {
@@ -263,20 +273,14 @@ export class MprisPlayer extends Service implements Disposable {
     }
 
     private _onMprisProxyReady() {
-        this._binding.mpris[0] = this._mprisProxy.connect('notify::g-name-owner', () => {
-            if (!this._mprisProxy.g_name_owner) this.close();
-        });
-        globalSignalRegistry.register(
-            this._mprisProxy as unknown as GObject.Object,
-            this._binding.mpris[0],
-        );
+        if (this.isDisposed) return;
 
-        this._binding.mpris[1] = this._mprisProxy.connect('g-properties-changed', () =>
+        this.resources.connect(this._mprisProxy, 'notify::g-name-owner', () => {
+            if (!this.isDisposed && !this._mprisProxy.g_name_owner) this.close();
+        });
+
+        this.resources.connect(this._mprisProxy, 'g-properties-changed', () =>
             this._updateState(),
-        );
-        globalSignalRegistry.register(
-            this._mprisProxy as unknown as GObject.Object,
-            this._binding.mpris[1],
         );
 
         this._identity = this._mprisProxy.Identity;
@@ -285,16 +289,16 @@ export class MprisPlayer extends Service implements Disposable {
     }
 
     private _onPlayerProxyReady() {
-        this._binding.player = this._playerProxy.connect('g-properties-changed', () =>
+        if (this.isDisposed) return;
+
+        this.resources.connect(this._playerProxy, 'g-properties-changed', () =>
             this._updateState(),
-        );
-        globalSignalRegistry.register(
-            this._playerProxy as unknown as GObject.Object,
-            this._binding.player,
         );
     }
 
     private _updateState() {
+        if (this.isDisposed) return;
+
         const metadata = {} as MprisMetadata;
         for (const prop in this._playerProxy.Metadata)
             metadata[prop] = this._playerProxy.Metadata[prop].deepUnpack();
@@ -318,52 +322,72 @@ export class MprisPlayer extends Service implements Disposable {
         let length = metadata['mpris:length'];
         length = typeof length === 'number' ? length / 1_000_000 : -1;
 
-        this.updateProperty('metadata', metadata);
-        this.updateProperty('shuffle-status', this._playerProxy.Shuffle);
-        this.updateProperty('loop-status', this._playerProxy.LoopStatus);
-        this.updateProperty('can-go-next', this._playerProxy.CanGoNext);
-        this.updateProperty('can-go-prev', this._playerProxy.CanGoPrevious);
-        this.updateProperty('can-play', this._playerProxy.CanPlay);
-        this.updateProperty('play-back-status', this._playerProxy.PlaybackStatus);
-        this.updateProperty('trackid', metadata['mpris:trackid']);
-        this.updateProperty('track-artists', trackArtists);
-        this.updateProperty('track-title', trackTitle);
-        this.updateProperty('track-album', trackAlbum);
-        this.updateProperty('track-cover-url', trackCoverUrl);
-        this.updateProperty('length', length);
-        this.updateProperty('identity', this._mprisProxy.Identity);
-        this.updateProperty('entry', this._mprisProxy.DesktopEntry);
+        this._publishState({
+            metadata,
+            'shuffle-status': this._playerProxy.Shuffle,
+            'loop-status': this._playerProxy.LoopStatus,
+            'can-go-next': this._playerProxy.CanGoNext,
+            'can-go-prev': this._playerProxy.CanGoPrevious,
+            'can-play': this._playerProxy.CanPlay,
+            'play-back-status': this._playerProxy.PlaybackStatus,
+            trackid: metadata['mpris:trackid'],
+            'track-artists': trackArtists,
+            'track-title': trackTitle,
+            'track-album': trackAlbum,
+            'track-cover-url': trackCoverUrl,
+            length,
+            identity: this._mprisProxy.Identity,
+            entry: this._mprisProxy.DesktopEntry,
+        });
+    }
+
+    private _publishState(properties: Record<string, unknown>) {
+        for (const property in properties) {
+            if (this.isDisposed) return;
+            this.updateProperty(property, properties[property]);
+        }
         this._cacheCoverArt();
-        this.emit('changed');
+        if (!this.isDisposed) this.emit('changed');
     }
 
     private _cacheCoverArt() {
-        if (!mpris.cacheCoverArt || this._trackCoverUrl === '') return;
+        if (this.isDisposed || !mpris.cacheCoverArt || this._trackCoverUrl === '') return;
 
         this._coverPath =
             MEDIA_CACHE_PATH +
             '/' +
             GLib.compute_checksum_for_string(GLib.ChecksumType.SHA1, this._trackCoverUrl, -1);
 
-        if (GLib.file_test(this._coverPath, GLib.FileTest.EXISTS))
-            return this.changed('cover-path');
+        if (GLib.file_test(this._coverPath, GLib.FileTest.EXISTS)) {
+            this.notify('cover-path');
+            if (!this.isDisposed) this.emit('changed');
+            return;
+        }
 
         ensureDirectory(MEDIA_CACHE_PATH);
+        const download = this.resources.child();
+        const cancellable = new Gio.Cancellable();
+        download.scope.add(() => cancellable.cancel());
         Gio.File.new_for_uri(this._trackCoverUrl).copy_async(
             Gio.File.new_for_path(this._coverPath),
             Gio.FileCopyFlags.OVERWRITE,
             GLib.PRIORITY_DEFAULT,
-            null,
+            cancellable,
             null,
             (source: Gio.File, result: Gio.AsyncResult) => {
                 try {
                     source.copy_finish(result);
-                    this.changed('cover-path');
+                    if (this.isDisposed) return;
+                    this.notify('cover-path');
+                    if (!this.isDisposed) this.emit('changed');
                 } catch (err) {
+                    if (this.isDisposed) return;
                     logError(err);
                     console.error(
                         `failed to cache ${this._coverPath},` + ' do you have gvfs installed?',
                     );
+                } finally {
+                    download.release();
                 }
             },
         );
@@ -425,24 +449,6 @@ export class MprisPlayer extends Service implements Disposable {
                 break;
         }
     };
-
-    dispose(): void {
-        // Disconnect proxies via registry only
-        if (this._mprisProxy) {
-            globalSignalRegistry.disconnect(this._mprisProxy as unknown as GObject.Object);
-        }
-
-        if (this._playerProxy) {
-            globalSignalRegistry.disconnect(this._playerProxy as unknown as GObject.Object);
-        }
-
-        // Cleanup raw player proxy
-        if (this._rawPlayerProxy) {
-            this._rawPlayerProxy.run_dispose();
-        }
-
-        super.dispose();
-    }
 }
 
 /**
@@ -484,6 +490,7 @@ export class Mpris extends Service implements Disposable {
 
     private _proxy: DBusProxy;
     private _players: Map<string, MprisPlayer> = new Map();
+    private _playerScopes = new Map<string, ChildScope>();
 
     /** All currently active MPRIS players. */
     get players() {
@@ -493,56 +500,74 @@ export class Mpris extends Service implements Disposable {
     constructor() {
         super();
 
+        const cancellable = new Gio.Cancellable();
         this._proxy = new DBusProxy(
             Gio.DBus.session,
             'org.freedesktop.DBus',
             '/org/freedesktop/DBus',
             this._onProxyReady.bind(this),
-            null,
+            cancellable,
             Gio.DBusProxyFlags.NONE,
         );
+        this.resources.add(() => this._proxy.run_dispose());
+        this.resources.add(() => cancellable.cancel());
     }
 
     private _addPlayer(busName: string) {
-        if (this._players.has(busName)) return;
+        if (this.isDisposed || this._players.has(busName)) return;
 
         const player = new MprisPlayer(busName);
+        const child = this.resources.child();
+        child.scope.add(() => player.dispose());
+        if (this.isDisposed) return;
+        this._playerScopes.set(busName, child);
 
-        const closedId = player.connect('closed', () => {
-            // Cleanup player
-            globalSignalRegistry.disconnect(player as unknown as GObject.Object);
-            player.dispose();
+        child.scope.connect(player, 'closed', () => {
+            child.release();
+            this._playerScopes.delete(busName);
             this._players.delete(busName);
             this.emit('player-closed', busName);
-            this.changed('players');
+            this._notifyPlayers();
         });
-        globalSignalRegistry.register(player as unknown as GObject.Object, closedId);
 
-        const changedId = player.connect('changed', () => {
+        child.scope.connect(player, 'changed', () => {
             this.emit('player-changed', busName);
-            this.emit('changed');
+            if (!this.isDisposed && this._players.get(busName) === player) this.emit('changed');
         });
-        globalSignalRegistry.register(player as unknown as GObject.Object, changedId);
 
         this._players.set(busName, player);
         this.emit('player-added', busName);
-        this.changed('players');
+        if (this._players.get(busName) === player) this._notifyPlayers();
+    }
+
+    private _notifyPlayers() {
+        if (this.isDisposed) return;
+        this.notify('players');
+        if (!this.isDisposed) this.emit('changed');
     }
 
     private async _onProxyReady(_: DBusProxy, error: GLib.Error) {
+        if (this.isDisposed) return;
         if (error) return logError(error);
 
-        const [names] = await this._proxy.ListNamesAsync();
-        for (const name of names) {
-            if (name.startsWith(DBUS_PREFIX)) this._addPlayer(name);
-        }
+        try {
+            const [names] = await this._proxy.ListNamesAsync();
+            if (this.isDisposed) return;
+            for (const name of names) {
+                if (name.startsWith(DBUS_PREFIX)) this._addPlayer(name);
+            }
+            if (this.isDisposed) return;
 
-        const signalId = connectSignal(
-            this._proxy,
-            'NameOwnerChanged',
-            this._onNameOwnerChanged.bind(this),
-        );
-        globalSignalRegistry.register(this._proxy as unknown as GObject.Object, signalId);
+            const signalId = connectSignal(
+                this._proxy,
+                'NameOwnerChanged',
+                this._onNameOwnerChanged.bind(this),
+            );
+            const proxy = this._proxy as DBusProxy & { disconnectSignal(id: number): void };
+            this.resources.add(() => proxy.disconnectSignal(signalId));
+        } catch (error) {
+            if (!this.isDisposed) logError(error);
+        }
     }
 
     private _onNameOwnerChanged(
@@ -569,19 +594,10 @@ export class Mpris extends Service implements Disposable {
     };
 
     dispose(): void {
-        // Cleanup all players (use snapshot to avoid mutation during iteration)
-        for (const player of Array.from(this._players.values())) {
-            globalSignalRegistry.disconnect(player as unknown as GObject.Object);
-            player.dispose();
-        }
-        this._players.clear();
-
-        // Cleanup D-Bus proxy
-        if (this._proxy) {
-            globalSignalRegistry.disconnect(this._proxy as unknown as GObject.Object);
-        }
-
+        if (this.isDisposed) return;
         super.dispose();
+        this._playerScopes.clear();
+        this._players.clear();
     }
 }
 

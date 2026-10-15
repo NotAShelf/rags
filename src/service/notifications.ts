@@ -1,9 +1,9 @@
 import Gio from 'gi://Gio';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import GLib from 'gi://GLib';
-import GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
+import type { ChildScope, ScopeHandle } from '../internal/resource-scope.js';
 import {
     CACHE_DIR,
     ensureDirectory,
@@ -11,7 +11,6 @@ import {
     readFileAsync,
     timeout,
     writeFile,
-    globalSignalRegistry,
 } from '../utils.js';
 import { daemon } from '../utils/notify.js';
 
@@ -432,16 +431,13 @@ export class Notification extends Service implements Disposable {
             null,
         );
 
-        pixbuf.save_to_streamv(outputStream, 'png', null, null, null);
-        outputStream.close(null);
+        try {
+            pixbuf.save_to_streamv(outputStream, 'png', null, null, null);
+        } finally {
+            outputStream.close(null);
+        }
 
         return fileName;
-    }
-
-    dispose(): void {
-        super.dispose();
-        // Signal connections on this instance are managed and cleaned up
-        // by the parent Notifications service via globalSignalRegistry
     }
 }
 
@@ -494,19 +490,25 @@ export class Notifications extends Service implements Disposable {
     /** Delay in milliseconds between closing each notification during clear(). */
     public clearDelay = 100;
 
-    private _dbus!: Gio.DBusExportedObject;
+    private _dbus?: Gio.DBusExportedObject;
     private _notifications: Map<number, Notification>;
+    private _notificationScopes = new Map<number, ChildScope>();
+    private _popupTimeouts = new Map<Notification, ScopeHandle>();
     private _dnd = false;
     private _idCount = 1;
-    private _cacheTimeoutId = 0;
-    private _timeoutIds: Map<number, number> = new Map();
+    private _cacheTimeout?: ScopeHandle;
 
     constructor() {
         super();
 
         this._notifications = new Map();
-        this._readFromFile();
-        this._register();
+        try {
+            this._readFromFile();
+            this._register();
+        } catch (error) {
+            this.dispose();
+            throw error;
+        }
     }
 
     /** Whether Do Not Disturb mode is enabled (suppresses popups). */
@@ -565,29 +567,39 @@ export class Notifications extends Service implements Disposable {
         hints: Hints,
         expiration: number,
     ) {
+        if (this.isDisposed) return 0;
+
         const id = this._notifications.has(replacesId) ? replacesId : this._idCount++;
         const n = new Notification(appName, id, appIcon, summary, body, acts, hints, !this.dnd);
 
-        let timeoutId: number | undefined;
-        if (this.forceTimeout || expiration === -1) {
-            n.updateProperty('timeout', this.popupTimeout);
-            timeoutId = timeout(this.popupTimeout, () => this.DismissNotification(id));
-        } else {
-            n.updateProperty('timeout', expiration);
-            if (expiration > 0) timeoutId = timeout(expiration, () => this.DismissNotification(id));
-        }
+        const expirationTimeout = this.forceTimeout || expiration === -1
+            ? this.popupTimeout
+            : expiration;
+        n.updateProperty('timeout', expirationTimeout);
 
-        if (timeoutId !== undefined) {
-            this._timeoutIds.set(id, timeoutId);
+        const child = this._addNotification(n);
+        if (this.forceTimeout || expiration === -1 || expiration > 0) {
+            const timer = child.scope.source(timeout(expirationTimeout, () => {
+                timer.forget();
+                this._popupTimeouts.delete(n);
+                if (!this.isDisposed && this._notifications.get(id) === n) n.dismiss();
+            }));
+            this._popupTimeouts.set(n, timer);
         }
-
-        this._addNotification(n);
-        !this._dnd && this.notify('popups');
-        this.notify('notifications');
-        this.emit('notified', id);
-        this.emit('changed');
-        this._cache();
+        this._publishNotification(n);
         return id;
+    }
+
+    private _publishNotification(n: Notification) {
+        const current = () => !this.isDisposed && this._notifications.get(n.id) === n;
+        if (!this._dnd) this.notify('popups');
+        if (!current()) return;
+        this.notify('notifications');
+        if (!current()) return;
+        this.emit('notified', n.id);
+        if (!current()) return;
+        this.emit('changed');
+        if (current()) this._cache();
     }
 
     /** D-Bus Clear method: closes all notifications. */
@@ -646,76 +658,108 @@ export class Notifications extends Service implements Disposable {
     readonly clear = async () => {
         const close = (n: Notification, delay: number) =>
             new Promise(resolve => {
-                this._notifications.has(n.id)
-                    ? timeout(delay, () => resolve(n.close()))
-                    : resolve(null);
+                const child = this._notificationScopes.get(n.id);
+                if (this.isDisposed || this._notifications.get(n.id) !== n || !child) {
+                    resolve(null);
+                    return;
+                }
+
+                const settlement = child.scope.add(() => resolve(null));
+                const timer = child.scope.source(timeout(delay, () => {
+                    timer.forget();
+                    settlement.forget();
+                    resolve(!this.isDisposed && this._notifications.get(n.id) === n ? n.close() : null);
+                }));
             });
         return Promise.all(this.notifications.map((n, i) => close(n, this.clearDelay * i)));
     };
 
     private _addNotification(n: Notification) {
-        // Cleanup existing notification if replacing
-        const existing = this._notifications.get(n.id);
-        if (existing) {
-            globalSignalRegistry.disconnect(existing as unknown as GObject.Object);
-            existing.dispose();
-        }
+        this._notificationScopes.get(n.id)?.release();
+        this._notificationScopes.delete(n.id);
 
-        const dismissedId = n.connect('dismissed', this._onDismissed.bind(this));
-        this.trackConnection(dismissedId);
-        globalSignalRegistry.register(n as unknown as GObject.Object, dismissedId);
-
-        const closedId = n.connect('closed', this._onClosed.bind(this));
-        this.trackConnection(closedId);
-        globalSignalRegistry.register(n as unknown as GObject.Object, closedId);
-
-        const invokedId = n.connect('invoked', this._onInvoked.bind(this));
-        this.trackConnection(invokedId);
-        globalSignalRegistry.register(n as unknown as GObject.Object, invokedId);
+        const child = this.resources.child();
+        this._notificationScopes.set(n.id, child);
+        child.scope.add(() => {
+            this._popupTimeouts.delete(n);
+            n.dispose();
+        });
+        child.scope.connect(n, 'dismissed', () => this._onDismissed(n));
+        child.scope.connect(n, 'closed', () => this._onClosed(n));
+        child.scope.connect(n, 'invoked', (_notification, id) => this._onInvoked(n, id as string));
 
         this._notifications.set(n.id, n);
+        return child;
     }
 
     private _onDismissed(n: Notification) {
+        if (this.isDisposed || this._notifications.get(n.id) !== n) return;
+
+        this._popupTimeouts.get(n)?.release();
+        this._popupTimeouts.delete(n);
+
         this.emit('dismissed', n.id);
-        this.changed('popups');
+        if (this.isDisposed || this._notifications.get(n.id) !== n) return;
+        this.notify('popups');
+        if (!this.isDisposed) this.emit('changed');
     }
 
     private _onClosed(n: Notification) {
-        const timeoutId = this._timeoutIds.get(n.id);
-        if (timeoutId !== undefined) {
-            GLib.source_remove(timeoutId);
-            this._timeoutIds.delete(n.id);
-        }
+        if (this.isDisposed || this._notifications.get(n.id) !== n) return;
 
-        this._dbus.emit_signal('NotificationClosed', new GLib.Variant('(uu)', [n.id, 3]));
+        this._dbus?.emit_signal('NotificationClosed', new GLib.Variant('(uu)', [n.id, 3]));
 
+        this._notificationScopes.get(n.id)?.release();
+        this._notificationScopes.delete(n.id);
         this._notifications.delete(n.id);
         this.notify('notifications');
+        if (this.isDisposed) return;
         this.notify('popups');
+        if (this.isDisposed) return;
         this.emit('closed', n.id);
+        if (this.isDisposed) return;
         this.emit('changed');
         this._cache();
     }
 
     private _onInvoked(n: Notification, id: string) {
-        this._dbus.emit_signal('ActionInvoked', new GLib.Variant('(us)', [n.id, id]));
+        if (this.isDisposed || this._notifications.get(n.id) !== n) return;
+
+        this._dbus?.emit_signal('ActionInvoked', new GLib.Variant('(us)', [n.id, id]));
     }
 
     private _register() {
-        Gio.bus_own_name(
+        let exported: ScopeHandle | undefined;
+        let ownsName = false;
+        const ownerId = Gio.bus_own_name(
             Gio.BusType.SESSION,
             'org.freedesktop.Notifications',
             Gio.BusNameOwnerFlags.NONE,
             (connection: Gio.DBusConnection) => {
-                this._dbus = Gio.DBusExportedObject.wrapJSObject(NotificationIFace as string, this);
+                if (this.isDisposed) return;
 
-                this._dbus.export(connection, '/org/freedesktop/Notifications');
+                exported?.release();
+                const dbus = Gio.DBusExportedObject.wrapJSObject(NotificationIFace as string, this);
+                this._dbus = dbus;
+                exported = this.resources.add(() => {
+                    if (this._dbus === dbus) this._dbus = undefined;
+                    dbus.unexport();
+                });
+                dbus.export(connection, '/org/freedesktop/Notifications');
             },
             () => {
+                if (this.isDisposed) return;
+
+                ownsName = true;
                 daemon.running = true;
             },
             () => {
+                if (ownsName) {
+                    ownsName = false;
+                    daemon.running = false;
+                }
+                if (this.isDisposed) return;
+
                 const [name] = Gio.DBus.session
                     .call_sync(
                         'org.freedesktop.Notifications',
@@ -733,11 +777,20 @@ export class Notifications extends Service implements Disposable {
                 console.warn(`Another notification daemon is already running: ${name}`);
             },
         );
+        this.resources.add(() => {
+            if (ownsName) {
+                ownsName = false;
+                daemon.running = false;
+            }
+            Gio.bus_unown_name(ownerId);
+        });
     }
 
     private async _readFromFile() {
         try {
             const file = await readFileAsync(CACHE_FILE);
+            if (this.isDisposed) return;
+
             const notifications = JSON.parse(file).map((n: NotifcationJson) =>
                 Notification.fromJson(n),
             );
@@ -754,42 +807,31 @@ export class Notifications extends Service implements Disposable {
     }
 
     private _cache() {
-        if (this._cacheTimeoutId) GLib.source_remove(this._cacheTimeoutId);
-        this._cacheTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-            this._cacheTimeoutId = 0;
+        if (this.isDisposed) return;
+
+        this._cacheTimeout?.release();
+        const timer = this.resources.source(timeout(1000, () => {
+            timer.forget();
+            if (this._cacheTimeout === timer) this._cacheTimeout = undefined;
+            if (this.isDisposed) return;
+
             ensureDirectory(NOTIFICATIONS_CACHE_PATH);
             const arr = Array.from(this._notifications.values()).map(n => n.toJson());
-            writeFile(JSON.stringify(arr, null, 2), CACHE_FILE).catch(err => console.error(err));
-            return GLib.SOURCE_REMOVE;
-        });
+            writeFile(JSON.stringify(arr, null, 2), CACHE_FILE).catch(err => {
+                if (!this.isDisposed) console.error(err);
+            });
+        }));
+        this._cacheTimeout = timer;
     }
 
     dispose(): void {
+        if (this.isDisposed) return;
+
         super.dispose();
 
-        // Clear all popup timeouts
-        for (const timeoutId of this._timeoutIds.values()) {
-            GLib.source_remove(timeoutId);
-        }
-        this._timeoutIds.clear();
-
-        // Clear cache timeout
-        if (this._cacheTimeoutId) {
-            GLib.source_remove(this._cacheTimeoutId);
-            this._cacheTimeoutId = 0;
-        }
-
-        // Cleanup all notifications
-        for (const notification of this._notifications.values()) {
-            globalSignalRegistry.disconnect(notification as unknown as GObject.Object);
-            notification.dispose();
-        }
+        this._cacheTimeout = undefined;
+        this._notificationScopes.clear();
         this._notifications.clear();
-
-        // Unexport D-Bus object
-        if (this._dbus) {
-            this._dbus.unexport();
-        }
     }
 }
 

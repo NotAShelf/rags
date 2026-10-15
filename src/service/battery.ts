@@ -1,7 +1,8 @@
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
-import { idle, loadInterfaceXML, globalSignalRegistry } from '../utils.js';
+import { loadInterfaceXML } from '../utils.js';
 import { type BatteryProxy } from '../dbus/types.js';
 
 const BatteryIFace = loadInterfaceXML('org.freedesktop.UPower.Device')!;
@@ -129,10 +130,13 @@ export class Battery extends Service implements Disposable {
             '/org/freedesktop/UPower/devices/DisplayDevice',
         );
 
-        const id = this._proxy.connect('g-properties-changed', () => this._sync());
-        this.trackConnection(id);
-        globalSignalRegistry.register(this._proxy, id);
-        idle(this._sync.bind(this));
+        this.resources.connect(this._proxy, 'g-properties-changed', () => this._sync());
+        const id = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            pending.forget();
+            this._sync();
+            return GLib.SOURCE_REMOVE;
+        });
+        const pending = this.resources.source(id);
     }
 
     private _sync() {
@@ -172,12 +176,6 @@ export class Battery extends Service implements Disposable {
         this.emit('changed');
     }
 
-    dispose(): void {
-        super.dispose();
-        if (this._proxy) {
-            globalSignalRegistry.disconnect(this._proxy);
-        }
-    }
 }
 
 export const battery = new Battery();

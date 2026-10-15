@@ -1,8 +1,8 @@
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
+import type { ChildScope } from '../internal/resource-scope.js';
 import GObject from 'gi://GObject';
 import Gvc from 'gi://Gvc';
-import { bulkConnect, bulkDisconnect, globalSignalRegistry } from '../utils.js';
 import { AgsServiceError } from '../utils/errors.js';
 
 const _MIXER_CONTROL_STATE = {
@@ -44,7 +44,7 @@ export class Stream extends Service implements Disposable {
     }
 
     private _stream?: Gvc.MixerStream;
-    private _ids?: number[];
+    private _streamScope?: ChildScope;
     private _oldVolume = 0;
 
     /**
@@ -53,12 +53,14 @@ export class Stream extends Service implements Disposable {
      * @param stream - The mixer stream to bind, or null to unbind
      */
     readonly setStream = (stream: Gvc.MixerStream | null) => {
-        if (this._ids) bulkDisconnect(this._stream as unknown as GObject.Object, this._ids);
-
-        if (!stream) return;
+        this._streamScope?.release();
+        this._streamScope = undefined;
+        if (!stream || this.isDisposed) return;
 
         this._stream = stream;
-        this._ids = [
+        const child = this.resources.child();
+        this._streamScope = child;
+        for (const prop of [
             'application-id',
             'description',
             'is-muted',
@@ -66,26 +68,20 @@ export class Stream extends Service implements Disposable {
             'icon-name',
             'id',
             'state',
-        ].map(prop => {
+        ]) {
             this.notify(prop);
-            const id = stream.connect(`notify::${prop}`, () => {
+            child.scope.connect(stream, `notify::${prop}`, () => {
                 this.changed(prop);
             });
-            this.trackConnection(id);
-            globalSignalRegistry.register(stream, id);
-            return id;
-        });
+        }
 
         this.changed('stream');
     };
 
     dispose(): void {
-        if (this._stream && this._ids) {
-            bulkDisconnect(this._stream as unknown as GObject.Object, this._ids);
-            this._ids = undefined;
-        }
-        this._stream = undefined;
         super.dispose();
+        this._streamScope = undefined;
+        this._stream = undefined;
     }
 
     constructor(stream?: Gvc.MixerStream) {
@@ -213,9 +209,8 @@ export class Audio extends Service implements Disposable {
     public maxStreamVolume = 1.5;
 
     private _control: Gvc.MixerControl;
-    private _controlIds: number[] = [];
     private _streams: Map<number, Stream>;
-    private _streamBindings: Map<number, number>;
+    private _streamScopes: Map<number, ChildScope>;
     private _speaker!: Stream;
     private _microphone!: Stream;
 
@@ -226,22 +221,35 @@ export class Audio extends Service implements Disposable {
             name: `${pkg.name} mixer control`,
         });
 
+        this.resources.add(() => this._control.close());
         this._streams = new Map();
-        this._streamBindings = new Map();
+        this._streamScopes = new Map();
+        this.resources.add(() => {
+            this._streams.clear();
+            this._streamScopes.clear();
+        });
         for (const s of ['speaker', 'microphone'] as const) {
-            this[`_${s}`] = new Stream();
-            this[`_${s}`].connect('changed', () => {
+            const stream = new Stream();
+            this[`_${s}`] = stream;
+            this.resources.add(() => stream.dispose());
+            this.resources.connect(stream as unknown as GObject.Object, 'changed', () => {
                 this.emit(`${s}-changed`);
                 this.emit('changed');
             });
         }
 
-        this._controlIds = bulkConnect(this._control as unknown as GObject.Object, [
-            ['default-sink-changed', (_c, id: number) => this._defaultChanged(id, 'speaker')],
-            ['default-source-changed', (_c, id: number) => this._defaultChanged(id, 'microphone')],
-            ['stream-added', this._streamAdded.bind(this)],
-            ['stream-removed', this._streamRemoved.bind(this)],
-        ]);
+        this.resources.connect(this._control, 'default-sink-changed', (_control, id) =>
+            this._defaultChanged(id as number, 'speaker'),
+        );
+        this.resources.connect(this._control, 'default-source-changed', (_control, id) =>
+            this._defaultChanged(id as number, 'microphone'),
+        );
+        this.resources.connect(this._control, 'stream-added', (_control, id) =>
+            this._streamAdded(this._control, id as number),
+        );
+        this.resources.connect(this._control, 'stream-removed', (_control, id) =>
+            this._streamRemoved(this._control, id as number),
+        );
 
         this._control.open();
     }
@@ -325,12 +333,16 @@ export class Audio extends Service implements Disposable {
 
         const gvcstream = this._control.lookup_stream_id(id);
         const stream = new Stream(gvcstream);
-        const binding = stream.connect('changed', () => this.emit('changed'));
+        const child = this.resources.child();
+        child.scope.add(() => stream.dispose());
+        child.scope.connect(stream as unknown as GObject.Object, 'changed', () =>
+            this.emit('changed'),
+        );
 
         this._streams.set(id, stream);
-        this._streamBindings.set(id, binding);
+        this._streamScopes.set(id, child);
 
-        this._notifyStreams(stream);
+        this._notifyStreams(stream.stream);
         this.emit('stream-added', id);
         this.emit('changed');
     }
@@ -339,14 +351,15 @@ export class Audio extends Service implements Disposable {
         const stream = this._streams.get(id);
         if (!stream) return;
 
-        stream.disconnect(this._streamBindings.get(id) as number);
+        const nativeStream = stream.stream;
+        this._streamScopes.get(id)?.release();
         stream.close();
 
         this._streams.delete(id);
-        this._streamBindings.delete(id);
+        this._streamScopes.delete(id);
         this.emit('stream-removed', id);
 
-        this._notifyStreams(stream);
+        this._notifyStreams(nativeStream);
         this.emit('changed');
     }
 
@@ -358,39 +371,14 @@ export class Audio extends Service implements Disposable {
         return list;
     }
 
-    private _notifyStreams(stream: Stream) {
-        if (stream.stream instanceof Gvc.MixerSource) this.notify('microphones');
+    private _notifyStreams(stream: Gvc.MixerStream | null) {
+        if (stream instanceof Gvc.MixerSource) this.notify('microphones');
 
-        if (stream.stream instanceof Gvc.MixerSink) this.notify('speakers');
+        if (stream instanceof Gvc.MixerSink) this.notify('speakers');
 
-        if (stream.stream instanceof Gvc.MixerSinkInput) this.notify('apps');
+        if (stream instanceof Gvc.MixerSinkInput) this.notify('apps');
 
-        if (stream.stream instanceof Gvc.MixerSourceOutput) this.notify('recorders');
-    }
-
-    dispose(): void {
-        // Disconnect external bindings first to prevent signals on disposed objects
-        for (const [id, binding] of this._streamBindings) {
-            const stream = this._streams.get(id);
-            if (stream) {
-                stream.disconnect(binding);
-            }
-        }
-        this._streamBindings.clear();
-
-        // Now safely dispose all streams
-        for (const stream of this._streams.values()) {
-            stream.dispose();
-        }
-        this._streams.clear();
-
-        // Cleanup control connections
-        if (this._control && this._controlIds.length > 0) {
-            bulkDisconnect(this._control as unknown as GObject.Object, this._controlIds);
-            this._control.close();
-        }
-
-        super.dispose();
+        if (stream instanceof Gvc.MixerSourceOutput) this.notify('recorders');
     }
 }
 

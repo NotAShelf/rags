@@ -1,9 +1,8 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
-import { loadInterfaceXML, globalSignalRegistry } from '../utils.js';
+import { loadInterfaceXML } from '../utils.js';
 import { PowerProfilesProxy, connectSignal } from '../dbus/types.js';
 import { kebabify } from '../utils/gobject.js';
 import { isRunning } from '../utils/init.js';
@@ -83,7 +82,9 @@ class PowerProfiles extends Service implements Disposable {
                 '/net/hadess/PowerProfiles',
             );
 
-            const propertiesId = this._proxy.connect('g-properties-changed', (_, changed) => {
+            this.resources.connect(this._proxy, 'g-properties-changed', (_proxy, payload) => {
+                // Gio emits the changed-properties dictionary as a GLib.Variant.
+                const changed = payload as GLib.Variant;
                 for (const prop of Object.keys(changed.deepUnpack() as {})) {
                     this.notify(kebabify(prop));
                     if (prop === 'ActiveProfile') this.notify('icon-name');
@@ -91,18 +92,17 @@ class PowerProfiles extends Service implements Disposable {
 
                 this.emit('changed');
             });
-            this.trackConnection(propertiesId);
-            globalSignalRegistry.register(this._proxy as unknown as GObject.Object, propertiesId);
 
             const signalId = connectSignal(
                 this._proxy,
                 'ProfileReleased',
-                (_p: any, _n: any, [cookie]: any) => {
+                (_proxy: unknown, _sender: string, [cookie]: [number]) => {
                     this.emit('profile-released', cookie);
                 },
             );
-            this.trackConnection(signalId);
-            globalSignalRegistry.register(this._proxy as unknown as GObject.Object, signalId);
+            // GJS's protocol signal IDs belong to disconnectSignal, not GObject.disconnect.
+            const proxy = this._proxy as PowerProfilesProxy & { disconnectSignal(id: number): void };
+            this.resources.add(() => proxy.disconnectSignal(signalId));
         } else {
             console.error(`${BUSNAME} is not available`);
         }
@@ -148,14 +148,6 @@ class PowerProfiles extends Service implements Disposable {
         return `power-profile-${this.active_profile}-symbolic`;
     }
 
-    dispose(): void {
-        super.dispose();
-
-        // Cleanup proxy connections
-        if (this._proxy && this._proxy !== DummyProxy) {
-            globalSignalRegistry.disconnect(this._proxy as unknown as GObject.Object);
-        }
-    }
 }
 
 const service = new PowerProfiles();
