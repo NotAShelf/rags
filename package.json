@@ -28,6 +28,7 @@
         "@girs/pango-1.0": "1.57.1-4.0.0-rc.15",
         "@girs/soup-3.0": "3.6.6-4.0.0-rc.15",
         "@girs/xlib-2.0": "2.0.0-4.0.0-rc.15",
+        "rollup": "4.64.7",
         "typescript": "^6.0.3"
     },
     "devDependencies": {
