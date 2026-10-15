@@ -2,7 +2,7 @@ import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=3.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gdk from 'gi://Gdk?version=3.0';
-import Cairo from 'gi://cairo?version=1.0';
+import Cairo from 'cairo';
 import { Props, BindableProps, Binding, Connectable } from '../service.js';
 import { registerGObject, kebabify, type CtorProps } from '../utils/gobject.js';
 import { interval } from '../utils.js';
@@ -256,7 +256,7 @@ export class AgsWidget<Attr = unknown, GtkWidget extends Gtk.Widget = Gtk.Widget
     _connect<Args extends unknown[]>(signal: string, callback: (self: this, ...args: Args) => unknown): number {
         initWidget(this);
         if (this.is_destroyed) return 0;
-        return this.connect(signal, callback);
+        return GObject.signal_connect(this, signal, callback);
     }
 
     _idle(callback: () => void, priority = GLib.PRIORITY_DEFAULT): void {

@@ -1,17 +1,6 @@
 import { register, type BaseProps, type Widget } from './widget.js';
 import Gtk from 'gi://Gtk?version=3.0';
-import Cairo from 'gi://cairo?version=1.0';
-import { default as GjsCairo } from '@girs/gjs/cairo';
-
-interface CairoContext {
-    setSourceRGBA: (r: number, g: number, b: number, a: number) => void;
-    arc: (x: number, y: number, r: number, a1: number, a2: number) => void;
-    setLineWidth: (w: number) => void;
-    lineTo: (x: number, y: number) => void;
-    stroke: () => void;
-    fill: () => void;
-    $dispose: () => void;
-}
+import type Cairo from 'cairo';
 
 /** Props for the CircularProgress widget. */
 export type CircularProgressProps<
@@ -199,7 +188,7 @@ export class CircularProgress<Child extends Gtk.Widget, Attr = unknown> extends 
         return scaled;
     }
 
-    vfunc_draw(cr: CairoContext): boolean {
+    vfunc_draw(cr: Cairo.Context): boolean {
         const allocation = this.get_allocation();
         const styles = this.get_style_context();
         const width = allocation.width;
@@ -288,7 +277,7 @@ export class CircularProgress<Child extends Gtk.Widget, Attr = unknown> extends 
 
         if (this.child) {
             this.child.size_allocate(allocation);
-            this.propagate_draw(this.child, cr as unknown as GjsCairo.Context);
+            this.propagate_draw(this.child, cr);
         }
 
         cr.$dispose();

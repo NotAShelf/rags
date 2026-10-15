@@ -2,6 +2,7 @@ import Gtk from 'gi://Gtk?version=3.0';
 import Gdk from 'gi://Gdk?version=3.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import Service from './service.js';
 import Variable from './variable.js';
 import Widget from './widget.js';
@@ -80,6 +81,11 @@ export interface Config {
     maxStreamVolume?: number;
 }
 
+interface AppSignals extends Gtk.Application.SignalSignatures {
+    'window-toggled': (name: string, visible: boolean) => void;
+    'config-parsed': () => void;
+}
+
 /**
  * The main AGS application singleton.
  *
@@ -102,6 +108,9 @@ export class App extends Gtk.Application {
             'config-parsed': [],
         });
     }
+
+    declare connect_after: GObject.SignalMethods<this, AppSignals>['connect_after'];
+    declare emit: GObject.SignalMethods<this, AppSignals>['emit'];
 
     private readonly _resources = new ResourceScope();
     private _dbus?: Gio.DBusExportedObject;
@@ -318,7 +327,7 @@ export class App extends Gtk.Application {
      * @returns The connection ID
      */
     readonly connect = (signal = 'window-toggled', callback: (_: this, ...args: any[]) => void) => {
-        return super.connect(signal, callback);
+        return GObject.signal_connect(this, signal, callback);
     };
 
     /**

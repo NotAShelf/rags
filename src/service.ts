@@ -263,6 +263,8 @@ export default class Service extends GObject.Object {
         registerGObject(service, { signals, properties });
     }
 
+    declare connect_after: GObject.SignalMethods<this, GObject.SignalSignatures>['connect_after'];
+
     /**
      * Connects a callback to a signal on this service.
      *
@@ -271,7 +273,7 @@ export default class Service extends GObject.Object {
      * @returns The signal connection ID
      */
     connect(signal = 'changed', callback: (_: this, ...args: any[]) => void): number {
-        return super.connect(signal, callback);
+        return GObject.signal_connect(this, signal, callback);
     }
 
     /**
@@ -301,7 +303,7 @@ export default class Service extends GObject.Object {
             );
         }
 
-        super.emit(signal, ...args);
+        GObject.signal_emit_by_name(this, signal, ...args);
     }
 
     /**

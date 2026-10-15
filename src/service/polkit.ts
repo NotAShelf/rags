@@ -4,8 +4,27 @@ import Service from '../service.js';
 import type { Disposable } from '../service.js';
 import type Gio from 'gi://Gio';
 import type GObject from 'gi://GObject';
+import type GLib from 'gi://GLib';
+
+interface NativePolkitSignals extends GObject.Object.SignalSignatures {
+    begin: (
+        actionId: string,
+        message: string,
+        iconName: string,
+        details: GLib.Variant,
+        identities: GLib.Variant,
+    ) => void;
+    request: (message: string, echoOn: boolean) => void;
+    'show-info': (text: string) => void;
+    'show-error': (text: string) => void;
+    completed: (authorized: boolean) => void;
+    cancelled: () => void;
+}
 
 interface NativePolkitAgent extends GObject.Object {
+    connect: GObject.SignalMethods<this, NativePolkitSignals>['connect'];
+    connect_after: GObject.SignalMethods<this, NativePolkitSignals>['connect_after'];
+    emit: GObject.SignalMethods<this, NativePolkitSignals>['emit'];
     register(
         sessionId: string,
         objectPath: string,

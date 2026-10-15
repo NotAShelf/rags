@@ -51,6 +51,11 @@ export interface Options<T> {
     autoSuspend?: boolean;
 }
 
+interface VariableSignals extends GObject.Object.SignalSignatures {
+    changed: () => void;
+    dispose: () => void;
+}
+
 /**
  * A reactive variable that holds a value and emits signals on change.
  *
@@ -92,6 +97,9 @@ export class Variable<T> extends GObject.Object implements Disposable {
             },
         );
     }
+
+    declare connect_after: GObject.SignalMethods<this, VariableSignals>['connect_after'];
+    declare emit: GObject.SignalMethods<this, VariableSignals>['emit'];
 
     protected _value!: T;
     protected _poll?: Poll<T>;
@@ -350,7 +358,7 @@ export class Variable<T> extends GObject.Object implements Disposable {
      * @returns The connection ID
      */
     connect(signal = 'notify::value', callback: (self: this, ...args: any[]) => void): number {
-        return super.connect(signal, callback);
+        return GObject.signal_connect(this, signal, callback);
     }
 
     /**
