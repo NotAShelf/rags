@@ -7,6 +7,11 @@
 import Gtk from 'gi://Gtk?version=3.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import {
+    ResourceScope,
+    ensureWidgetScope,
+    type ScopeHandle,
+} from '../internal/resource-scope.js';
 
 /**
  * Arguments for command execution functions.
@@ -37,14 +42,83 @@ function proc(arg: Args | string | string[]) {
     );
 }
 
-function readStream(stream: Gio.DataInputStream, callback: (out: string) => void) {
-    stream.read_line_async(GLib.PRIORITY_DEFAULT, null, (_, res) => {
-        const output = stream?.read_line_finish_utf8(res)[0];
-        if (typeof output === 'string') {
-            callback(output.trim());
-            readStream(stream, callback);
-        }
+function closeStream(stream: Gio.InputStream | Gio.OutputStream): void {
+    if (stream.is_closed()) return;
+    try {
+        stream.close(null);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function readStream(
+    resources: ResourceScope,
+    stream: Gio.DataInputStream,
+    callback: (out: string) => void,
+    onClosed: () => void,
+): void {
+    const reader = resources.child();
+    const cancellable = new Gio.Cancellable();
+    let closed = false;
+    let pending = false;
+
+    reader.scope.add(() => {
+        closed = true;
+        cancellable.cancel();
+        if (!pending) closeStream(stream);
+        onClosed();
     });
+
+    const read = () => {
+        if (closed) return;
+        pending = true;
+        try {
+            stream.read_line_async(GLib.PRIORITY_DEFAULT, cancellable, (_, res) => {
+                pending = false;
+                let output: string | null;
+                try {
+                    output = stream.read_line_finish_utf8(res)[0];
+                } catch (error) {
+                    if (closed) closeStream(stream);
+                    else {
+                        console.error(error);
+                        reader.release();
+                    }
+                    return;
+                }
+
+                if (closed) {
+                    closeStream(stream);
+                    return;
+                }
+                if (output === null) {
+                    reader.release();
+                    return;
+                }
+
+                try {
+                    callback(output.trim());
+                } catch (error) {
+                    reader.release();
+                    throw error;
+                }
+                read();
+            });
+        } catch (error) {
+            pending = false;
+            reader.release();
+            throw error;
+        }
+    };
+
+    read();
+}
+
+const subprocessCleanup = new WeakMap<Gio.Subprocess, () => void>();
+
+/** @internal */
+export function stopSubprocess(process: Gio.Subprocess): void {
+    subprocessCleanup.get(process)?.();
 }
 
 /**
@@ -82,48 +156,117 @@ export function subprocess(
     bind?: Gtk.Widget,
 ) {
     const p = proc(argsOrCmd);
+    const resources = new ResourceScope();
+    let closed = false;
+    let exited = false;
+    let remainingStreams = 2;
+    let widgetCleanup: ScopeHandle | undefined;
 
-    const stdin = new Gio.DataOutputStream({
-        base_stream: p.get_stdin_pipe() || undefined,
-        close_base_stream: true,
+    const finish = () => {
+        if (closed) return;
+        closed = true;
+        subprocessCleanup.delete(p);
+        widgetCleanup?.forget();
+        resources.dispose();
+    };
+
+    resources.add(() => {
+        if (!exited) p.force_exit();
     });
 
-    const stdout = new Gio.DataInputStream({
-        base_stream: p.get_stdout_pipe() || undefined,
-        close_base_stream: true,
-    });
+    try {
+        const isCommand = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string';
+        const onErr = isCommand ? err : argsOrCmd.err;
+        const onOut = isCommand ? out : argsOrCmd.out;
+        const widget = isCommand ? bind : argsOrCmd.bind ?? bind;
 
-    const stderr = new Gio.DataInputStream({
-        base_stream: p.get_stderr_pipe() || undefined,
-        close_base_stream: true,
-    });
+        // proc() always creates all three pipes.
+        const stdin = new Gio.DataOutputStream({
+            base_stream: p.get_stdin_pipe()!,
+            close_base_stream: true,
+        });
 
-    if (bind) bind.connect('destroy', () => p.force_exit());
+        const input = resources.child();
+        const writeCancellable = new Gio.Cancellable();
+        let inputClosed = false;
+        let pendingWrites = 0;
+        input.scope.add(() => {
+            inputClosed = true;
+            writeCancellable.cancel();
+            if (pendingWrites === 0) closeStream(stdin);
+        });
 
-    const onErr = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string' ? err : argsOrCmd.err;
+        const onStreamClosed = () => {
+            remainingStreams--;
+            if (exited && remainingStreams === 0) finish();
+        };
 
-    const onOut = Array.isArray(argsOrCmd) || typeof argsOrCmd === 'string' ? out : argsOrCmd.out;
+        subprocessCleanup.set(p, finish);
+        const stdout = new Gio.DataInputStream({
+            base_stream: p.get_stdout_pipe()!,
+            close_base_stream: true,
+        });
+        readStream(resources, stdout, onOut ?? out, onStreamClosed);
+        const stderr = new Gio.DataInputStream({
+            base_stream: p.get_stderr_pipe()!,
+            close_base_stream: true,
+        });
+        readStream(resources, stderr, onErr ?? err, onStreamClosed);
 
-    readStream(stdout, onOut ?? out);
-    readStream(stderr, onErr ?? err);
+        p.wait_async(null, (_, res) => {
+            try {
+                p.wait_finish(res);
+            } catch (error) {
+                if (!closed) {
+                    console.error(error);
+                    finish();
+                }
+                return;
+            }
 
-    return Object.assign(p, {
-        write(str: string): void {
-            stdin.write_all(new TextEncoder().encode(str), null);
-        },
-        writeAsync(str: string): Promise<void> {
-            return new Promise((resolve, reject) => {
-                stdin.write_all_async(
-                    new TextEncoder().encode(str),
-                    GLib.PRIORITY_DEFAULT,
-                    null,
-                    (stdin, res) => {
-                        stdin?.write_all_finish(res)?.[0] ? resolve() : reject();
-                    },
-                );
-            });
-        },
-    });
+            exited = true;
+            if (closed) return;
+            input.release();
+            if (remainingStreams === 0) finish();
+        });
+
+        if (widget) widgetCleanup = ensureWidgetScope(widget).add(finish);
+
+        return Object.assign(p, {
+            write(str: string): void {
+                stdin.write_all(new TextEncoder().encode(str), writeCancellable);
+            },
+            writeAsync(str: string): Promise<void> {
+                return new Promise((resolve, reject) => {
+                    pendingWrites++;
+                    try {
+                        stdin.write_all_async(
+                            new TextEncoder().encode(str),
+                            GLib.PRIORITY_DEFAULT,
+                            writeCancellable,
+                            (_, res) => {
+                                try {
+                                    stdin.write_all_finish(res)[0] ? resolve() : reject();
+                                } catch (error) {
+                                    reject(error);
+                                } finally {
+                                    pendingWrites--;
+                                    if (inputClosed && pendingWrites === 0) closeStream(stdin);
+                                }
+                            },
+                        );
+                    } catch (error) {
+                        pendingWrites--;
+                        if (inputClosed && pendingWrites === 0) closeStream(stdin);
+                        reject(error);
+                    }
+                });
+            },
+        });
+    } catch (error) {
+        finish();
+        throw error;
+    }
 }
 
 /**

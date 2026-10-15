@@ -6,6 +6,7 @@
 import Gtk from 'gi://Gtk?version=3.0';
 import Gdk from 'gi://Gdk?version=3.0';
 import GLib from 'gi://GLib';
+import { ensureWidgetScope, type ChildScope } from '../internal/resource-scope.js';
 
 /**
  * Calls a callback immediately and then repeatedly at the given interval.
@@ -21,12 +22,13 @@ import GLib from 'gi://GLib';
  * ```
  */
 export function interval(interval: number, callback: () => void, bind?: Gtk.Widget) {
+    const owner = bind ? ensureWidgetScope(bind) : undefined;
     callback();
     const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, interval, () => {
         callback();
         return true;
     });
-    if (bind) bind.connect('destroy', () => GLib.source_remove(id));
+    owner?.source(id);
 
     return id;
 }
@@ -96,22 +98,20 @@ export interface CancelHandle {
  * ```
  */
 export function onFrame(widget: Gtk.Widget, callback: () => boolean): CancelHandle {
-    let signalId: number | null = null;
+    const owner = ensureWidgetScope(widget).child();
     let cancelled = false;
-    let clock: Gdk.FrameClock | null = null;
+    let frame: ChildScope | undefined;
+
+    owner.scope.add(() => {
+        cancelled = true;
+    });
 
     const handle: CancelHandle = {
         get active() {
             return !cancelled;
         },
         cancel() {
-            if (cancelled) return;
-            cancelled = true;
-            if (signalId !== null && clock) {
-                clock.disconnect(signalId);
-                clock.end_updating();
-                signalId = null;
-            }
+            owner.release();
         },
     };
 
@@ -119,23 +119,23 @@ export function onFrame(widget: Gtk.Widget, callback: () => boolean): CancelHand
         if (cancelled) return;
         const win = widget.get_window();
         if (!win) return;
-        clock = win.get_frame_clock();
+        const clock: Gdk.FrameClock | null = win.get_frame_clock();
         if (!clock) return;
 
-        signalId = clock.connect('update', () => {
-            if (cancelled) return;
-            if (!callback()) handle.cancel();
-        });
+        frame?.release();
+        frame = owner.scope.child();
         clock.begin_updating();
+        frame.scope.add(() => clock.end_updating());
+        frame.scope.connect(clock, 'update', () => {
+            if (!cancelled && !callback()) handle.cancel();
+        });
     };
 
-    if (widget.get_realized()) {
-        start();
-    } else {
-        widget.connect('realize', start);
-    }
-
-    widget.connect('destroy', () => handle.cancel());
-
+    owner.scope.connect(widget, 'unrealize', () => {
+        frame?.release();
+        frame = undefined;
+    });
+    owner.scope.connect(widget, 'realize', start);
+    if (widget.get_realized()) start();
     return handle;
 }

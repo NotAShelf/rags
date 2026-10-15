@@ -8,6 +8,7 @@
     <file>utils.js</file>
     <file>variable.js</file>
     <file>widget.js</file>
+    <file>internal/resource-scope.js</file>
 
     <file>widgets/widget.js</file>
     <file>widgets/box.js</file>
@@ -56,6 +57,7 @@
     <file>service/audio.js</file>
     <file>service/battery.js</file>
     <file>service/bluetooth.js</file>
+    <file>service/brightness.js</file>
     <file>service/greetd.js</file>
     <file>service/hyprland.js</file>
     <file>service/lockscreen.js</file>
