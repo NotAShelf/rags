@@ -121,8 +121,8 @@ export class Scrollable<Child extends Gtk.Widget, Attr> extends Gtk.ScrolledWind
         const hscroll = this.hscroll ? POLICY[this.hscroll] : undefined;
         const vscroll = this.vscroll ? POLICY[this.vscroll] : undefined;
         this.set_policy(
-            hscroll === undefined || hscroll === -1 ? Gtk.PolicyType.AUTOMATIC : hscroll,
-            vscroll === undefined || vscroll === -1 ? Gtk.PolicyType.AUTOMATIC : vscroll,
+            hscroll ?? Gtk.PolicyType.AUTOMATIC,
+            vscroll ?? Gtk.PolicyType.AUTOMATIC,
         );
     }
 }
