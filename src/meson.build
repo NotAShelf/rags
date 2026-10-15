@@ -39,7 +39,7 @@ typescript = custom_target(
   input: files( 'main.ts' ),
   build_by_default: true,
   build_always_stale: true,
-  command: [ tsc, '--project', meson.project_source_root() / 'tsconfig.json', '--outDir', tsc_out ],
+  command: [ tsc, '--project', meson.project_source_root() / 'tsconfig.json', '--outDir', tsc_out, '--removeComments' ],
   output: ['tsc-output'],
 )
 
@@ -60,12 +60,15 @@ configure_file(
 )
 
 # gresource
-import('gnome').compile_resources(
-  app_id + '.src',
-  app_id + '.src.gresource.xml',
-  dependencies: typescript,
-  source_dir: tsc_out,
-  gresource_bundle: true,
+custom_target(
+  app_id + '.src.gresource',
+  input: [app_id + '.src.gresource.xml', files('../bundle.mjs')],
+  output: app_id + '.src.gresource',
+  depends: typescript,
+  command: [find_program('node'), '@INPUT1@', '@INPUT0@', tsc_out,
+            meson.project_build_root() / 'bundled', '@OUTPUT@',
+            find_program('glib-compile-resources')],
+  build_always_stale: true,
   install: true,
   install_dir: pkgdatadir,
 )
