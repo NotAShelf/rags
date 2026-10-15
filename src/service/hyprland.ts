@@ -1,10 +1,8 @@
 import Gdk from 'gi://Gdk?version=3.0';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
-import { globalSignalRegistry } from '../utils.js';
 
 Gio._promisify(Gio.DataInputStream.prototype, 'read_upto_async');
 
@@ -429,7 +427,9 @@ export class ActiveID extends Service implements Disposable {
      * @param name - The new name
      */
     update(id: number, name: string) {
+        if (this.isDisposed) return;
         super.updateProperty('id', id);
+        if (this.isDisposed) return;
         super.updateProperty('name', name);
     }
 
@@ -440,6 +440,7 @@ export class ActiveID extends Service implements Disposable {
 }
 
 /**
+
  * Actives Aggregator
  *
  * Aggregates the currently active client, monitor, and workspace.
@@ -475,12 +476,15 @@ export class Actives extends Service implements Disposable {
     constructor() {
         super();
 
+        this.resources.add(() => this._client.dispose());
+        this.resources.add(() => this._monitor.dispose());
+        this.resources.add(() => this._workspace.dispose());
         (['client', 'workspace', 'monitor'] as const).forEach(obj => {
-            const id = this[`_${obj}`].connect('changed', () => {
+            this.resources.connect(this[`_${obj}`], 'changed', () => {
+                if (this.isDisposed) return;
                 this.notify(obj);
-                this.emit('changed');
+                if (!this.isDisposed) this.emit('changed');
             });
-            globalSignalRegistry.register(this[`_${obj}`] as unknown as GObject.Object, id);
         });
     }
 
@@ -497,24 +501,6 @@ export class Actives extends Service implements Disposable {
     /** The currently active workspace. */
     get workspace() {
         return this._workspace;
-    }
-
-    dispose(): void {
-        super.dispose();
-
-        // Cleanup sub-trackers
-        if (this._client) {
-            globalSignalRegistry.disconnect(this._client as unknown as GObject.Object);
-            this._client.dispose();
-        }
-        if (this._monitor) {
-            globalSignalRegistry.disconnect(this._monitor as unknown as GObject.Object);
-            this._monitor.dispose();
-        }
-        if (this._workspace) {
-            globalSignalRegistry.disconnect(this._workspace as unknown as GObject.Object);
-            this._workspace.dispose();
-        }
     }
 }
 
@@ -599,6 +585,8 @@ export class Hyprland extends Service implements Disposable {
     private _encoder = new TextEncoder();
     private _eventConnection: Gio.SocketConnection | null = null;
     private _eventStream: Gio.DataInputStream | null = null;
+    private _eventCancellable = new Gio.Cancellable();
+    private _eventReadPending = false;
     private _messageQueue: Promise<unknown> = Promise.resolve();
 
     /**
@@ -666,73 +654,132 @@ export class Hyprland extends Service implements Disposable {
         if (!HIS) console.error('Hyprland is not running');
 
         super();
+        this.resources.add(() => this._active.dispose());
+        this.resources.add(() => this._stopSocket());
 
-        // init monitor
-        for (const m of JSON.parse(this.message('j/monitors')) as Monitor[]) {
-            this._monitors.set(m.id, m);
-            if (m.focused) {
-                this._active.monitor.update(m.id, m.name);
-                this._active.workspace.update(m.activeWorkspace.id, m.activeWorkspace.name);
+        try {
+            // init monitor
+            for (const m of JSON.parse(this.message('j/monitors')) as Monitor[]) {
+                this._monitors.set(m.id, m);
+                if (m.focused) {
+                    this._active.monitor.update(m.id, m.name);
+                    this._active.workspace.update(m.activeWorkspace.id, m.activeWorkspace.name);
+                }
             }
+
+            // init workspaces
+            for (const ws of JSON.parse(this.message('j/workspaces')) as Workspace[])
+                this._workspaces.set(ws.id, ws);
+
+            // init clients
+            for (const c of JSON.parse(this.message('j/clients')) as Client[])
+                this._clients.set(c.address, c);
+
+            // Setup socket watching
+            this._eventConnection = this._connection('socket2', this._eventCancellable);
+            this._eventStream = new Gio.DataInputStream({
+                close_base_stream: false, // Let _eventConnection.close() handle stream cleanup
+                base_stream: this._eventConnection.get_input_stream(),
+            });
+            this._watchSocket(this._eventStream);
+
+            // Track active changes
+            this.resources.connect(this._active, 'changed', () => {
+                if (this.isDisposed) return;
+                this.notify('active');
+                if (!this.isDisposed) this.emit('changed');
+            });
+        } catch (error) {
+            super.dispose();
+            throw error;
         }
 
-        // init workspaces
-        for (const ws of JSON.parse(this.message('j/workspaces')) as Workspace[])
-            this._workspaces.set(ws.id, ws);
-
-        // init clients
-        for (const c of JSON.parse(this.message('j/clients')) as Client[])
-            this._clients.set(c.address, c);
-
-        // Setup socket watching
-        this._eventConnection = this._connection('socket2');
-        this._eventStream = new Gio.DataInputStream({
-            close_base_stream: false, // Let _eventConnection.close() handle stream cleanup
-            base_stream: this._eventConnection.get_input_stream(),
-        });
-        this._watchSocket(this._eventStream);
-
-        // Track active changes
-        const activeId = this._active.connect('changed', () => this.changed('active'));
-        globalSignalRegistry.register(this._active as unknown as GObject.Object, activeId);
     }
 
-    private _connection(socket: 'socket' | 'socket2') {
+    private _connection(socket: 'socket' | 'socket2', cancellable: Gio.Cancellable) {
         const sock = (pre: string) => `${pre}/hypr/${HIS}/.${socket}.sock`;
 
         const path = GLib.file_test(sock(XDG_RUNTIME_DIR), GLib.FileTest.EXISTS)
             ? sock(XDG_RUNTIME_DIR)
             : sock('/tmp');
 
-        return new Gio.SocketClient().connect(new Gio.UnixSocketAddress({ path }), null);
+        return new Gio.SocketClient().connect(new Gio.UnixSocketAddress({ path }), cancellable);
     }
 
     private _watchSocket(stream: Gio.DataInputStream) {
-        stream.read_line_async(0, null, (stream, result) => {
-            if (!stream) return console.error('Error reading Hyprland socket');
+        if (this.isDisposed || this._eventCancellable.is_cancelled() || this._eventReadPending)
+            return;
 
+        stream.read_line_async(0, this._eventCancellable, (_stream, result) => {
+            let line: Uint8Array | null = null;
             try {
-                const [line] = stream.read_line_finish(result);
-                this._onEvent(this._decoder.decode(line || new Uint8Array()));
+                [line] = stream.read_line_finish(result);
             } catch (error) {
-                logError(error);
+                if (!this._eventCancellable.is_cancelled()) logError(error);
+                this._eventCancellable.cancel();
+            }
+            this._eventReadPending = false;
+
+            if (this.isDisposed || this._eventCancellable.is_cancelled() || line === null) {
+                this._stopSocket();
+                return;
             }
 
+            this._onEvent(this._decoder.decode(line));
             this._watchSocket(stream);
+        });
+        this._eventReadPending = true;
+    }
+
+    private _stopSocket() {
+        this._eventCancellable.cancel();
+        // Finish a cancelled pending read before closing its stream or connection.
+        if (this._eventReadPending) return;
+
+        const stream = this._eventStream;
+        this._eventStream = null;
+        try {
+            stream?.close(null);
+        } catch (error) {
+            console.error('Error closing Hyprland socket stream:', error);
+        }
+
+        const connection = this._eventConnection;
+        this._eventConnection = null;
+        try {
+            connection?.close(null);
+        } catch (error) {
+            console.error('Error closing Hyprland socket connection:', error);
+        }
+    }
+
+    private _socketStream(
+        connection: Gio.SocketConnection,
+        cmd: string,
+        cancellable: Gio.Cancellable,
+    ) {
+        connection.get_output_stream().write(this._encoder.encode(cmd), cancellable);
+
+        return new Gio.DataInputStream({
+            close_base_stream: false,
+            base_stream: connection.get_input_stream(),
         });
     }
 
-    private _socketStream(cmd: string) {
-        const connection = this._connection('socket');
-
-        connection.get_output_stream().write(this._encoder.encode(cmd), null);
-
-        const stream = new Gio.DataInputStream({
-            close_base_stream: true,
-            base_stream: connection.get_input_stream(),
-        });
-
-        return [connection, stream] as const;
+    private _closeCommandSocket(
+        stream: Gio.DataInputStream | null,
+        connection: Gio.SocketConnection | null,
+    ) {
+        try {
+            stream?.close(null);
+        } catch (error) {
+            logError(error);
+        }
+        try {
+            connection?.close(null);
+        } catch (error) {
+            logError(error);
+        }
     }
 
     /**
@@ -742,19 +789,25 @@ export class Hyprland extends Service implements Disposable {
      * @returns The response string
      */
     readonly message = (cmd: string) => {
+        if (this.isDisposed) return '';
         cmd = translateLegacyDispatch(cmd);
 
+        const request = this.resources.child();
+        const cancellable = new Gio.Cancellable();
+        request.scope.add(() => cancellable.cancel());
         let connection: Gio.SocketConnection | null = null;
+        let stream: Gio.DataInputStream | null = null;
         try {
-            const [conn, stream] = this._socketStream(cmd);
-            connection = conn;
+            connection = this._connection('socket', cancellable);
+            stream = this._socketStream(connection, cmd, cancellable);
 
-            const [response] = stream.read_upto('\x04', -1, null);
+            const [response] = stream.read_upto('\x04', -1, cancellable);
             return response || '';
         } catch (error) {
-            logError(error);
+            if (!cancellable.is_cancelled()) logError(error);
         } finally {
-            connection?.close(null);
+            this._closeCommandSocket(stream, connection);
+            request.release();
         }
         return '';
     };
@@ -766,20 +819,28 @@ export class Hyprland extends Service implements Disposable {
      * @returns The response string
      */
     private _messageAsync = async (cmd: string) => {
+        if (this.isDisposed) return '';
         cmd = translateLegacyDispatch(cmd);
 
+        const request = this.resources.child();
+        const cancellable = new Gio.Cancellable();
+        request.scope.add(() => cancellable.cancel());
         let connection: Gio.SocketConnection | null = null;
+        let stream: Gio.DataInputStream | null = null;
         try {
-            const [conn, stream] = this._socketStream(cmd);
-            connection = conn;
+            connection = this._connection('socket', cancellable);
+            stream = this._socketStream(connection, cmd, cancellable);
 
-            const result = await stream.read_upto_async('\x04', -1, 0, null);
+            const result = await stream.read_upto_async('\x04', -1, 0, cancellable);
+            if (this.isDisposed || cancellable.is_cancelled()) return '';
             const [response] = result as unknown as [string, number];
             return response;
         } catch (error) {
-            logError(error);
+            if (!cancellable.is_cancelled()) logError(error);
         } finally {
-            connection?.close(null);
+            // The read must finish before either stream can be closed.
+            this._closeCommandSocket(stream, connection);
+            request.release();
         }
         return '';
     };
@@ -826,20 +887,51 @@ export class Hyprland extends Service implements Disposable {
      */
     readonly dispatchLegacy = (command: string) => this.messageAsync(`dispatch ${command}`);
 
+    private _notifyCollections(monitors = false) {
+        if (this.isDisposed) return false;
+        this.notify('clients');
+        if (this.isDisposed) return false;
+        this.notify('workspaces');
+        if (this.isDisposed) return false;
+        if (monitors) this.notify('monitors');
+        return !this.isDisposed;
+    }
+
+    private _updateActiveMonitor(monitor: Monitor) {
+        this._active.monitor.update(monitor.id, monitor.name);
+        if (this.isDisposed) return;
+        this._active.workspace.update(monitor.activeWorkspace.id, monitor.activeWorkspace.name);
+        if (this.isDisposed) return;
+        if (!this._active.monitor.isDisposed) this._active.monitor.emit('changed');
+        if (this.isDisposed) return;
+        if (!this._active.workspace.isDisposed) this._active.workspace.emit('changed');
+    }
+
+    private _emitLive(signal: string, ...args: unknown[]) {
+        if (!this.isDisposed) this.emit(signal, ...args);
+    }
+
+    private _updateActiveClient(properties: Record<string, string>) {
+        for (const [property, value] of Object.entries(properties)) {
+            if (this.isDisposed || this._active.client.isDisposed) return;
+            this._active.client.updateProperty(property, value);
+        }
+        if (!this.isDisposed && !this._active.client.isDisposed) this._active.client.emit('changed');
+    }
+
     private async _syncMonitors(notify = true) {
         try {
             const msg = await this.messageAsync('j/monitors');
+            if (this.isDisposed) return;
             this._monitors.clear();
             for (const m of JSON.parse(msg) as Array<Monitor>) {
+                if (this.isDisposed) return;
                 this._monitors.set(m.id, m);
                 if (m.focused) {
-                    this._active.monitor.update(m.id, m.name);
-                    this._active.workspace.update(m.activeWorkspace.id, m.activeWorkspace.name);
-                    this._active.monitor.emit('changed');
-                    this._active.workspace.emit('changed');
+                    this._updateActiveMonitor(m);
                 }
             }
-            if (notify) this.notify('monitors');
+            if (notify && !this.isDisposed) this.notify('monitors');
         } catch (error) {
             logError(error);
         }
@@ -848,6 +940,7 @@ export class Hyprland extends Service implements Disposable {
     private async _syncWorkspaces(notify = true) {
         try {
             const msg = await this.messageAsync('j/workspaces');
+            if (this.isDisposed) return;
             this._workspaces.clear();
             for (const ws of JSON.parse(msg) as Array<Workspace>) this._workspaces.set(ws.id, ws);
 
@@ -860,6 +953,7 @@ export class Hyprland extends Service implements Disposable {
     private async _syncClients(notify = true) {
         try {
             const msg = await this.messageAsync('j/clients');
+            if (this.isDisposed) return;
             this._clients.clear();
             for (const c of JSON.parse(msg) as Array<Client>) this._clients.set(c.address, c);
 
@@ -886,42 +980,42 @@ export class Hyprland extends Service implements Disposable {
 
                 case 'monitorremoved':
                     await this._syncMonitors();
-                    this.emit('monitor-removed', argv[0]);
+                    this._emitLive('monitor-removed', argv[0]);
                     break;
 
                 case 'monitorremovedv2':
                     await this._syncMonitors();
-                    this.emit('monitor-removed', argv[1]);
+                    this._emitLive('monitor-removed', argv[1]);
                     break;
 
                 case 'monitoradded':
                     await this._syncMonitors();
-                    this.emit('monitor-added', argv[0]);
+                    this._emitLive('monitor-added', argv[0]);
                     break;
 
                 case 'monitoraddedv2':
                     await this._syncMonitors();
-                    this.emit('monitor-added', argv[1]);
+                    this._emitLive('monitor-added', argv[1]);
                     break;
 
                 case 'createworkspace':
                     await this._syncWorkspaces();
-                    this.emit('workspace-added', argv[0]);
+                    this._emitLive('workspace-added', argv[0]);
                     break;
 
                 case 'createworkspacev2':
                     await this._syncWorkspaces();
-                    this.emit('workspace-added', argv[1]);
+                    this._emitLive('workspace-added', argv[1]);
                     break;
 
                 case 'destroyworkspace':
                     await this._syncWorkspaces();
-                    this.emit('workspace-removed', argv[0]);
+                    this._emitLive('workspace-removed', argv[0]);
                     break;
 
                 case 'destroyworkspacev2':
                     await this._syncWorkspaces();
-                    this.emit('workspace-removed', argv[1]);
+                    this._emitLive('workspace-removed', argv[1]);
                     break;
 
                 case 'moveworkspace':
@@ -931,7 +1025,7 @@ export class Hyprland extends Service implements Disposable {
                         this._syncWorkspaces(false),
                         this._syncMonitors(false),
                     ]);
-                    ['clients', 'workspaces', 'monitors'].forEach(e => this.notify(e));
+                    this._notifyCollections(true);
                     break;
 
                 case 'renameworkspace':
@@ -939,35 +1033,32 @@ export class Hyprland extends Service implements Disposable {
                     break;
 
                 case 'activespecial':
-                    this.emit('activespecial', argv[0], argv[1] || '');
+                    this._emitLive('activespecial', argv[0], argv[1] || '');
                     break;
 
                 case 'activespecialv2':
-                    this.emit('activespecial', argv[1], argv[2] || '');
+                    this._emitLive('activespecial', argv[1], argv[2] || '');
                     break;
 
                 case 'openwindow':
                     await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
-                    ['clients', 'workspaces'].forEach(e => this.notify(e));
-                    this.emit('client-added', '0x' + argv[0]);
+                    this._notifyCollections();
+                    this._emitLive('client-added', '0x' + argv[0]);
                     break;
 
                 case 'closewindow':
                     await Promise.all([this._syncWorkspaces(false), this._syncClients(false)]);
                     if (this._active.client.address === '0x' + argv[0]) {
-                        this._active.client.updateProperty('class', '');
-                        this._active.client.updateProperty('title', '');
-                        this._active.client.updateProperty('address', '');
-                        this._active.client.emit('changed');
+                        this._updateActiveClient({ class: '', title: '', address: '' });
                     }
-                    ['clients', 'workspaces'].forEach(e => this.notify(e));
-                    this.emit('client-removed', '0x' + argv[0]);
+                    this._notifyCollections();
+                    this._emitLive('client-removed', '0x' + argv[0]);
                     break;
 
                 case 'kill':
                     await Promise.all([this._syncWorkspaces(false), this._syncClients(false)]);
-                    ['clients', 'workspaces'].forEach(e => this.notify(e));
-                    this.emit('kill', '0x' + argv[0]);
+                    this._notifyCollections();
+                    this._emitLive('kill', '0x' + argv[0]);
                     break;
 
                 case 'movewindow':
@@ -975,32 +1066,29 @@ export class Hyprland extends Service implements Disposable {
                 case 'windowtitle':
                 case 'windowtitlev2':
                     await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
-                    ['clients', 'workspaces'].forEach(e => this.notify(e));
+                    this._notifyCollections();
                     break;
 
                 case 'fullscreen':
                     await Promise.all([this._syncClients(false), this._syncWorkspaces(false)]);
-                    ['clients', 'workspaces'].forEach(e => this.notify(e));
-                    this.emit('fullscreen', argv[0] === '1');
+                    this._notifyCollections();
+                    this._emitLive('fullscreen', argv[0] === '1');
                     break;
 
                 case 'activewindow':
-                    this._active.client.updateProperty('class', argv[0]);
-                    this._active.client.updateProperty('title', argv.slice(1).join(','));
-                    this._active.client.emit('changed');
+                    this._updateActiveClient({ class: argv[0], title: argv.slice(1).join(',') });
                     break;
 
                 case 'activewindowv2':
-                    this._active.client.updateProperty('address', argv[0] ? '0x' + argv[0] : '');
-                    this._active.client.emit('changed');
+                    this._updateActiveClient({ address: argv[0] ? '0x' + argv[0] : '' });
                     break;
 
                 case 'urgent':
-                    this.emit('urgent-window', '0x' + argv[0]);
+                    this._emitLive('urgent-window', '0x' + argv[0]);
                     break;
 
                 case 'activelayout':
-                    this.emit('keyboard-layout', `${argv[0]}`, `${argv[1]}`);
+                    this._emitLive('keyboard-layout', `${argv[0]}`, `${argv[1]}`);
                     break;
 
                 case 'changefloatingmode':
@@ -1008,12 +1096,12 @@ export class Hyprland extends Service implements Disposable {
                     break;
 
                 case 'submap':
-                    this.emit('submap', argv[0]);
+                    this._emitLive('submap', argv[0]);
                     break;
 
                 case 'screencast':
                 case 'screencastv2':
-                    this.emit('screencast', argv[0] === '1', parseInt(argv[1]), argv[2] || '');
+                    this._emitLive('screencast', argv[0] === '1', parseInt(argv[1]), argv[2] || '');
                     break;
 
                 case 'togglegroup':
@@ -1025,33 +1113,33 @@ export class Hyprland extends Service implements Disposable {
 
                 case 'lockgroups':
                     await this._syncClients();
-                    this.emit('lockgroups', argv[0] === '1');
+                    this._emitLive('lockgroups', argv[0] === '1');
                     break;
 
                 case 'configreloaded':
-                    this.emit('configreloaded');
+                    this._emitLive('configreloaded');
                     break;
 
                 case 'pin':
                     await this._syncClients();
-                    this.emit('pin', '0x' + argv[0], argv[1] === '1');
+                    this._emitLive('pin', '0x' + argv[0], argv[1] === '1');
                     break;
 
                 case 'minimized':
                     await this._syncClients();
-                    this.emit('minimized', '0x' + argv[0], argv[1] === '1');
+                    this._emitLive('minimized', '0x' + argv[0], argv[1] === '1');
                     break;
 
                 case 'bell':
-                    this.emit('bell', argv[0] ? '0x' + argv[0] : '');
+                    this._emitLive('bell', argv[0] ? '0x' + argv[0] : '');
                     break;
 
                 case 'empty':
-                    this.emit('empty', argv[0]);
+                    this._emitLive('empty', argv[0]);
                     break;
 
                 case 'custom':
-                    this.emit('custom', params);
+                    this._emitLive('custom', params);
                     break;
 
                 case 'openlayer':
@@ -1065,37 +1153,12 @@ export class Hyprland extends Service implements Disposable {
             if (error instanceof Error) console.error(error.message);
         }
 
-        this.emit('event', e, params);
-        this.emit('changed');
+        this._emitLive('event', e, params);
+        this._emitLive('changed');
     }
 
     dispose(): void {
         super.dispose();
-
-        // Close socket stream and connection
-        if (this._eventStream) {
-            try {
-                this._eventStream.close(null);
-            } catch (error) {
-                console.error('Error closing Hyprland socket stream:', error);
-            }
-            this._eventStream = null;
-        }
-
-        if (this._eventConnection) {
-            try {
-                this._eventConnection.close(null);
-            } catch (error) {
-                console.error('Error closing Hyprland socket connection:', error);
-            }
-            this._eventConnection = null;
-        }
-
-        // Cleanup active tracker
-        if (this._active) {
-            globalSignalRegistry.disconnect(this._active as unknown as GObject.Object);
-            this._active.dispose();
-        }
 
         // Clear state maps
         this._monitors.clear();

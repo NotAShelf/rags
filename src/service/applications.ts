@@ -1,8 +1,8 @@
 import Gio from 'gi://Gio';
-import GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
-import { CACHE_DIR, ensureDirectory, readFile, writeFile, globalSignalRegistry } from '../utils.js';
+import { CACHE_DIR, ensureDirectory, readFile, writeFile } from '../utils.js';
+import type { ChildScope } from '../internal/resource-scope.js';
 
 // Use GioUnix.DesktopAppInfo to avoid deprecation warning
 // @ts-expect-error GioUnix types not available in @girs yet
@@ -176,8 +176,7 @@ export class Applications extends Service implements Disposable {
 
     private _list!: Application[];
     private _frequents: { [app: string]: number };
-    private _frequencyBindings: Array<{ app: Application; id: number }> = [];
-    private _monitor: Gio.AppInfoMonitor;
+    private _listScope?: ChildScope;
 
     /**
      * Filters and sorts applications by a search term, ordered by launch frequency.
@@ -191,9 +190,7 @@ export class Applications extends Service implements Disposable {
 
     constructor() {
         super();
-        this._monitor = Gio.AppInfoMonitor.get();
-        const monitorId = this._monitor.connect('changed', this.reload.bind(this));
-        globalSignalRegistry.register(this._monitor as unknown as GObject.Object, monitorId);
+        this.resources.connect(Gio.AppInfoMonitor.get(), 'changed', this.reload);
 
         try {
             this._frequents = JSON.parse(readFile(CACHE_FILE)) as { [app: string]: number };
@@ -229,12 +226,11 @@ export class Applications extends Service implements Disposable {
 
     /** Reloads the application list from the system and restores frequency data. */
     readonly reload = () => {
-        // Disconnect old app bindings
-        for (const { app, id } of this._frequencyBindings) {
-            app.disconnect(id);
-            globalSignalRegistry.disconnect(app as unknown as GObject.Object);
-        }
-        this._frequencyBindings = [];
+        if (this.isDisposed) return;
+
+        this._listScope?.release();
+        this._listScope = this.resources.child();
+        const { scope } = this._listScope;
 
         this._list = Gio.AppInfo.get_all()
             .filter(app => app.should_show())
@@ -243,32 +239,14 @@ export class Applications extends Service implements Disposable {
             .map(app => new Application(app, this.frequents[app.get_id() || '']));
 
         this._list.forEach(app => {
-            const id = app.connect('notify::frequency', () => {
+            scope.add(() => app.dispose());
+            scope.connect(app, 'notify::frequency', () => {
                 this._launched(app.desktop);
             });
-            globalSignalRegistry.register(app as unknown as GObject.Object, id);
-            this._frequencyBindings.push({ app, id });
         });
 
         this.changed('list');
     };
-
-    dispose(): void {
-        // Cleanup app frequency bindings
-        for (const { app, id } of this._frequencyBindings) {
-            app.disconnect(id);
-            globalSignalRegistry.disconnect(app as unknown as GObject.Object);
-            app.dispose();
-        }
-        this._frequencyBindings = [];
-
-        // Cleanup monitor connection
-        if (this._monitor) {
-            globalSignalRegistry.disconnect(this._monitor as unknown as GObject.Object);
-        }
-
-        super.dispose();
-    }
 }
 
 export const applications = new Applications();

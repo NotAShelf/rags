@@ -4,7 +4,7 @@ import GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
 import Gio from 'gi://Gio';
-import { bulkConnect, bulkDisconnect, globalSignalRegistry } from '../utils.js';
+import type { ChildScope } from '../internal/resource-scope.js';
 
 const _ADAPTER_STATE = {
     [GnomeBluetooth.AdapterState.ABSENT]: 'absent',
@@ -60,7 +60,6 @@ export class BluetoothDevice extends Service implements Disposable {
     }
 
     private _device: GnomeBluetooth.Device;
-    private _ids: number[];
     private _connecting = false;
 
     /** The underlying GnomeBluetooth.Device instance. */
@@ -72,7 +71,7 @@ export class BluetoothDevice extends Service implements Disposable {
         super();
 
         this._device = device;
-        this._ids = [
+        for (const prop of [
             'address',
             'alias',
             'battery-level',
@@ -81,21 +80,15 @@ export class BluetoothDevice extends Service implements Disposable {
             'name',
             'paired',
             'trusted',
-        ].map(prop => {
-            const id = device.connect(`notify::${prop}`, () => {
+        ]) {
+            this.resources.connect(device, `notify::${prop}`, () => {
                 this.changed(prop);
             });
-            this.trackConnection(id);
-            globalSignalRegistry.register(device, id);
-            return id;
-        });
+        }
 
-        const iconId = device.connect('notify::icon', () => {
+        this.resources.connect(device, 'notify::icon', () => {
             this.changed('icon-name');
         });
-        this._ids.push(iconId);
-        this.trackConnection(iconId);
-        globalSignalRegistry.register(device, iconId);
     }
 
     close() {
@@ -164,6 +157,7 @@ export class BluetoothDevice extends Service implements Disposable {
      * @param connect - True to connect, false to disconnect
      */
     readonly setConnection = (connect: boolean) => {
+        if (this.isDisposed || bluetooth.isDisposed) return;
         this._connecting = true;
         bluetooth.connectDevice(this, connect, () => {
             this._connecting = false;
@@ -172,15 +166,6 @@ export class BluetoothDevice extends Service implements Disposable {
         this.changed('connecting');
     };
 
-    dispose(): void {
-        super.dispose();
-
-        // Disconnect device property signals
-        if (this._device && this._ids) {
-            bulkDisconnect(this._device, this._ids);
-            globalSignalRegistry.disconnect(this._device);
-        }
-    }
 }
 
 /**
@@ -222,20 +207,32 @@ export class Bluetooth extends Service implements Disposable {
 
     private _client: GnomeBluetooth.Client;
     private _devices: Map<string, BluetoothDevice>;
-    private _deviceSignals: Map<string, number[]>;
+    private _deviceScopes: Map<string, ChildScope>;
+    private _cancellable = new Gio.Cancellable();
 
     constructor() {
         super();
 
         this._devices = new Map();
-        this._deviceSignals = new Map();
+        this._deviceScopes = new Map();
+        this.resources.add(() => this._cancellable.cancel());
+        this.resources.add(() => {
+            this._devices.clear();
+            this._deviceScopes.clear();
+        });
         this._client = new GnomeBluetooth.Client();
-        bulkConnect(this._client, [
-            ['device-added', this._deviceAdded.bind(this)],
-            ['device-removed', this._deviceRemoved.bind(this)],
-            ['notify::default-adapter-state', () => this.changed('state')],
-            ['notify::default-adapter-powered', () => this.changed('enabled')],
-        ]);
+        this.resources.connect(this._client, 'device-added', (_client, device) =>
+            this._deviceAdded(this._client, device as GnomeBluetooth.Device),
+        );
+        this.resources.connect(this._client, 'device-removed', (_client, path) =>
+            this._deviceRemoved(this._client, path as string),
+        );
+        this.resources.connect(this._client, 'notify::default-adapter-state', () =>
+            this.changed('state'),
+        );
+        this.resources.connect(this._client, 'notify::default-adapter-powered', () =>
+            this.changed('enabled'),
+        );
 
         this._getDevices().forEach(device => this._deviceAdded(this, device));
     }
@@ -259,18 +256,17 @@ export class Bluetooth extends Service implements Disposable {
     }
 
     private _deviceAdded(_: GnomeBluetooth.Client, device: GnomeBluetooth.Device) {
-        if (this._devices.has(device.address)) return;
+        if (this.isDisposed || this._devices.has(device.address)) return;
 
         const d = new BluetoothDevice(device);
 
-        const changedId = d.connect('changed', () => this.emit('changed'));
-        globalSignalRegistry.register(d as unknown as GObject.Object, changedId);
-
-        const connectedId = d.connect('notify::connected', () => this.notify('connected-devices'));
-        globalSignalRegistry.register(d as unknown as GObject.Object, connectedId);
-
-        // Store signal IDs for proper cleanup on device removal
-        this._deviceSignals.set(device.address, [changedId, connectedId]);
+        const child = this.resources.child();
+        child.scope.add(() => d.dispose());
+        child.scope.connect(d as unknown as GObject.Object, 'changed', () => this.emit('changed'));
+        child.scope.connect(d as unknown as GObject.Object, 'notify::connected', () =>
+            this.notify('connected-devices'),
+        );
+        this._deviceScopes.set(device.address, child);
 
         this._devices.set(device.address, d);
         this.changed('devices');
@@ -281,15 +277,8 @@ export class Bluetooth extends Service implements Disposable {
         const device = this.devices.find(d => d.device.get_object_path() === path);
         if (!device || !this._devices.has(device.address)) return;
 
-        // Disconnect device signals before closing
-        const signals = this._deviceSignals.get(device.address);
-        if (signals) {
-            bulkDisconnect(device as unknown as GObject.Object, signals);
-            globalSignalRegistry.disconnect(device as unknown as GObject.Object);
-            this._deviceSignals.delete(device.address);
-        }
-
-        this._devices.get(device.address)?.close();
+        this._deviceScopes.get(device.address)?.release();
+        this._deviceScopes.delete(device.address);
         this._devices.delete(device.address);
         this.notify('devices');
         this.notify('connected-devices');
@@ -309,17 +298,20 @@ export class Bluetooth extends Service implements Disposable {
         connect: boolean,
         callback: (s: boolean) => void,
     ) => {
+        if (this.isDisposed || device.isDisposed) return;
         this._client.connect_service(
             device.device.get_object_path(),
             connect,
-            null,
+            this._cancellable,
             (client: GnomeBluetooth.Client, res: Gio.AsyncResult) => {
                 try {
                     const s = client.connect_service_finish(res);
+                    if (this.isDisposed || device.isDisposed) return;
                     callback(s);
 
-                    this.changed('connected-devices');
+                    if (!this.isDisposed && !device.isDisposed) this.changed('connected-devices');
                 } catch (error) {
+                    if (this.isDisposed || device.isDisposed) return;
                     logError(error);
                     callback(false);
                 }
@@ -363,21 +355,6 @@ export class Bluetooth extends Service implements Disposable {
         return list;
     }
 
-    dispose(): void {
-        super.dispose();
-
-        // Cleanup all devices
-        for (const device of this._devices.values()) {
-            globalSignalRegistry.disconnect(device as unknown as GObject.Object);
-            device.dispose();
-        }
-        this._devices.clear();
-
-        // Cleanup client connections
-        if (this._client) {
-            globalSignalRegistry.disconnect(this._client);
-        }
-    }
 }
 
 export const bluetooth = new Bluetooth();

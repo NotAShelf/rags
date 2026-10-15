@@ -4,12 +4,12 @@ import Gdk from 'gi://Gdk?version=3.0';
 import Gtk from 'gi://Gtk?version=3.0';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import DbusmenuGtk3 from 'gi://DbusmenuGtk3';
-import GObject from 'gi://GObject';
 import Service from '../service.js';
 import type { Disposable } from '../service.js';
 import { StatusNotifierItemProxy, connectSignal } from '../dbus/types.js';
-import { bulkConnect, loadInterfaceXML, globalSignalRegistry } from '../utils.js';
+import { loadInterfaceXML } from '../utils.js';
 import Widget from '../widget.js';
+import type { ChildScope } from '../internal/resource-scope.js';
 
 const StatusNotifierWatcherIFace = loadInterfaceXML('org.kde.StatusNotifierWatcher')!;
 const StatusNotifierItemIFace = loadInterfaceXML('org.kde.StatusNotifierItem')!;
@@ -17,7 +17,7 @@ const StatusNotifierItemProxy = Gio.DBusProxy.makeProxyWrapper(
     StatusNotifierItemIFace,
 ) as unknown as StatusNotifierItemProxy;
 
-const DbusmenuGtk3Menu = Widget<typeof DbusmenuGtk3.Menu, DbusmenuGtk3.Menu.ConstructorProps>(
+const DbusmenuGtk3Menu = Widget<typeof DbusmenuGtk3.Menu, Partial<DbusmenuGtk3.Menu.ConstructorProps>>(
     DbusmenuGtk3.Menu,
 );
 
@@ -72,21 +72,29 @@ export class TrayItem extends Service implements Disposable {
 
     private _iconTheme?: Gtk.IconTheme;
     menu?: DbusmenuGtk3.Menu;
-    private _proxySignalIds: number[] = [];
 
     constructor(busName: string, objectPath: string) {
         super();
 
         this._busName = busName;
 
-        this._proxy = new StatusNotifierItemProxy(
-            Gio.DBus.session,
-            busName,
-            objectPath,
-            this._itemProxyAcquired.bind(this),
-            null,
-            Gio.DBusProxyFlags.NONE,
-        );
+        const cancellable = new Gio.Cancellable();
+        try {
+            this._proxy = new StatusNotifierItemProxy(
+                Gio.DBus.session,
+                busName,
+                objectPath,
+                this._itemProxyAcquired.bind(this),
+                cancellable,
+                Gio.DBusProxyFlags.NONE,
+            );
+            this.resources.add(() => this._proxy.run_dispose());
+            this.resources.add(() => cancellable.cancel());
+        } catch (error) {
+            cancellable.cancel();
+            this.dispose();
+            throw error;
+        }
     }
 
     /**
@@ -198,12 +206,18 @@ export class TrayItem extends Service implements Disposable {
     }
 
     private _itemProxyAcquired(proxy: StatusNotifierItemProxy) {
+        if (this.isDisposed) return;
+
         if (proxy.Menu) {
             const menu = DbusmenuGtk3Menu({
                 dbus_name: proxy.g_name_owner!,
                 dbus_object: proxy.Menu,
-            } as any);
+            });
             this.menu = menu;
+            this.resources.add(() => {
+                menu.destroy();
+                if (this.menu === menu) this.menu = undefined;
+            });
         }
 
         if (this._proxy.IconThemePath) {
@@ -211,36 +225,29 @@ export class TrayItem extends Service implements Disposable {
             this._iconTheme?.set_search_path([this._proxy.IconThemePath]);
         }
 
-        // Track bulkConnect signals
-        const bulkIds = [
-            proxy.connect('notify::g-name-owner', () => {
-                if (!proxy.g_name_owner) this.emit('removed', this._busName);
-            }),
-            proxy.connect('g-signal', this._refreshAllProperties.bind(this)),
-            proxy.connect('g-properties-changed', () => this.emit('changed')),
-        ];
-
-        bulkIds.forEach(id => {
-            this._proxySignalIds.push(id);
-            this.trackConnection(id);
-            globalSignalRegistry.register(proxy as unknown as GObject.Object, id);
+        this.resources.connect(proxy, 'notify::g-name-owner', () => {
+            if (!this.isDisposed && !proxy.g_name_owner) this.emit('removed', this._busName);
+        });
+        this.resources.connect(proxy, 'g-signal', () => this._refreshAllProperties());
+        this.resources.connect(proxy, 'g-properties-changed', () => {
+            if (!this.isDisposed) this.emit('changed');
         });
 
-        // Track connectSignal calls
+        const protocolProxy = proxy as StatusNotifierItemProxy & {
+            disconnectSignal(id: number): void;
+        };
         ['Title', 'Icon', 'AttentionIcon', 'OverlayIcon', 'ToolTip', 'Status'].forEach(prop => {
-            const id = connectSignal(proxy, `New${prop}`, () => {
-                this._notify();
-            });
-            this._proxySignalIds.push(id);
-            this.trackConnection(id);
-            globalSignalRegistry.register(proxy as unknown as GObject.Object, id);
+            const id = connectSignal(proxy, `New${prop}`, () => this._notify());
+            this.resources.add(() => protocolProxy.disconnectSignal(id));
         });
 
         this.emit('ready');
     }
 
     private _notify() {
-        [
+        if (this.isDisposed) return;
+
+        for (const prop of [
             'menu',
             'category',
             'id',
@@ -250,11 +257,19 @@ export class TrayItem extends Service implements Disposable {
             'is-menu',
             'tooltip-markup',
             'icon',
-        ].forEach(prop => this.notify(prop));
-        this.emit('changed');
+        ]) {
+            if (this.isDisposed) return;
+            this.notify(prop);
+        }
+        if (!this.isDisposed) this.emit('changed');
     }
 
     private _refreshAllProperties() {
+        if (this.isDisposed) return;
+
+        const refresh = this.resources.child();
+        const cancellable = new Gio.Cancellable();
+        refresh.scope.add(() => cancellable.cancel());
         this._proxy.g_connection.call(
             this._proxy.g_name,
             this._proxy.g_object_path!,
@@ -264,22 +279,28 @@ export class TrayItem extends Service implements Disposable {
             new GLib.VariantType('(a{sv})'),
             Gio.DBusCallFlags.NONE,
             -1,
-            null,
+            cancellable,
             (proxy, result) => {
-                const variant = proxy?.call_finish(result) as GLib.Variant;
-                if (!variant) return;
-                const [properties] = variant.deepUnpack<Record<string, GLib.Variant>[]>();
-                Object.entries(properties).map(([propertyName, value]) => {
-                    this._proxy.set_cached_property(propertyName, value);
-                });
+                try {
+                    const variant = proxy?.call_finish(result) as GLib.Variant;
+                    if (this.isDisposed || !variant) return;
+                    const [properties] = variant.deepUnpack<Record<string, GLib.Variant>[]>();
+                    Object.entries(properties).map(([propertyName, value]) => {
+                        this._proxy.set_cached_property(propertyName, value);
+                    });
 
-                if (this._proxy.IconThemePath) {
-                    if (!this._iconTheme) this._iconTheme = Gtk.IconTheme.new();
+                    if (this._proxy.IconThemePath) {
+                        if (!this._iconTheme) this._iconTheme = Gtk.IconTheme.new();
 
-                    this._iconTheme.set_search_path([this._proxy.IconThemePath]);
+                        this._iconTheme.set_search_path([this._proxy.IconThemePath]);
+                    }
+
+                    this._notify();
+                } catch (error) {
+                    if (!this.isDisposed) throw error;
+                } finally {
+                    refresh.release();
                 }
-
-                this._notify();
             },
         );
     }
@@ -307,28 +328,6 @@ export class TrayItem extends Service implements Disposable {
             pixMap[1],
             pixMap[0] * 4,
         );
-    }
-
-    dispose(): void {
-        super.dispose();
-
-        // Disconnect proxy signals
-        if (this._proxy && this._proxySignalIds.length > 0) {
-            this._proxySignalIds.forEach(id => {
-                try {
-                    this._proxy.disconnect(id);
-                } catch (error) {
-                    // Signal may already be disconnected
-                }
-            });
-            globalSignalRegistry.disconnect(this._proxy as unknown as GObject.Object);
-        }
-
-        // Cleanup menu
-        if (this.menu) {
-            this.menu.destroy();
-            this.menu = undefined;
-        }
     }
 }
 
@@ -367,8 +366,11 @@ export class SystemTray extends Service implements Disposable {
         );
     }
 
-    private _dbus!: Gio.DBusExportedObject;
+    private _dbus?: Gio.DBusExportedObject;
+    private _dbusScope?: ChildScope;
     private _items: Map<string, TrayItem>;
+    private _itemScopes = new Map<string, ChildScope>();
+    private _pendingItemScopes = new Map<string, ChildScope>();
 
     /** Whether a StatusNotifierHost is registered (always `true`). */
     get IsStatusNotifierHostRegistered() {
@@ -400,27 +402,47 @@ export class SystemTray extends Service implements Disposable {
     constructor() {
         super();
         this._items = new Map();
-        this._register();
+        try {
+            this._register();
+        } catch (error) {
+            this.dispose();
+            throw error;
+        }
     }
 
     private _register() {
-        Gio.bus_own_name(
+        const ownerId = Gio.bus_own_name(
             Gio.BusType.SESSION,
             'org.kde.StatusNotifierWatcher',
             Gio.BusNameOwnerFlags.NONE,
             (connection: Gio.DBusConnection) => {
-                this._dbus = Gio.DBusExportedObject.wrapJSObject(
-                    StatusNotifierWatcherIFace as string,
-                    this,
-                );
+                if (this.isDisposed) return;
 
-                this._dbus.export(connection, '/StatusNotifierWatcher');
+                this._dbusScope?.release();
+                const child = this.resources.child();
+                this._dbusScope = child;
+                try {
+                    const exported = Gio.DBusExportedObject.wrapJSObject(
+                        StatusNotifierWatcherIFace as string,
+                        this,
+                    );
+                    this._dbus = exported;
+                    child.scope.add(() => {
+                        if (this._dbus === exported) this._dbus = undefined;
+                        exported.unexport();
+                    });
+                    exported.export(connection, '/StatusNotifierWatcher');
+                } catch (error) {
+                    child.release();
+                    throw error;
+                }
             },
             null,
             () => {
-                print('Another system tray is already running');
+                if (!this.isDisposed) print('Another system tray is already running');
             },
         );
+        this.resources.add(() => Gio.bus_unown_name(ownerId));
     }
 
     RegisterStatusNotifierItemAsync(serviceName: string[], invocation: Gio.DBusMethodInvocation) {
@@ -441,51 +463,82 @@ export class SystemTray extends Service implements Disposable {
         }
 
         invocation.return_value(null);
+        if (this.isDisposed) return;
+
+        const pending = this._pendingItemScopes.get(busName);
+        this._pendingItemScopes.delete(busName);
+        pending?.release();
+        if (this.isDisposed) return;
 
         const item = new TrayItem(busName, objectPath);
+        const child = this.resources.child();
+        child.scope.add(() => item.dispose());
+        if (this.isDisposed) return;
+        this._pendingItemScopes.set(busName, child);
 
-        const readyId = item.connect('ready', () => {
-            this._items.set(busName, item);
-            this.emit('added', busName);
-            this.notify('items');
-            this.emit('changed');
-            this._dbus.emit_signal(
-                'StatusNotifierItemRegistered',
-                new GLib.Variant('(s)', [busName + objectPath]),
-            );
-        });
-        globalSignalRegistry.register(item as unknown as GObject.Object, readyId);
-
-        const removedId = item.connect('removed', () => {
-            // Cleanup item
-            globalSignalRegistry.disconnect(item as unknown as GObject.Object);
-            item.dispose();
+        child.scope.connect(item, 'ready', () => {
+            if (this.isDisposed || this._pendingItemScopes.get(busName) !== child) return;
+            const active = this._itemScopes.get(busName);
+            this._itemScopes.delete(busName);
             this._items.delete(busName);
-            this.emit('removed', busName);
-            this.notify('items');
-            this.emit('changed');
-            this._dbus.emit_signal(
-                'StatusNotifierItemUnregistered',
-                new GLib.Variant('(s)', [busName]),
-            );
+            active?.release();
+            if (this.isDisposed || this._pendingItemScopes.get(busName) !== child) return;
+            this._pendingItemScopes.delete(busName);
+            this._itemScopes.set(busName, child);
+            this._items.set(busName, item);
+            this._publishItem(busName, objectPath, child);
         });
-        globalSignalRegistry.register(item as unknown as GObject.Object, removedId);
+
+        child.scope.connect(item, 'removed', () => {
+            if (this.isDisposed) return;
+            const active = this._itemScopes.get(busName) === child;
+            const pending = this._pendingItemScopes.get(busName) === child;
+            if (!active && !pending) return;
+            if (pending) this._pendingItemScopes.delete(busName);
+            if (active) {
+                this._itemScopes.delete(busName);
+                this._items.delete(busName);
+            }
+            child.release();
+            if (!active || this.isDisposed) return;
+            this._publishRemoval(busName);
+        });
+    }
+
+    private _publishItem(busName: string, objectPath: string, child: ChildScope) {
+        const current = () => !this.isDisposed && this._itemScopes.get(busName) === child;
+        this.emit('added', busName);
+        if (!current()) return;
+        this.notify('items');
+        if (!current()) return;
+        this.emit('changed');
+        if (!current()) return;
+        this._dbus?.emit_signal(
+            'StatusNotifierItemRegistered',
+            new GLib.Variant('(s)', [busName + objectPath]),
+        );
+    }
+
+    private _publishRemoval(busName: string) {
+        this.emit('removed', busName);
+        if (this.isDisposed) return;
+        this.notify('items');
+        if (this.isDisposed) return;
+        this.emit('changed');
+        if (this.isDisposed) return;
+        this._dbus?.emit_signal(
+            'StatusNotifierItemUnregistered',
+            new GLib.Variant('(s)', [busName]),
+        );
     }
 
     dispose(): void {
+        if (this.isDisposed) return;
         super.dispose();
-
-        // Cleanup all tray items
-        for (const item of this._items.values()) {
-            globalSignalRegistry.disconnect(item as unknown as GObject.Object);
-            item.dispose();
-        }
+        this._itemScopes.clear();
+        this._pendingItemScopes.clear();
         this._items.clear();
-
-        // Unexport D-Bus object
-        if (this._dbus) {
-            this._dbus.unexport();
-        }
+        this._dbusScope = undefined;
     }
 }
 
