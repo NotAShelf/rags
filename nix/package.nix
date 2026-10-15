@@ -8,6 +8,7 @@
   pnpmConfigHook,
   # Build dependencies
   meson,
+  nodejs,
   typescript,
   pkg-config,
   ninja,
@@ -60,6 +61,7 @@ in
 
           (sp + /package.json)
           (sp + /pnpm-lock.yaml)
+          (sp + /bundle.mjs)
 
           (sp + /meson.build)
           (sp + /meson_options.txt)
@@ -73,12 +75,13 @@ in
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
       pnpm = pnpm_10;
-      hash = "sha256-tecP0XuP14MEhmtcpJ2x3cOiP00zKB/RZhCwWq4EQf0=";
+      hash = "sha256-/X5bf2LcAIYhrTRfOp1SUbfR1P/Zh8/hhNCT28kM2e4=";
       fetcherVersion = 3; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
     nativeBuildInputs = [
       pnpm_10
+      nodejs
       pnpmConfigHook # dependency resolution
 
       pkg-config
