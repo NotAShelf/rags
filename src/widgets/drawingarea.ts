@@ -34,7 +34,7 @@ export class DrawingArea<Attr> extends Gtk.DrawingArea {
     constructor(props: DrawingAreaProps<Attr> = {} as DrawingAreaProps<Attr>) {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.DrawingArea.ConstructorProps);
-        this.connect('draw', (self, cr: any) => {
+        this._connect('draw', (self, cr: Cairo.Context) => {
             const w = this.get_allocated_width();
             const h = this.get_allocated_height();
             this.draw_fn(self, cr, w, h);
