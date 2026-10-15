@@ -35,8 +35,8 @@ export class LevelBar<Attr> extends Gtk.LevelBar {
     constructor(props: LevelBarProps<Attr> = {} as LevelBarProps<Attr>) {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.LevelBar.ConstructorProps);
-        this.connect('notify::mode', () => this.notify('bar-mode'));
-        this.connect('notify::orientation', () => this.notify('vertical'));
+        this._connect('notify::mode', () => this.notify('bar-mode'));
+        this._connect('notify::orientation', () => this.notify('vertical'));
         if (typeof setup === 'function') setup(this);
     }
 

@@ -57,8 +57,8 @@ export class Label<Attr> extends Gtk.Label {
         const text = typeof props === 'string' ? props : label;
         super(typeof props === 'string' ? {} : config);
         this._handleParamProp('label', text || '');
-        this.connect('notify::justify', () => this.notify('justification'));
-        this.connect('notify::ellipsize', () => this.notify('truncate'));
+        this._connect('notify::justify', () => this.notify('justification'));
+        this._connect('notify::ellipsize', () => this.notify('truncate'));
 
         if (typeof setup === 'function') setup(this);
     }

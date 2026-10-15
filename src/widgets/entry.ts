@@ -41,8 +41,8 @@ export class Entry<Attr> extends Gtk.Entry {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.Entry.ConstructorProps);
 
-        this.connect('activate', () => this.on_accept?.(this));
-        this.connect('notify::text', () => this.on_change?.(this));
+        this._connect('activate', () => this.on_accept?.(this));
+        this._connect('notify::text', () => this.on_change?.(this));
 
         if (typeof setup === 'function') setup(this);
     }

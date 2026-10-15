@@ -37,10 +37,10 @@ export class Calendar<Attr> extends Gtk.Calendar {
     constructor(props: CalendarProps<Attr> = {} as CalendarProps<Attr>) {
         const { setup, ...rest } = props as any;
         super(rest as Gtk.Calendar.ConstructorProps);
-        this.connect('notify::day', () => this.notify('date'));
-        this.connect('notify::month', () => this.notify('date'));
-        this.connect('notify::year', () => this.notify('date'));
-        this.connect('day-selected', this.on_day_selected.bind(this));
+        this._connect('notify::day', () => this.notify('date'));
+        this._connect('notify::month', () => this.notify('date'));
+        this._connect('notify::year', () => this.notify('date'));
+        this._connect('day-selected', this.on_day_selected.bind(this));
         if (typeof setup === 'function') setup(this);
     }
 

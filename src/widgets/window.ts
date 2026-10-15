@@ -1,4 +1,5 @@
 import { register, type BaseProps, type Widget } from './widget.js';
+import { ensureWidgetScope, type ChildScope } from '../internal/resource-scope.js';
 import Gtk from 'gi://Gtk?version=3.0';
 import Gdk from 'gi://Gdk?version=3.0';
 import { Binding } from '../service.js';
@@ -119,17 +120,7 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
 
         super(params as unknown as Gtk.Window.ConstructorProps);
 
-        const self = this as any;
-        self._onHandlerIds = [];
-        this.connect('destroy', () => {
-            if (self._onHandlerIds) {
-                for (const id of self._onHandlerIds) {
-                    this.disconnect(id);
-                }
-                self._onHandlerIds = [];
-            }
-            self._set('is-destroyed', true);
-        });
+        ensureWidgetScope(this);
 
         LayerShell.init_for_window(this);
         LayerShell.set_namespace(this, this.name);
@@ -362,29 +353,24 @@ export class Window<Child extends Gtk.Widget, Attr> extends Gtk.Window {
                 'use self.keybind("Escape", () => App.closeWindow("window-name"))',
         );
 
-        if (this.popup) {
-            const handlers = this._get<[number, number]>('popup');
-            if (handlers) {
-                const [esc, click] = handlers;
-                this.disconnect(esc);
-                this.disconnect(click);
-            }
-        }
+        if (this.popup) this._get<ChildScope>('popup')?.release();
 
         if (popup) {
-            const esc = this.connect('key-press-event', (_, event: Gdk.Event) => {
-                if (event.get_keyval()[1] === Gdk.KEY_Escape) {
+            const scope = ensureWidgetScope(this).child();
+            scope.scope.connect(this, 'key-press-event', (_, event) => {
+                const keyEvent = event as Gdk.Event;
+                if (keyEvent.get_keyval()[1] === Gdk.KEY_Escape) {
                     App.getWindow(this.name!) ? App.closeWindow(this.name!) : this.hide();
                 }
             });
 
-            const click = this.connect('button-release-event', () => {
+            scope.scope.connect(this, 'button-release-event', () => {
                 const [x, y] = this.get_pointer();
                 if (x === 0 && y === 0) App.closeWindow(this.name!);
             });
 
-            this._set('popup', [esc, click]);
-        }
+            this._set('popup', scope);
+        } else this._set('popup', undefined);
     }
 
     /** @deprecated Use `keymode` instead. */
