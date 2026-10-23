@@ -14,12 +14,12 @@ const date = Variable("", {
 // then you can simply instantiate one by calling it
 
 function Workspaces() {
-    const activeId = hyprland.active.workspace.bind("id")
+    const activeAddress = hyprland.active.workspace.bind("address")
     const workspaces = hyprland.bind("workspaces")
-        .as(ws => ws.map(({ id }) => Widget.Button({
-            on_clicked: () => hyprland.messageAsync(`dispatch workspace ${id}`),
-            child: Widget.Label(`${id}`),
-            class_name: activeId.as(i => `${i === id ? "focused" : ""}`),
+        .as(ws => ws.map(({ address, name }) => Widget.Button({
+            on_clicked: () => hyprland.dispatch.focus({ workspace: address }),
+            child: Widget.Label(name),
+            class_name: activeAddress.as(active => `${active === address ? "focused" : ""}`),
         })))
 
     return Widget.Box({
