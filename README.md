@@ -63,11 +63,9 @@ linting, CI and automation in the future.
 
 RAGS 1.10.0 has been mostly a maintenance release, with the repository
 re-adjusted for long-term maintenance and various dependencies updated to their
-latest versions. 1.10.0+ brings new additions such as better null checks,
-expanded widgets in the place of plain or bare-bones ones and exciting new
-features such as lazy-loaded windows and dynamic theme switching.
-
-The future of RAGS is bright, and you are invited to be a part of it.
+latest versions. 1.11.0 (and onwards) brings new additions such as better null
+checks, expanded widgets in the place of plain or bare-bones ones and exciting
+new features such as lazy-loaded windows and dynamic theme switching.
 
 ## Documentation
 
@@ -79,20 +77,20 @@ files.
 
 My main plan for RAGS, from the point of forking, has been to focus _mostly_ but
 not exclusively to focus on performance and security. This is rather a side
-effect of keeping dependencies up to date, but I'll make a focucsed effort on
+effect of keeping dependencies up to date, but I'll make a focussed effort on
 optimizing this program since it is a critical component of my desktop systems.
 
 I quite frankly do not intend, nor care, to add any new widgets or services as I
-do not have any need for them, however, I am ammendable to _critical_ additions
+do not have any need for them, however, I am amendable to _critical_ additions
 that make the RAGS experience better without degrading maintainability.
 
-What I _really_ want to achieve with this repository is to have the codebse age
+What I _really_ want to achieve with this repository is to have the codebase age
 well, without bitrotting over time and avoiding conflicts due to changing
 toolchain and dependencies. This usually has good security implications, and I
 care deeply about the security of a program that can run arbitrary Javascript on
 my system.
 
-As a final note, I would like to add a dash of Rust or Zig to this codebase to
+As a final touch, I would like to add a dash of Rust or Zig to this codebase to
 perhaps modernize the primary interface a little. Since we interact mainly with
 GTK and use bindings, this could also make RAGS evolve into its own thing over
 time and reduce some of the maintenance burden due to the removal of a layer of

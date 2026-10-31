@@ -2,7 +2,7 @@
 
 # RAGS Changelog
 
-## Unreleased
+## 1.12.0
 
 ### Added
 
@@ -13,6 +13,19 @@
   `hl.dsp.*` namespace (e.g. `hyprland.dispatch.focus({ workspace: '3' })`),
   plus `Hyprland.eval()` for raw Lua. Required for Hyprland 0.55+, which
   replaced the text dispatch protocol with a Lua interpreter
+
+### Changed
+
+- Resource lifetimes are now scoped to their owning services, widgets, and
+  windows. Polling, subprocess listeners, timers, frame callbacks, signal
+  connections, CSS providers, and D-Bus exports are cleaned up automatically
+  when their owner is disposed.
+- Reactive bindings and asynchronous updates now cancel stale work and ignore
+  results from superseded polling or listening sessions.
+- Runtime modules are bundled into resource entry points, improving the
+  packaging and startup path for installed builds.
+- The JavaScript build toolchain now targets GIRepository 5.5 and TypeScript 7
+  compatibility, and Nix builds use pnpm 12 with the updated workspace layout.
 
 ### Fixed
 
