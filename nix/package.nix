@@ -76,8 +76,8 @@ in
     pnpmDeps = fetchPnpmDeps {
       inherit (finalAttrs) pname src pnpmInstallFlags;
       pnpm = pnpm_12;
-      hash = "sha256-fP5Wp7vdm3E4CoFgGjPev2zjAfsi5ajB5ZmF0Fc5T9w=";
-      fetcherVersion = 4; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
+      hash = "sha256-nhaIKgw96n4ZTKLODLAaa1Gm69Ea7OjW49RpxsVzsNM=";
+      fetcherVersion = 5; # https://nixos.org/manual/nixpkgs/stable/#javascript-pnpm-fetcherVersion
     };
 
     nativeBuildInputs = [
